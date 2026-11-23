@@ -377,8 +377,8 @@ class Tab:
                     if report["source"] == "tds" and report["ok"]:
                         remember_origin(report["url"])
                 result.update(printer=printer, measured=store().sections(identity),
-                              preset_name="%s @%s" % (identity.label(), printer["name"]) if printer["name"] else
-                              identity.label(), licences=[ofd.LICENCE, spoolmandb.LICENCE])
+                              preset_name=writer.with_marker("%s @%s" % (identity.label(), printer["name"])
+                                                             if printer["name"] else identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
                 self.reply("result", **result)
             except Exception as error:
                 log.error("research failed:\n%s", traceback.format_exc())
@@ -397,7 +397,8 @@ class Tab:
         identity = _identity(data.get("identity"))
         bundle = orca.host.preset_bundle()
         printer = printer_info(bundle)
-        name = writer.safe_name(str(data.get("name") or "%s @%s" % (identity.label(), printer["name"])))
+        name = writer.safe_name(writer.with_marker(str(data.get("name") or "%s @%s" % (identity.label(),
+                                                                                         printer["name"]))))
         base_name = str(data.get("base") or "")
         base_config = preset_config(bundle.filaments, base_name) if base_name else {}
         values = {}
@@ -467,7 +468,7 @@ class Tab:
         mvs = float(data.get("max_volumetric_speed") or 0) or None
         identity = _identity(data.get("identity"))
         changes = process.fit(config, printer["nozzle"], mvs, identity.material, identity.product)
-        name = process.process_name(base_name, identity.label())
+        name = writer.with_marker(process.process_name(base_name, identity.label()))
         self.reply("process_plan", base=base_name, name=writer.safe_name(name), changes=changes,
                    layer_height=_clean(config.get("layer_height")))
 
@@ -478,7 +479,7 @@ class Tab:
         preset_config(bundle.prints, base_name)   # it must exist
         changes = [c for c in data.get("changes") or [] if c.get("key") in process.SPEEDS and
                    isinstance(c.get("new"), (int, float))]
-        name = writer.safe_name(str(data.get("name") or base_name + " FilaForge"))
+        name = writer.safe_name(writer.with_marker(str(data.get("name") or base_name)))
         preset = process.preset(base_name, name, [printer["name"]] if printer["name"] else [], changes)
         path = install(preset, bundle)
         self.reply("saved", kind="process", name=name, path=path, saved=saved_presets(bundle))
