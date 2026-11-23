@@ -1,0 +1,119 @@
+"""A print process for one filament: the printer's process with its speeds fitted to the filament.
+
+Two things lower a speed: the filament's max volumetric speed (the most plastic per second the hot end melts for
+it, which OrcaSlicer also enforces while slicing; here it shows up in the preset) and the material's habits
+(PETG and silk PLA look better with slower outer walls, TPU needs everything slow). The factors are rules of
+thumb, marked "estimated"; the volumetric limit is arithmetic.
+"""
+
+import math
+
+from .text import fold, number, split_material, tokens
+
+# speed key -> (line width key, layer height key)
+SPEEDS = {
+    "outer_wall_speed": ("outer_wall_line_width", "layer_height"),
+    "inner_wall_speed": ("inner_wall_line_width", "layer_height"),
+    "sparse_infill_speed": ("sparse_infill_line_width", "layer_height"),
+    "internal_solid_infill_speed": ("internal_solid_infill_line_width", "layer_height"),
+    "top_surface_speed": ("top_surface_line_width", "layer_height"),
+    "gap_infill_speed": ("inner_wall_line_width", "layer_height"),
+    "support_speed": ("support_line_width", "layer_height"),
+    "initial_layer_speed": ("initial_layer_line_width", "initial_layer_print_height"),
+    "initial_layer_infill_speed": ("initial_layer_line_width", "initial_layer_print_height"),
+}
+# material class -> {speed key: factor}; "*" for every speed key not named
+FACTORS = {
+    "PLA": {},
+    "SILK": {"outer_wall_speed": 0.6, "top_surface_speed": 0.7, "inner_wall_speed": 0.85},
+    "PETG": {"outer_wall_speed": 0.7, "top_surface_speed": 0.75, "inner_wall_speed": 0.85, "sparse_infill_speed": 0.85,
+             "gap_infill_speed": 0.8},
+    "ABS": {"outer_wall_speed": 0.85, "top_surface_speed": 0.85},
+    "ASA": {"outer_wall_speed": 0.85, "top_surface_speed": 0.85},
+    "PC": {"*": 0.7},
+    "PA": {"*": 0.7},
+    "CF": {"outer_wall_speed": 0.8, "top_surface_speed": 0.8},
+    "TPU": {"*": 0.3},
+}
+TPU_CAP = 60.0   # mm/s: no TPU speed above this, whatever the process said
+
+
+def material_class(material, product=""):
+    base, words = split_material(material, product)
+    words = set(tokens(words)) | set(tokens(material))
+    if base == "TPU":
+        return "TPU"
+    if base.endswith("-CF") or "cf" in words or "carbon" in words:
+        return "CF" if base.startswith("PLA") else (base.split("-")[0] if base.split("-")[0] in FACTORS else "CF")
+    if base == "PLA" and "silk" in words:
+        return "SILK"
+    if base in ("PETG", "PCTG", "PET"):
+        return "PETG"
+    return base if base in FACTORS else "PLA"
+
+
+def width_mm(text, nozzle, fallback=None):
+    """A line width in mm from OrcaSlicer's text ("0.45", "110%", "0" for automatic)."""
+    raw = str(text or "").split(",")[0].strip()
+    if raw.endswith("%"):
+        value = number(raw)
+        return nozzle * value / 100 if value else fallback
+    value = number(raw)
+    return value if value else fallback
+
+
+def area(width, height):
+    """OrcaSlicer's cross-section of an extrusion: a rectangle with rounded sides."""
+    return height * (width - height * (1 - math.pi / 4))
+
+
+def fit(config, nozzle, max_volumetric_speed, material, product=""):
+    """[{key, base, new, limit, factor, reason}] of the speed changes for this filament."""
+    cls = material_class(material, product)
+    factors = FACTORS.get(cls, {})
+    default_width = width_mm(config.get("line_width"), nozzle, nozzle * 1.125)
+    changes = []
+    for key, (width_key, height_key) in SPEEDS.items():
+        base = number(str(config.get(key, "")).split(",")[0])
+        if not base:
+            continue
+        width = width_mm(config.get(width_key), nozzle, default_width)
+        height = number(str(config.get(height_key) or config.get("layer_height") or "0.2").split(",")[0]) or 0.2
+        limit = max_volumetric_speed / area(width, height) if max_volumetric_speed and width else None
+        factor = factors.get(key, factors.get("*", 1.0))
+        new = base * factor
+        reasons = []
+        if factor != 1.0:
+            reasons.append("material %s x%g" % (cls, factor))
+        if cls == "TPU" and new > TPU_CAP:
+            new = TPU_CAP
+            reasons.append("TPU max %g mm/s" % TPU_CAP)
+        if limit is not None and new > limit:
+            new = limit
+            reasons.append("max flow %g mm³/s at %.2f x %.2f mm" % (max_volumetric_speed, width, height))
+        new = max(1, int(math.floor(new)))
+        if new < int(round(base)):
+            changes.append({"key": key, "base": base, "new": new, "limit": round(limit, 1) if limit else None,
+                            "factor": factor, "reason": ", ".join(reasons)})
+    return changes
+
+
+def preset(base_name, name, printer_names, changes):
+    """An OrcaSlicer process preset that inherits base_name and sets only the changed speeds."""
+    out = {"type": "process", "name": name, "from": "User", "instantiation": "true", "inherits": base_name,
+           "print_settings_id": name, "version": "1.0.0"}
+    if printer_names:
+        out["compatible_printers"] = list(printer_names)
+        out["compatible_printers_condition"] = ""
+    for change in changes:
+        out[change["key"]] = str(change["new"])
+    return out
+
+
+def process_name(base_name, filament_label):
+    bare = base_name.split("@")[0].strip() if "@" in base_name else base_name
+    printer = base_name.split("@", 1)[1].strip() if "@" in base_name else ""
+    name = "%s %s" % (bare, filament_label)
+    return ("%s @%s" % (name, printer) if printer else name).strip()
+
+
