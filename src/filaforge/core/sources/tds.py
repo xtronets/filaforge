@@ -43,7 +43,9 @@ _ANY_LABEL = re.compile("|".join("(?:%s)" % v for v in LABELS.values()), re.I)
 
 def pdf_text(data):
     """The text of a PDF's pages, or "" when it can't be read."""
+    import logging
     from ..._vendor.pypdf import PdfReader   # vendored; imported here so the rest works without it
+    logging.getLogger("filaforge._vendor.pypdf").setLevel(logging.ERROR)   # its warnings about odd PDFs
     try:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
@@ -60,7 +62,7 @@ def html_text(data):
     text = data.decode("utf-8", "replace") if isinstance(data, bytes) else str(data)
     text = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", text)
     text = re.sub(r"(?i)<br\s*/?>|</(p|div|li|tr|h\d|td|th)>", "\n", text)
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"<[a-zA-Z/!][^<>]*>", " ", text)
     text = re.sub(r"&nbsp;|&#160;", " ", text)
     text = re.sub(r"&deg;", "°", text)
     return re.sub(r"&[a-z]+;", " ", text)

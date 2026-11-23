@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FilaForge</title>
+<style>
+:root {
+  --bg: var(--orca-bg, #ffffff);
+  --fg: var(--orca-fg, #1f2429);
+  --muted: var(--orca-muted, #6b7580);
+  --border: var(--orca-border, #d9dee3);
+  --accent: var(--orca-accent, #009688);
+  --accent-fg: var(--orca-accent-fg, #ffffff);
+  --ui: var(--orca-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --panel: color-mix(in srgb, var(--fg) 4%, var(--bg));
+  --soft: color-mix(in srgb, var(--fg) 8%, var(--bg));
+  --tested: #2e7d32; --declared: #1565c0; --preset: #6a4fb3; --estimated: #b26a00; --baseline: #78828c;
+  --bad: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: var(--orca-bg, #2b2d30); --fg: var(--orca-fg, #e4e6e8); --muted: var(--orca-muted, #9aa0a6);
+          --border: var(--orca-border, #3d4043);
+          --tested: #66bb6a; --declared: #64b5f6; --preset: #b39ddb; --estimated: #ffb74d; --baseline: #9aa0a6; --bad: #ef5350; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.45 var(--ui); display: flex; flex-direction: column; }
+h1, h2, h3 { color: inherit; margin: 0; }
+h2 { font-size: 13px; font-weight: 650; letter-spacing: .01em; }
+a { color: var(--accent); }
+button { font: inherit; padding: 5px 12px; cursor: pointer; border-radius: 6px; background: var(--accent);
+         color: var(--accent-fg); border: 1px solid var(--accent); white-space: nowrap; }
+button.secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+button.link { background: none; border: 0; color: var(--accent); padding: 0; }
+button:disabled { opacity: .5; cursor: default; }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border);
+                border-radius: 6px; padding: 5px 8px; min-width: 0; }
+input[type=checkbox] { accent-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.muted { color: var(--muted); }
+.small { font-size: 11.5px; }
+.mono { font-family: var(--mono); font-size: 11.5px; }
+[hidden] { display: none !important; }
+
+header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.brand svg { width: 22px; height: 22px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--soft);
+        font-size: 12px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spacer { flex: 1; }
+
+main { flex: 1; display: grid; grid-template-columns: minmax(280px, 340px) 1fr; min-height: 0; }
+aside { border-right: 1px solid var(--border); overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
+section.results { overflow: auto; padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+
+.tabs { display: flex; gap: 2px; background: var(--soft); padding: 2px; border-radius: 8px; }
+.tabs button { flex: 1; background: transparent; border: 0; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+.tabs button.on { background: var(--bg); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 11.5px; color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; }
+.row > * { flex: 1; }
+.row > button, .row > .fit { flex: none; }
+
+.spools { border: 1px solid var(--border); border-radius: 8px; max-height: 260px; overflow: auto; }
+.spool { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.spool:last-child { border-bottom: 0; }
+.spool:hover { background: var(--soft); }
+.spool.on { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+.swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); flex: none; }
+.spool .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+
+.sheets { display: flex; flex-direction: column; gap: 4px; }
+.sheet { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.sheet span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sources { display: flex; flex-direction: column; gap: 6px; }
+.source { display: grid; grid-template-columns: 18px 1fr; gap: 2px 6px; font-size: 12px; }
+.source .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; background: var(--border); }
+.source.ok .dot { background: var(--tested); }
+.source.empty .dot { background: var(--estimated); }
+.source.fail .dot { background: var(--bad); }
+.source.run .dot { background: var(--accent); animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { opacity: .3; } to { opacity: 1; } }
+.source .msg { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
+
+.empty-state { margin: auto; text-align: center; color: var(--muted); max-width: 440px; padding: 40px 0; }
+.empty-state svg { width: 64px; height: 64px; opacity: .5; margin-bottom: 8px; }
+
+.card { border: 1px solid var(--border); border-radius: 10px; }
+.card > .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.card > .body { padding: 12px 14px; }
+.title { font-size: 16px; font-weight: 700; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 600; font-size: 11.5px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.val input { width: 86px; text-align: right; font-family: var(--mono); }
+td.val input.wide { width: 220px; text-align: left; }
+tr.off td:not(:first-child) { opacity: .5; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+         color: var(--k); background: color-mix(in srgb, var(--k) 14%, transparent); }
+.k-tested { --k: var(--tested); } .k-declared { --k: var(--declared); } .k-preset { --k: var(--preset); }
+.k-estimated { --k: var(--estimated); } .k-baseline { --k: var(--baseline); }
+.conf { display: inline-flex; gap: 2px; vertical-align: middle; }
+.conf i { width: 5px; height: 11px; border-radius: 2px; background: var(--border); }
+.conf.c1 i:nth-child(-n+1), .conf.c2 i:nth-child(-n+2), .conf.c3 i:nth-child(-n+3) { background: var(--accent); }
+.why { color: var(--muted); font-size: 11.5px; }
+details.alts summary { cursor: pointer; color: var(--accent); font-size: 11.5px; list-style: none; }
+details.alts summary::-webkit-details-marker { display: none; }
+.alt { font-size: 11.5px; display: flex; gap: 6px; padding: 1px 0; }
+.alt .v { font-family: var(--mono); min-width: 64px; }
+.alt.differ .v { color: var(--bad); }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.note { font-size: 12px; color: var(--muted); }
+.plan { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--panel); font-size: 12px; }
+.plan ul { margin: 4px 0 0; padding-left: 18px; }
+
+#toast { position: fixed; right: 16px; bottom: 16px; max-width: 420px; padding: 10px 14px; border-radius: 8px;
+         background: var(--fg); color: var(--bg); box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 12.5px; z-index: 9; }
+#toast.err { background: var(--bad); color: #fff; }
+
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--fg); padding: 0; width: min(520px, 92vw); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog .head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 650; }
+dialog .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.saved-list { max-height: 50vh; overflow: auto; }
+.saved-item { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.saved-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 820px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6" opacity=".45"/>
+      <path d="M17.5 4.5l2 2-5.5 5.5" stroke="var(--accent)"/></svg>
+    FilaForge
+  </div>
+  <span class="chip" id="printer-chip" title=""></span>
+  <span class="spacer"></span>
+  <button class="secondary" id="btn-saved" data-t="saved"></button>
+  <button class="secondary" id="btn-settings" data-t="settings"></button>
+</header>
+<main>
+  <aside>
+    <div class="tabs" role="tablist">
+      <button class="on" data-pick="spoolman" data-t="from_spoolman"></button>
+      <button data-pick="manual" data-t="manual"></button>
+    </div>
+    <div id="pick-spoolman" class="field">
+      <div class="row"><input id="spool-filter" type="search" data-tp="filter_spools"><button class="secondary fit" id="btn-reload-spools" data-t="reload" title=""></button></div>
+      <div class="spools" id="spools"></div>
+      <div class="note" id="spool-note"></div>
+    </div>
+    <div id="pick-manual" class="field" hidden>
+      <div class="field"><label data-t="brand"></label><input id="f-brand" data-tp="brand_eg" list="brands"></div>
+      <div class="row">
+        <div class="field"><label data-t="material"></label>
+          <select id="f-material"></select></div>
+        <div class="field"><label data-t="product"></label><input id="f-product" data-tp="product_eg"></div>
+      </div>
+      <datalist id="brands"></datalist>
+    </div>
+    <div class="field">
+      <label data-t="sheet"></label>
+      <div class="row"><input id="sheet-url" data-tp="sheet_eg"><button class="secondary fit" id="btn-add-sheet" data-t="add"></button></div>
+      <div class="row"><label class="secondary fit small muted" for="sheet-file" style="cursor:pointer" data-t="or_pdf"></label><input type="file" id="sheet-file" accept="application/pdf,.pdf" hidden></div>
+      <div class="sheets" id="sheets"></div>
+    </div>
+    <button id="btn-research" data-t="research"></button>
+    <div class="sources" id="sources"></div>
+    <div class="note small" id="licences"></div>
+  </aside>
+
+  <section class="results" id="results">
+    <div class="empty-state" id="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>
+      <div data-t="empty"></div>
+    </div>
+
+    <div class="card" id="card-result" hidden>
+      <div class="head">
+        <span class="swatch" id="r-swatch"></span>
+        <div><div class="title" id="r-title"></div><div class="small muted" id="r-base"></div></div>
+        <span class="spacer"></span>
+        <div class="small muted" id="r-legend"></div>
+      </div>
+      <div class="body">
+        <table>
+          <thead><tr><th style="width:28px"></th><th data-t="setting"></th><th data-t="value"></th><th data-t="origin"></th><th data-t="sources"></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <button class="link small" id="btn-same" style="margin-top:8px"></button>
+      </div>
+      <div class="body" style="border-top:1px solid var(--border)">
+        <div class="field"><label data-t="preset_name"></label><input id="preset-name"></div>
+        <div class="actions" style="margin-top:10px">
+          <button id="btn-make-preset" data-t="make_preset"></button>
+          <button class="secondary" id="btn-spoolman-plan" data-t="to_spoolman"></button>
+          <span class="note" id="act-note"></span>
+        </div>
+        <div class="plan" id="spoolman-plan" hidden></div>
+      </div>
+    </div>
+
+    <div class="card" id="card-measured" hidden>
+      <div class="head"><h2 data-t="measured_title"></h2><span class="spacer"></span>
+        <select id="m-section"></select></div>
+      <div class="body">
+        <div class="note" data-t="measured_note" style="margin-bottom:10px"></div>
+        <div class="grid2" id="m-fields"></div>
+        <div class="actions" style="margin-top:12px"><button id="btn-save-measured" data-t="save_measured"></button>
+          <span class="note" id="m-note"></span></div>
+      </div>
+    </div>
+
+    <div class="card" id="card-process" hidden>
+      <div class="head"><h2 data-t="process_title"></h2></div>
+      <div class="body">
+        <div class="note" data-t="process_note" style="margin-bottom:10px"></div>
+        <div class="row"><select id="p-base"></select><button class="secondary fit" id="btn-process-plan" data-t="calculate"></button></div>
+        <div id="p-plan" hidden style="margin-top:12px">
+          <table><thead><tr><th data-t="setting"></th><th data-t="now"></th><th data-t="new"></th><th data-t="why"></th></tr></thead><tbody id="p-rows"></tbody></table>
+          <div class="field" style="margin-top:10px"><label data-t="process_name"></label><input id="p-name"></div>
+          <div class="actions" style="margin-top:10px"><button id="btn-process-save" data-t="save_process"></button><span class="note" id="p-note"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg-settings">
+  <div class="head" data-t="settings"></div>
+  <div class="body">
+    <div class="field"><label data-t="spoolman_url"></label><input id="s-spoolman" placeholder="http://192.168.1.2:7912"></div>
+    <div class="field"><label data-t="language"></label>
+      <select id="s-language"><option value="auto">Auto</option><option value="pl">Polski</option><option value="en">English</option></select></div>
+    <label class="row" style="justify-content:flex-start;gap:8px"><input type="checkbox" id="s-online" style="flex:none"><span data-t="online"></span></label>
+  </div>
+  <div class="foot"><button class="secondary" data-close data-t="cancel"></button><button id="btn-settings-save" data-t="save"></button></div>
+</dialog>
+
+<dialog id="dlg-saved">
+  <div class="head" data-t="saved_title"></div>
+  <div class="body"><div class="note" data-t="saved_note"></div><div class="saved-list" id="saved-list"></div></div>
+  <div class="foot"><button class="secondary" data-close data-t="close"></button></div>
+</dialog>
+
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+const BOOT = /*BOOT*/null || {version: 'dev', settings: {language: 'auto', spoolman_url: '', online: true}};
+const T = {
+  pl: {
+    saved: 'Zapisane', settings: 'Ustawienia', from_spoolman: 'Ze Spoolmana', manual: 'Ręcznie', filter_spools: 'Szukaj szpuli…',
+    reload: '↻', brand: 'Producent', brand_eg: 'np. Sunlu', material: 'Materiał', product: 'Produkt / odmiana', product_eg: 'np. PLA+, Silk, High Speed',
+    sheet: 'Karta techniczna (TDS)', sheet_eg: 'Adres PDF lub strony produktu', add: 'Dodaj', or_pdf: '…albo wybierz plik PDF',
+    research: 'Szukaj danych', empty: 'Wybierz szpulę ze Spoolmana albo wpisz producenta i materiał, potem „Szukaj danych”. FilaForge zbierze wartości z otwartych baz, kart technicznych producenta i presetów Orki, pokaże skąd jest każda i zrobi z nich preset.',
+    setting: 'Ustawienie', value: 'Wartość', origin: 'Pochodzenie', sources: 'Źródła', preset_name: 'Nazwa presetu w Orce',
+    make_preset: 'Utwórz preset w Orce', to_spoolman: 'Zapisz w Spoolmanie…', measured_title: 'Twoje pomiary',
+    measured_note: 'Wartości z Twojej kalibracji mają pierwszeństwo przed wszystkimi źródłami. Puste pole = brak pomiaru.',
+    save_measured: 'Zapisz pomiary i przelicz', process_title: 'Proces druku dla tego filamentu',
+    process_note: 'Kopia wybranego procesu drukarki z prędkościami obniżonymi do przepływu filamentu i do zwyczajów materiału (np. wolniejsze ściany zewnętrzne dla PETG i Silk). Orca i tak ogranicza prędkość do maks. przepływu przy cięciu; tu widzisz to wprost.',
+    calculate: 'Przelicz', now: 'Teraz', new: 'Nowa', why: 'Dlaczego', process_name: 'Nazwa procesu', save_process: 'Zapisz proces w Orce',
+    spoolman_url: 'Adres Spoolmana', language: 'Język', online: 'Szukaj w internecie (Open Filament Database, SpoolmanDB, karty TDS)',
+    cancel: 'Anuluj', save: 'Zapisz', close: 'Zamknij', saved_title: 'Presety zrobione przez FilaForge',
+    saved_note: 'Leżą w osobnym pakiecie „FilaForge” w Twoich presetach użytkownika. Usunięcie tutaj usuwa je z Orki.',
+    remove: 'Usuń', no_saved: 'Jeszcze nic.', kind_tested: 'Zmierzona', kind_declared: 'Producent', kind_preset: 'Preset',
+    kind_estimated: 'Szacunek', kind_baseline: 'Ogólny', base_vendor: 'na bazie presetu producenta: {name}', base_generic: 'na bazie ogólnego presetu: {name}',
+    base_none: 'brak presetu bazowego tego materiału dla drukarki', also: '{n} źr.', same: 'jak w presecie bazowym',
+    src_ofd: 'Open Filament Database', src_spoolmandb: 'SpoolmanDB', src_orca: 'Presety OrcaSlicer', src_tds: 'Karta techniczna',
+    src_tested: 'Twoje pomiary', src_spoolman: 'Spoolman', working: 'Szukam…', no_spoolman: 'Ustaw adres Spoolmana w Ustawieniach.',
+    spools_none: 'Brak filamentów.', pick_first: 'Wybierz szpulę albo wpisz producenta.', made_preset: 'Preset „{name}” jest w Orce (Filament → Presety użytkownika).',
+    made_process: 'Proces „{name}” jest w Orce.', removed: 'Usunięto „{name}”.', measured_saved: 'Pomiary zapisane.',
+    sp_plan: 'Do pola orca_settings filamentu #{id}, sekcja „{section}”:', sp_add: 'Dopiszę ({n}):', sp_keep: 'Zostawię, bo już tam są ({n}):',
+    sp_nothing: 'Nic do dopisania: wszystkie te ustawienia już są w Spoolmanie.', sp_confirm: 'Zapisz w Spoolmanie', sp_section_all: 'Wszystkie drukarki (*)',
+    sp_written: 'Zapisano w Spoolmanie: {n} ustawień. Spooler zrobi z nich preset przy następnej synchronizacji.', sp_need: 'Ta funkcja wymaga szpuli wybranej ze Spoolmana.',
+    sec_all: 'Wszystkie drukarki', sec_printer: 'Tylko {name}', no_changes: 'Proces już mieści się w przepływie filamentu: nic do zmiany.',
+    legend: 'Kolor = skąd wartość, kreski = pewność', confidence: 'pewność: {c}', c_high: 'wysoka', c_medium: 'średnia', c_low: 'niska',
+    err: 'Błąd: {m}', brand_missing: 'Podaj producenta.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'Presety Orki…', step_tds: 'Karta techniczna…',
+    apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
+  },
+  en: {
+    saved: 'Saved', settings: 'Settings', from_spoolman: 'From Spoolman', manual: 'Manual', filter_spools: 'Search spools…',
+    reload: '↻', brand: 'Brand', brand_eg: 'e.g. Sunlu', material: 'Material', product: 'Product / kind', product_eg: 'e.g. PLA+, Silk, High Speed',
+    sheet: 'Data sheet (TDS)', sheet_eg: 'Address of a PDF or product page', add: 'Add', or_pdf: '…or pick a PDF file',
+    research: 'Find data', empty: 'Pick a spool from Spoolman, or type the brand and material, then “Find data”. FilaForge gathers values from open databases, the maker’s data sheets and OrcaSlicer’s presets, shows where each comes from and turns them into a preset.',
+    setting: 'Setting', value: 'Value', origin: 'Origin', sources: 'Sources', preset_name: 'Preset name in OrcaSlicer',
+    make_preset: 'Create preset in OrcaSlicer', to_spoolman: 'Save to Spoolman…', measured_title: 'Your measurements',
+    measured_note: 'Values from your own calibration win over every source. An empty field means not measured.',
+    save_measured: 'Save and recalculate', process_title: 'Print process for this filament',
+    process_note: 'A copy of the printer’s process with speeds lowered to the filament’s flow and to the material’s habits (e.g. slower outer walls for PETG and silk). OrcaSlicer caps speeds to the max flow while slicing anyway; here you see it plainly.',
+    calculate: 'Calculate', now: 'Now', new: 'New', why: 'Why', process_name: 'Process name', save_process: 'Save process in OrcaSlicer',
+    spoolman_url: 'Spoolman address', language: 'Language', online: 'Search online (Open Filament Database, SpoolmanDB, data sheets)',
+    cancel: 'Cancel', save: 'Save', close: 'Close', saved_title: 'Presets made by FilaForge',
+    saved_note: 'They live in a separate “FilaForge” bundle among your user presets. Removing one here removes it from OrcaSlicer.',
+    remove: 'Remove', no_saved: 'Nothing yet.', kind_tested: 'Tested', kind_declared: 'Maker', kind_preset: 'Preset',
+    kind_estimated: 'Estimate', kind_baseline: 'Generic', base_vendor: 'based on the maker’s preset: {name}', base_generic: 'based on the generic preset: {name}',
+    base_none: 'no base preset of this material for the printer', also: '{n} src', same: 'as in the base preset',
+    src_ofd: 'Open Filament Database', src_spoolmandb: 'SpoolmanDB', src_orca: 'OrcaSlicer presets', src_tds: 'Data sheet',
+    src_tested: 'Your measurements', src_spoolman: 'Spoolman', working: 'Searching…', no_spoolman: 'Set the Spoolman address in Settings.',
+    spools_none: 'No filaments.', pick_first: 'Pick a spool or type a brand.', made_preset: 'Preset “{name}” is in OrcaSlicer (Filament → User presets).',
+    made_process: 'Process “{name}” is in OrcaSlicer.', removed: 'Removed “{name}”.', measured_saved: 'Measurements saved.',
+    sp_plan: 'Into filament #{id}’s orca_settings field, section “{section}”:', sp_add: 'Will add ({n}):', sp_keep: 'Will keep, already there ({n}):',
+    sp_nothing: 'Nothing to add: Spoolman already has all of these settings.', sp_confirm: 'Save to Spoolman', sp_section_all: 'Every printer (*)',
+    sp_written: 'Saved to Spoolman: {n} settings. Spooler turns them into a preset on its next sync.', sp_need: 'This needs a spool picked from Spoolman.',
+    sec_all: 'Every printer', sec_printer: 'Only {name}', no_changes: 'The process already fits the filament’s flow: nothing to change.',
+    legend: 'Colour = where a value comes from, bars = confidence', confidence: 'confidence: {c}', c_high: 'high', c_medium: 'medium', c_low: 'low',
+    err: 'Error: {m}', brand_missing: 'Type the brand.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'OrcaSlicer presets…', step_tds: 'Data sheet…',
+    apply_tip: 'Ticked ones go into the preset and Spoolman', show_same: 'Also show {n} settings equal to the base preset', hide_same: 'Hide {n} settings equal to the base preset', printer_none: 'No printer selected in OrcaSlicer', layer: 'layer {h} mm'
+  }
+};
+const KEY_LABELS = {
+  pl: { nozzle_temperature: 'Temperatura dyszy', nozzle_temperature_initial_layer: 'Dysza – pierwsza warstwa', nozzle_temperature_range_low: 'Zakres dyszy od',
+        nozzle_temperature_range_high: 'Zakres dyszy do', hot_plate_temp: 'Stół (gładki PEI)', hot_plate_temp_initial_layer: 'Stół gładki – 1. warstwa',
+        textured_plate_temp: 'Stół (teksturowany PEI)', textured_plate_temp_initial_layer: 'Stół teksturowany – 1. warstwa', filament_density: 'Gęstość',
+        filament_max_volumetric_speed: 'Maks. przepływ', fan_min_speed: 'Wentylator min.', fan_max_speed: 'Wentylator maks.', temperature_vitrification: 'Temp. mięknięcia',
+        chamber_temperature: 'Temperatura komory', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Włącz pressure advance',
+        filament_retraction_length: 'Retrakcja – długość', filament_retraction_speed: 'Retrakcja – prędkość', filament_notes: 'Notatki',
+        outer_wall_speed: 'Ściana zewnętrzna', inner_wall_speed: 'Ściany wewnętrzne', sparse_infill_speed: 'Wypełnienie', internal_solid_infill_speed: 'Wypełnienie pełne',
+        top_surface_speed: 'Powierzchnia górna', gap_infill_speed: 'Szczeliny', support_speed: 'Podpory', initial_layer_speed: 'Pierwsza warstwa', initial_layer_infill_speed: 'Wypełnienie 1. warstwy' },
+  en: { nozzle_temperature: 'Nozzle temperature', nozzle_temperature_initial_layer: 'Nozzle – first layer', nozzle_temperature_range_low: 'Nozzle range from',
+        nozzle_temperature_range_high: 'Nozzle range to', hot_plate_temp: 'Bed (smooth PEI)', hot_plate_temp_initial_layer: 'Smooth bed – first layer',
+        textured_plate_temp: 'Bed (textured PEI)', textured_plate_temp_initial_layer: 'Textured bed – first layer', filament_density: 'Density',
+        filament_max_volumetric_speed: 'Max volumetric speed', fan_min_speed: 'Fan min', fan_max_speed: 'Fan max', temperature_vitrification: 'Softening temperature',
+        chamber_temperature: 'Chamber temperature', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Enable pressure advance',
+        filament_retraction_length: 'Retraction length', filament_retraction_speed: 'Retraction speed', filament_notes: 'Notes',
+        outer_wall_speed: 'Outer wall', inner_wall_speed: 'Inner walls', sparse_infill_speed: 'Sparse infill', internal_solid_infill_speed: 'Solid infill',
+        top_surface_speed: 'Top surface', gap_infill_speed: 'Gap infill', support_speed: 'Support', initial_layer_speed: 'First layer', initial_layer_infill_speed: 'First layer infill' }
+};
+const UNITS = { nozzle_temperature: '°C', nozzle_temperature_initial_layer: '°C', nozzle_temperature_range_low: '°C', nozzle_temperature_range_high: '°C',
+  hot_plate_temp: '°C', hot_plate_temp_initial_layer: '°C', textured_plate_temp: '°C', textured_plate_temp_initial_layer: '°C', filament_density: 'g/cm³',
+  filament_max_volumetric_speed: 'mm³/s', fan_min_speed: '%', fan_max_speed: '%', temperature_vitrification: '°C', chamber_temperature: '°C',
+  filament_retraction_length: 'mm', filament_retraction_speed: 'mm/s' };
+const MEASURE = [['nozzle_temp', 'nozzle_temperature', 1], ['bed_temp', 'hot_plate_temp', 1], ['flow_ratio', 'filament_flow_ratio', 0.01],
+  ['pressure_advance', 'pressure_advance', 0.001], ['max_volumetric_speed', 'filament_max_volumetric_speed', 0.5],
+  ['retraction_length', 'filament_retraction_length', 0.1], ['retraction_speed', 'filament_retraction_speed', 1]];
+const MATERIALS = ['PLA', 'PLA+', 'PETG', 'ABS', 'ASA', 'TPU', 'PC', 'PA', 'PLA-CF', 'PETG-CF', 'PA-CF', 'PCTG', 'PVA', 'HIPS', 'PP'];
+const BRANDS = ['Sunlu', 'Polymaker', 'eSUN', 'Elegoo', 'Bambu Lab', 'Creality', 'Prusament', 'Fiberlogy', 'Spectrum', 'Devil Design', 'Rosa3D',
+  'Overture', 'Jayo', 'Anycubic', 'Kingroon', 'Snapmaker', 'Eryone', 'Geeetech', 'Fillamentum', 'Extrudr', 'colorFabb', 'Sakata3D', 'Azurefilm'];
+
+const $ = id => document.getElementById(id);
+const S = { settings: BOOT.settings, printer: null, processes: [], saved: [], spools: [], spool: null, pick: 'spoolman',
+            sheets: [], files: [], result: null, steps: {}, measured: {}, showSame: false };
+let L = 'pl';
+
+function lang() {
+  const s = S.settings.language;
+  L = s === 'pl' || s === 'en' ? s : ((navigator.language || 'en').toLowerCase().startsWith('pl') ? 'pl' : 'en');
+  document.documentElement.lang = L;
+}
+function t(key, vars) {
+  let s = (T[L] && T[L][key]) || T.en[key] || key;
+  for (const k in vars || {}) s = s.split('{' + k + '}').join(vars[k]);
+  return s;
+}
+function label(key) { return (KEY_LABELS[L] || {})[key] || (KEY_LABELS.en[key]) || key; }
+function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function translate() {
+  document.querySelectorAll('[data-t]').forEach(el => el.textContent = t(el.dataset.t));
+  document.querySelectorAll('[data-tp]').forEach(el => el.placeholder = t(el.dataset.tp));
+}
+function send(msg) { if (window.orca && orca.postMessage) orca.postMessage(msg); }
+let toastTimer = null;
+function toast(text, err) {
+  const el = $('toast'); el.textContent = text; el.className = err ? 'err' : ''; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, err ? 9000 : 5000);
+}
+function busy(btn, on) { if (btn) btn.disabled = on; }
+
+// ---------- header
+function renderPrinter() {
+  const p = S.printer || {};
+  const chip = $('printer-chip');
+  if (!p.name) { chip.textContent = t('printer_none'); return; }
+  chip.textContent = p.name + ' · ' + p.nozzle + ' mm' + (p.process ? ' · ' + p.process : '');
+  chip.title = chip.textContent;
+}
+
+// ---------- filament pick
+function setPick(which) {
+  S.pick = which;
+  document.querySelectorAll('[data-pick]').forEach(b => b.classList.toggle('on', b.dataset.pick === which));
+  $('pick-spoolman').hidden = which !== 'spoolman';
+  $('pick-manual').hidden = which !== 'manual';
+}
+function renderSpools() {
+  const q = $('spool-filter').value.trim().toLowerCase();
+  const list = S.spools.filter(f => !q || [f.vendor, f.material, f.name, f.variant].join(' ').toLowerCase().includes(q));
+  $('spools').innerHTML = list.map(f => `<div class="spool${S.spool && S.spool.id === f.id ? ' on' : ''}" data-id="${f.id}">
+      <span class="swatch" style="background:#${esc(f.color_hex || 'ccc')}"></span>
+      <span class="name"><b>${esc(f.vendor)}</b> ${esc(f.material)}${f.variant && !f.name.toLowerCase().includes(f.variant.toLowerCase()) ? ' ' + esc(f.variant) : ''} <span class="muted">${esc(f.name)}</span></span>
+      ${f.has_settings ? '<span class="tag">orca</span>' : ''}<span class="tag">#${f.id}</span></div>`).join('')
+    || `<div class="spool muted">${esc(S.settings.spoolman_url ? t('spools_none') : t('no_spoolman'))}</div>`;
+}
+function identity() {
+  if (S.pick === 'spoolman' && S.spool) {
+    const f = S.spool;
+    return { brand: f.vendor, material: f.material, product: f.variant || '', colour: f.color_hex ? '#' + f.color_hex.replace('#', '') : '' };
+  }
+  return { brand: $('f-brand').value.trim(), material: $('f-material').value, product: $('f-product').value.trim(), colour: '' };
+}
+function renderSheets() {
+  $('sheets').innerHTML = S.sheets.map((u, i) => `<div class="sheet"><span title="${esc(u)}">🔗 ${esc(u)}</span><button class="link" data-del-sheet="${i}">✕</button></div>`).join('')
+    + S.files.map((f, i) => `<div class="sheet"><span>📄 ${esc(f.name)}</span><button class="link" data-del-file="${i}">✕</button></div>`).join('');
+}
+
+// ---------- sources
+const SRC = ['ofd', 'spoolmandb', 'orca', 'tds', 'tested'];
+function renderSources(reports) {
+  const html = [];
+  if (reports) {
+    for (const r of reports) {
+      const cls = !r.ok ? 'fail' : (r.found ? 'ok' : 'empty');
+      const link = r.url ? ` <a href="#" data-open="${esc(r.url)}">↗</a>` : '';
+      html.push(`<div class="source ${cls}"><span class="dot"></span><b>${esc(t('src_' + r.source))}${link}</b><span class="msg">${esc(r.message)}</span></div>`);
+    }
+  } else {
+    for (const s of SRC.slice(0, 4)) {
+      const st = S.steps[s];
+      if (!st) continue;
+      html.push(`<div class="source ${st}"><span class="dot"></span><b>${esc(t('src_' + s))}</b><span class="msg">${st === 'run' ? esc(t('working')) : ''}</span></div>`);
+    }
+  }
+  $('sources').innerHTML = html.join('');
+}
+
+// ---------- result
+function conf(c) { const n = c === 'high' ? 3 : c === 'medium' ? 2 : 1; return `<span class="conf c${n}" title="${esc(t('confidence', {c: t('c_' + c)}))}"><i></i><i></i><i></i></span>`; }
+function kindBadge(k) { return `<span class="badge k-${esc(k)}">${esc(t('kind_' + k))}</span>`; }
+function altsFor(key) {
+  const pick = S.result.picks[key];
+  if (!pick) return '';
+  const fmt = v => Array.isArray(v) ? v.map(x => Array.isArray(x) ? x.join('–') : x).join('–') : v;
+  const items = [{ label: pick.label, value: pick.value, url: pick.url, kind: pick.kind, note: pick.note, cls: '' }]
+    .concat((pick.agree || []).map(o => Object.assign({cls: ''}, o)), (pick.differ || []).map(o => Object.assign({cls: 'differ'}, o)));
+  const extra = items.length - 1;
+  const body = items.map(o => `<div class="alt ${o.cls}"><span class="v">${esc(fmt(o.value))}</span><span>${esc(o.label || o.source)}${o.url ? ` <a href="#" data-open="${esc(o.url)}">↗</a>` : ''}${o.note ? ' <span class="muted">· ' + esc(o.note) + '</span>' : ''}</span></div>`).join('');
+  return `<details class="alts"><summary>${esc(pick.label ? pick.label.split(':')[0] : pick.source)}${extra ? ' +' + extra : ''}</summary>${body}</details>`;
+}
+function renderResult() {
+  const r = S.result;
+  $('empty').hidden = !!r;
+  ['card-result', 'card-measured', 'card-process'].forEach(id => $(id).hidden = !r);
+  if (!r) return;
+  $('r-title').textContent = r.identity.label;
+  $('r-swatch').style.background = r.identity.colour || 'transparent';
+  $('r-base').textContent = r.base ? t(r.base.kind === 'vendor' ? 'base_vendor' : 'base_generic', {name: r.base.name}) : t('base_none');
+  $('r-legend').textContent = t('legend');
+  $('preset-name').value = r.preset_name || r.identity.label;
+  const same = r.settings.filter(s => s.same_as_base && !s.apply).length;
+  $('btn-same').hidden = !same;
+  $('btn-same').textContent = t(S.showSame ? 'hide_same' : 'show_same', {n: same});
+  $('rows').innerHTML = r.settings.map((s, i) => {
+    if (s.same_as_base && !s.apply && !S.showSame) return '';
+    const unit = UNITS[s.orca_key] || '';
+    const wide = s.orca_key === 'filament_notes';
+    return `<tr data-i="${i}" class="${s.apply ? '' : 'off'}">
+      <td><input type="checkbox" data-apply="${i}" ${s.apply ? 'checked' : ''} title="${esc(t('apply_tip'))}"></td>
+      <td>${esc(label(s.orca_key))}<div class="mono muted">${esc(s.orca_key)}</div></td>
+      <td class="val"><input data-val="${i}" class="${wide ? 'wide' : ''}" value="${esc(s.value)}"> <span class="muted small">${esc(unit)}</span>
+        ${s.same_as_base ? `<div class="why">${esc(t('same'))}</div>` : (s.note ? `<div class="why">${esc(s.note)}</div>` : '')}</td>
+      <td>${kindBadge(s.kind)} ${conf(s.confidence)}</td>
+      <td>${altsFor(s.from)}</td></tr>`;
+  }).join('');
+  $('spoolman-plan').hidden = true;
+  $('btn-spoolman-plan').disabled = !(S.pick === 'spoolman' && S.spool);
+  $('btn-spoolman-plan').title = S.pick === 'spoolman' && S.spool ? '' : t('sp_need');
+  renderMeasured(r.measured || {});
+  renderProcessBase();
+  $('p-plan').hidden = true;
+  $('licences').textContent = (r.licences || []).join(' · ');
+}
+function chosenSettings() {
+  return S.result.settings.filter(s => s.apply).map(s => ({ orca_key: s.orca_key, value: s.value }));
+}
+
+// ---------- measured
+function sectionNames() {
+  const p = S.printer || {};
+  return [['*', t('sec_all')]].concat(p.model ? [[p.model, t('sec_printer', {name: p.model})]] : []);
+}
+function renderMeasured(sections) {
+  S.measured = sections || {};
+  const sel = $('m-section');
+  const current = sel.value || (S.printer && S.printer.model && S.measured[S.printer.model] ? S.printer.model : '*');
+  sel.innerHTML = sectionNames().map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('');
+  sel.value = sectionNames().some(([v]) => v === current) ? current : '*';
+  fillMeasured();
+}
+function fillMeasured() {
+  const values = S.measured[$('m-section').value] || {};
+  $('m-fields').innerHTML = MEASURE.map(([k, orcaKey, step]) => `<div class="field"><label>${esc(label(orcaKey))}${UNITS[orcaKey] ? ' (' + UNITS[orcaKey] + ')' : ''}</label>
+    <input type="number" step="${step}" data-m="${k}" value="${values[k] != null ? esc(values[k]) : ''}"></div>`).join('');
+}
+
+// ---------- process
+function renderProcessBase() {
+  const sel = $('p-base');
+  const cur = (S.printer && S.printer.process) || '';
+  sel.innerHTML = S.processes.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
+}
+function currentMvs() {
+  const row = S.result.settings.find(s => s.orca_key === 'filament_max_volumetric_speed');
+  if (row) return parseFloat(row.value);
+  const pick = S.result.picks.max_volumetric_speed;
+  return pick ? parseFloat(pick.value) : 0;
+}
+
+// ---------- saved
+function renderSaved() {
+  $('saved-list').innerHTML = S.saved.length ? S.saved.map(s => `<div class="saved-item"><span class="tag">${esc(s.kind)}</span><span title="${esc(s.file)}">${esc(s.name)}</span>
+      <button class="secondary" data-remove="${esc(s.name)}">${esc(t('remove'))}</button></div>`).join('') : `<div class="muted">${esc(t('no_saved'))}</div>`;
+}
+
+// ---------- events
+document.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => setPick(b.dataset.pick)));
+$('spool-filter').addEventListener('input', renderSpools);
+$('btn-reload-spools').addEventListener('click', () => send({cmd: 'spoolman_list'}));
+$('spools').addEventListener('click', e => {
+  const row = e.target.closest('[data-id]');
+  if (!row) return;
+  S.spool = S.spools.find(f => String(f.id) === row.dataset.id) || null;
+  renderSpools();
+});
+$('btn-add-sheet').addEventListener('click', () => {
+  const u = $('sheet-url').value.trim();
+  if (/^https?:\/\//i.test(u) && !S.sheets.includes(u)) { S.sheets.push(u); $('sheet-url').value = ''; renderSheets(); }
+});
+$('sheet-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { S.files.push({ name: file.name, data: String(reader.result).split(',')[1] || '' }); renderSheets(); };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+$('sheets').addEventListener('click', e => {
+  if (e.target.dataset.delSheet != null) S.sheets.splice(+e.target.dataset.delSheet, 1);
+  if (e.target.dataset.delFile != null) S.files.splice(+e.target.dataset.delFile, 1);
+  renderSheets();
+});
+function research() {
+  const id = identity();
+  if (!id.brand) { toast(t(S.pick === 'spoolman' ? 'pick_first' : 'brand_missing'), true); return; }
+  S.steps = {}; renderSources(null);
+  busy($('btn-research'), true);
+  send(Object.assign({cmd: 'research', sheet_urls: S.sheets, sheet_files: S.files,
+                      spoolman_id: S.pick === 'spoolman' && S.spool ? S.spool.id : null}, id));
+}
+$('btn-research').addEventListener('click', research);
+$('btn-same').addEventListener('click', () => { S.showSame = !S.showSame; renderResult(); });
+$('rows').addEventListener('change', e => {
+  const i = e.target.dataset.apply ?? e.target.dataset.val;
+  if (i == null) return;
+  const s = S.result.settings[+i];
+  if (e.target.dataset.apply != null) { s.apply = e.target.checked; e.target.closest('tr').classList.toggle('off', !s.apply); }
+  else { s.value = e.target.value.trim(); s.apply = true; const tr = e.target.closest('tr'); tr.classList.remove('off'); tr.querySelector('[data-apply]').checked = true; }
+});
+document.body.addEventListener('click', e => {
+  const a = e.target.closest('[data-open]');
+  if (a) { e.preventDefault(); send({cmd: 'open_url', url: a.dataset.open}); }
+});
+$('btn-make-preset').addEventListener('click', () => {
+  busy($('btn-make-preset'), true);
+  send({cmd: 'make_preset', identity: S.result.identity, settings: chosenSettings(), base: S.result.base ? S.result.base.name : '', name: $('preset-name').value.trim()});
+});
+function spoolmanSection() { return (S.printer && S.printer.model) || '*'; }
+$('btn-spoolman-plan').addEventListener('click', () => {
+  if (!(S.pick === 'spoolman' && S.spool)) { toast(t('sp_need'), true); return; }
+  const box = $('spoolman-plan');
+  box.hidden = false;
+  box.innerHTML = `<div class="row" style="justify-content:flex-start"><select id="sp-section" class="fit">
+      ${[['*', t('sp_section_all')]].concat(S.printer && S.printer.model ? [[S.printer.model, t('sec_printer', {name: S.printer.model})]] : []).map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('')}
+    </select><span class="muted small">${esc(t('working'))}</span></div>`;
+  $('sp-section').value = spoolmanSection();
+  $('sp-section').addEventListener('change', planSpoolman);
+  planSpoolman();
+});
+function planSpoolman() {
+  send({cmd: 'spoolman_plan', spoolman_id: S.spool.id, section: $('sp-section').value, settings: chosenSettings()});
+}
+$('btn-save-measured').addEventListener('click', () => {
+  const values = {};
+  document.querySelectorAll('[data-m]').forEach(el => values[el.dataset.m] = el.value.trim());
+  send({cmd: 'save_measured', identity: S.result.identity, section: $('m-section').value, values});
+});
+$('m-section').addEventListener('change', fillMeasured);
+$('btn-process-plan').addEventListener('click', () => {
+  send({cmd: 'process_plan', process: $('p-base').value, max_volumetric_speed: currentMvs(), identity: S.result.identity});
+});
+$('btn-process-save').addEventListener('click', () => {
+  busy($('btn-process-save'), true);
+  send({cmd: 'process_save', base: S.plan.base, name: $('p-name').value.trim(), changes: S.plan.changes});
+});
+$('btn-settings').addEventListener('click', () => {
+  $('s-spoolman').value = S.settings.spoolman_url || '';
+  $('s-language').value = S.settings.language || 'auto';
+  $('s-online').checked = S.settings.online !== false;
+  $('dlg-settings').showModal();
+});
+$('btn-settings-save').addEventListener('click', () => {
+  send({cmd: 'settings', spoolman_url: $('s-spoolman').value.trim(), language: $('s-language').value, online: $('s-online').checked});
+  $('dlg-settings').close();
+});
+$('btn-saved').addEventListener('click', () => { renderSaved(); $('dlg-saved').showModal(); send({cmd: 'saved'}); });
+$('saved-list').addEventListener('click', e => { const n = e.target.dataset.remove; if (n) send({cmd: 'remove_preset', name: n}); });
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+
+// ---------- messages from the plugin
+const STEP_ORDER = ['ofd', 'spoolmandb', 'orca', 'tds'];
+function onMessage(m) {
+  if (!m || !m.cmd) return;
+  switch (m.cmd) {
+    case 'init':
+      S.settings = m.settings; S.printer = m.printer; S.processes = m.processes || []; S.saved = m.saved || [];
+      lang(); translate(); renderPrinter();
+      if (S.settings.spoolman_url) send({cmd: 'spoolman_list'}); else { setPick('manual'); renderSpools(); }
+      break;
+    case 'settings':
+      S.settings = m.settings; lang(); translate(); renderPrinter(); renderSpools();
+      if (S.result) renderResult();
+      if (S.settings.spoolman_url) send({cmd: 'spoolman_list'});
+      break;
+    case 'spoolman_list':
+      S.spools = m.filaments || []; renderSpools();
+      $('spool-note').textContent = '';
+      break;
+    case 'progress':
+      if (m.step && STEP_ORDER.includes(m.step)) {
+        for (const s of STEP_ORDER) { if (S.steps[s] === 'run') S.steps[s] = 'ok'; }
+        S.steps[m.step] = 'run'; renderSources(null);
+      }
+      break;
+    case 'result':
+      busy($('btn-research'), false);
+      S.result = m; S.printer = m.printer || S.printer;
+      renderPrinter(); renderSources(m.reports); renderResult();
+      break;
+    case 'measured':
+      toast(t('measured_saved'));
+      renderMeasured(m.sections);
+      research();
+      break;
+    case 'saved':
+      busy($('btn-make-preset'), false); busy($('btn-process-save'), false);
+      S.saved = m.saved || S.saved; renderSaved();
+      if (m.kind === 'filament') toast(t('made_preset', {name: m.name}));
+      else if (m.kind === 'process') toast(t('made_process', {name: m.name}));
+      else if (m.kind === 'removed') toast(t('removed', {name: m.name}));
+      break;
+    case 'spoolman_plan': {
+      const box = $('spoolman-plan');
+      const keep = (m.kept || []).map(k => `<li>${esc(label(k))} <span class="mono muted">${esc(m.existing && m.existing[k] != null ? m.existing[k] : '')}</span></li>`).join('');
+      const add = (m.added || []).map(k => `<li>${esc(label(k))} = <span class="mono">${esc(m.values[k])}</span></li>`).join('');
+      box.querySelector('.muted.small') && box.querySelector('.muted.small').remove();
+      box.querySelectorAll('.planbody').forEach(el => el.remove());
+      const div = document.createElement('div');
+      div.className = 'planbody';
+      div.innerHTML = `<div style="margin-top:8px">${esc(t('sp_plan', {id: m.id, section: m.section}))}</div>` +
+        (m.added.length ? `<div style="margin-top:6px"><b>${esc(t('sp_add', {n: m.added.length}))}</b><ul>${add}</ul></div>` : `<div style="margin-top:6px">${esc(t('sp_nothing'))}</div>`) +
+        (m.kept.length ? `<div style="margin-top:6px"><b>${esc(t('sp_keep', {n: m.kept.length}))}</b><ul>${keep}</ul></div>` : '') +
+        (m.added.length ? `<div class="actions" style="margin-top:8px"><button id="btn-sp-write">${esc(t('sp_confirm'))}</button></div>` : '');
+      box.appendChild(div);
+      const w = $('btn-sp-write');
+      if (w) w.addEventListener('click', () => { w.disabled = true; send({cmd: 'spoolman_write', spoolman_id: m.id, section: m.section, settings: chosenSettings()}); });
+      break; }
+    case 'spoolman_written':
+      $('spoolman-plan').hidden = true;
+      toast(t('sp_written', {n: (m.added || []).length}));
+      send({cmd: 'spoolman_list'});
+      break;
+    case 'process_plan':
+      S.plan = m;
+      $('p-plan').hidden = false;
+      $('p-name').value = m.name;
+      $('p-rows').innerHTML = m.changes.length ? m.changes.map(c => `<tr><td>${esc(label(c.key))}</td><td class="mono">${esc(Math.round(c.base))}</td><td class="mono"><b>${esc(c.new)}</b></td><td class="why">${esc(c.reason)}</td></tr>`).join('')
+        : `<tr><td colspan="4" class="muted">${esc(t('no_changes'))}</td></tr>`;
+      $('btn-process-save').disabled = !m.changes.length;
+      $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
+      break;
+    case 'error': {
+      busy($('btn-research'), false); busy($('btn-make-preset'), false); busy($('btn-process-save'), false);
+      const msg = T[L][m.message] ? t(m.message) : m.message;
+      if (m.where === 'spoolman_list') { $('spool-note').textContent = msg; renderSpools(); }
+      else toast(t('err', {m: msg}), true);
+      if (m.where === 'research') renderSources([]);
+      break; }
+  }
+}
+if (window.orca && orca.onMessage) orca.onMessage(onMessage);
+window.__filaforge = { onMessage, S };
+
+// ---------- start
+lang(); translate();
+$('f-material').innerHTML = MATERIALS.map(m => `<option>${m}</option>`).join('');
+$('brands').innerHTML = BRANDS.map(b => `<option value="${esc(b)}">`).join('');
+renderSpools(); renderSheets(); renderResult();
+send({cmd: 'init'});
+</script>
+</body>
+</html>
