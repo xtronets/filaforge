@@ -8,6 +8,10 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Attach the wheel to this existing release (e.g. v0.2.2); empty = build only"
+        required: false
 
 permissions:
   contents: write
@@ -15,6 +19,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,12 +35,11 @@ jobs:
         run: python scripts/build.py
 
       - name: Release tag matches VERSION
-        if: github.event_name == 'release'
+        if: env.TAG != ''
         run: |
           version=$(python -c "import re,pathlib;print(re.search(r'^VERSION = \"([^\"]+)\"', pathlib.Path('src/filaforge/plugin.py').read_text(), re.M).group(1))")
-          tag="${{ github.event.release.tag_name }}"
-          if [ "${tag#v}" != "$version" ]; then
-            echo "::error::Release tag $tag does not match VERSION $version in src/filaforge/plugin.py"
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::Release tag $TAG does not match VERSION $version in src/filaforge/plugin.py"
             exit 1
           fi
 
@@ -44,7 +49,7 @@ jobs:
           path: dist/filaforge_any.whl
 
       - name: Attach to the release
-        if: github.event_name == 'release'
+        if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/filaforge_any.whl --clobber --repo "${{ github.repository }}"
+        run: gh release upload "$TAG" dist/filaforge_any.whl --clobber --repo "${{ github.repository }}"
