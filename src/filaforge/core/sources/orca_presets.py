@@ -8,10 +8,13 @@ Works on plain data the plugin reads from OrcaSlicer on its UI thread (see plugi
 import re
 
 from ..model import BASELINE, PRESET, Observation, SourceReport
-from ..text import brand_key, fold, match_score, number, split_material, tokens
+from ..text import KNOWN_MATERIALS, MATERIAL_BASE, brand_key, fold, match_score, number, split_material, tokens
+
+KNOWN_MATERIAL_WORDS = set(KNOWN_MATERIALS) | set(MATERIAL_BASE)
 
 VENDOR_WEIGHT = 0.8
 GENERIC_WEIGHT = 0.3
+OWN_WEIGHT = 0.9        # the user's own preset: what they print with now, often tuned by hand
 MIN_SCORE = 0.5
 
 # OrcaSlicer key -> (canonical key, how to read it)
@@ -102,23 +105,22 @@ def pick(presets, identity, hint=""):
     return vendor, score, generic
 
 
-def observations(preset, kind, weight):
+def observations(preset, kind, weight, source=None, label=None):
     config = preset.get("config") or {}
-    label = "OrcaSlicer preset: %s" % preset["name"]
+    label = label or "OrcaSlicer preset: %s" % preset["name"]
+    source = source or ("orca" if kind == PRESET else "generic")
     out = []
     for orca_key, (key, _) in READ.items():
         value = first(config.get(orca_key))
         if value is None or (value == 0 and key in ("vitrification", "chamber_temp", "bed_temp")):
             continue
-        out.append(Observation(key, value, kind, "orca" if kind == PRESET else "generic", label, "", weight))
+        out.append(Observation(key, value, kind, source, label, "", weight))
     lo, hi = first(config.get("nozzle_temperature_range_low")), first(config.get("nozzle_temperature_range_high"))
     if lo and hi and lo < hi:
-        out.append(Observation("nozzle_temp_range", (lo, hi), kind, "orca" if kind == PRESET else "generic",
-                               label, "", weight))
+        out.append(Observation("nozzle_temp_range", (lo, hi), kind, source, label, "", weight))
     pa = first(config.get("pressure_advance"))
     if pa is not None and first(config.get("enable_pressure_advance")):
-        out.append(Observation("pressure_advance", pa, kind, "orca" if kind == PRESET else "generic", label, "",
-                               weight))
+        out.append(Observation("pressure_advance", pa, kind, source, label, "", weight))
     return out
 
 
@@ -138,3 +140,59 @@ def lookup(presets, identity, hint=""):
         msg = "no usable preset of this material for the printer"
     return obs, SourceReport("orca", vendor is not None or generic is not None, len(obs), msg), \
         {"vendor": vendor, "generic": generic}
+
+
+def own_lookup(preset):
+    """(observations, report) of the user's own preset the look-up starts from."""
+    obs = observations(preset, PRESET, OWN_WEIGHT, "own", "Your OrcaSlicer preset: %s" % bare_name(preset["name"]))
+    return obs, SourceReport("own", True, len(obs), bare_name(preset["name"]))
+
+
+# Colour names in preset names ("Sunlu PLA+ Niebieski"): not product words, so they don't spoil a match.
+COLOUR_WORDS = {
+    "black", "white", "grey", "gray", "silver", "red", "blue", "green", "yellow", "orange", "purple", "violet",
+    "pink", "brown", "beige", "gold", "natural", "cyan", "magenta", "navy", "olive", "ivory", "cream", "dark",
+    "light", "sky", "bright",
+} | {stem + end for stem in (
+    "czarn", "bial", "szar", "srebrn", "czerwon", "niebiesk", "zielon", "zolt", "pomaranczow", "fioletow",
+    "rozow", "brazow", "bezow", "zlot", "naturaln", "granatow", "ciemn", "jasn", "blekitn", "kremow",
+    "przezroczyst", "turkusow", "miedzian") for end in ("y", "a", "e", "i", "ie")}
+GENERIC_VENDORS = ("", "generic", "user", "custom", "other")
+
+
+def preset_colour(config):
+    for key in ("default_filament_colour", "filament_colour"):
+        value = str((config or {}).get(key) or "").split(";")[0].split(",")[0].strip().strip('"')
+        if re.match(r"^#[0-9a-fA-F]{6}", value):
+            return value[:7].upper()
+    return ""
+
+
+def _word(text):
+    return fold(str(text).replace("ł", "l").replace("Ł", "L"))
+
+
+def identity_of(preset):
+    """{brand, material, product, colour} for a preset the user already has: the brand from filament_vendor (or
+    the name's first word when the vendor is Generic), the material from filament_type, the product from the
+    name's other words, colour names left out."""
+    name = bare_name(preset.get("name"))
+    material = str(preset.get("type") or "").strip() or split_material(name)[0]
+    vendor = str(preset.get("vendor") or "").strip()
+    words = name.split()
+    if fold(vendor) not in GENERIC_VENDORS:
+        brand = vendor
+    elif words and fold(words[0]) not in GENERIC_VENDORS and words[0].upper() not in KNOWN_MATERIAL_WORDS \
+            and _word(words[0]) not in COLOUR_WORDS:
+        brand = words[0]
+    else:
+        brand = "Generic"
+    rest = words
+    brand_tokens = tokens(brand)
+    while rest and brand_tokens and tokens(rest[0]) and set(tokens(rest[0])) <= set(brand_tokens):
+        rest = rest[1:]
+    rest = [w for w in rest if _word(w) not in COLOUR_WORDS and fold(w) != "ff"]
+    product = " ".join(rest).strip()
+    if fold(product) == fold(material):
+        product = ""
+    return {"brand": brand, "material": material, "product": product, "colour": preset_colour(preset.get("config"))}

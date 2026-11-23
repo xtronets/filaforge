@@ -38,8 +38,11 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 
 ## Co potrafi
 
-- **Szuka danych o filamencie** wybranym ze Spoolmana albo wpisanym ręcznie (producent, materiał, odmiana),
-  w kilku źródłach naraz, i pokazuje je w jednej tabeli.
+- **Szuka danych o filamencie** wybranym ze Spoolmana, z Twoich presetów w Orce albo wpisanym ręcznie
+  (producent, materiał, odmiana), w kilku źródłach naraz, i pokazuje je w jednej tabeli.
+- **Ulepsza presety, które już masz**: na karcie *Z Orki* wybierasz swój preset filamentu, a FilaForge
+  uzupełnia go danymi producenta i zapisuje jako nowy preset z dopiskiem FF. Twój preset zostaje bez zmian,
+  a jego wartości (np. flow ratio, który ustawiłeś ręcznie) mają pierwszeństwo przed presetami producenta.
 - **Czyta karty techniczne (TDS)** producentów: z pliku PDF albo z adresu PDF lub strony produktu. Wyciąga
   temperatury dyszy (także zakresy zależne od prędkości druku), stołu, retrakcję, gęstość, Vicat/HDT i suszenie.
 - **Tworzy preset filamentu w Orce** jednym kliknięciem. To samodzielny preset z własnym `filament_id`, więc
@@ -63,6 +66,7 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 | Karta techniczna producenta (PDF lub strona produktu) | zakres temperatur dyszy dla prędkości druku, stół, retrakcja, Vicat/HDT, gęstość, suszenie | producent |
 | [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT) | temperatury, gęstość | producent |
 | Presety OrcaSlicera | preset producenta tego filamentu dla Twojej drukarki oraz ogólny preset materiału | preset / ogólny |
+| Twój preset wybrany na karcie *Z Orki* | wartości, z którymi drukujesz teraz; jest bazą nowego presetu | preset (przed presetem producenta) |
 | Twoje pomiary i `orca_settings`, które już są w Spoolmanie | wszystko, co skalibrowałeś | zmierzona |
 
 ## Jak wybiera wartość
@@ -130,7 +134,9 @@ w oknie **Zapisane** albo w Orce. Folder `<dane Orki>/filaforge/` możesz potem 
 ## Jak używać
 
 1. **Wybierz filament.** Na karcie *Ze Spoolmana* wybierz szpulę z listy (jest wyszukiwarka). Na karcie
-   *Ręcznie* wpisz producenta, materiał i odmianę; podpowiedzi odmian pochodzą z Open Filament Database.
+   *Z Orki* wybierz swój preset filamentu dla tej drukarki; producenta, materiał, odmianę i kolor FilaForge
+   odczyta z presetu. Na karcie *Ręcznie* wpisz producenta, materiał i odmianę; podpowiedzi odmian pochodzą
+   z Open Filament Database.
 2. **Opcjonalnie dodaj kartę TDS**: wklej adres PDF lub strony produktu albo wybierz plik PDF z dysku.
 3. Kliknij **Szukaj danych**. Pasek źródeł pokazuje, co znalazło się w każdym z nich.
 4. **Przejrzyj tabelę** i odznacz to, czego nie chcesz.
@@ -141,8 +147,8 @@ w oknie **Zapisane** albo w Orce. Folder `<dane Orki>/filaforge/` możesz potem 
 8. W **Proces druku dla tego filamentu** wybierz proces i wariant, kliknij **Przelicz**, a potem
    **Zapisz proces w Orce**.
 
-**Bez Spoolmana** wtyczka działa normalnie: od razu otwiera się karta *Ręcznie*, a przycisk zapisu do Spoolmana
-jest ukryty. Wyszukiwanie danych, presety, Twoje pomiary i proces druku działają tak samo.
+**Bez Spoolmana** wtyczka działa normalnie: od razu otwiera się karta *Z Orki* z Twoimi presetami (albo
+*Ręcznie*, jeśli własnych presetów nie masz), a przycisk zapisu do Spoolmana jest ukryty. Wyszukiwanie danych, presety, Twoje pomiary i proces druku działają tak samo.
 
 Przycisk **Zapisane** w nagłówku pokazuje wszystkie presety i procesy zrobione przez FilaForge. Tam też je usuniesz.
 

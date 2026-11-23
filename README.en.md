@@ -38,8 +38,11 @@ measurements. Every value shows where it came from and how sure it is.
 
 ## What it does
 
-- **Finds data about a filament** picked from Spoolman or typed in (brand, material, kind) in several sources
-  at once, and shows it in one table.
+- **Finds data about a filament** picked from Spoolman, from your OrcaSlicer presets or typed in (brand,
+  material, kind) in several sources at once, and shows it in one table.
+- **Improves the presets you already have**: on the *From OrcaSlicer* tab you pick one of your filament
+  presets, and FilaForge fills it with the maker's data and saves it as a new preset marked FF. Your preset
+  stays as it is, and its values (such as a flow ratio you set by hand) win over the maker's presets.
 - **Reads makers' data sheets (TDS)** from a PDF file, or from the address of a PDF or product page: nozzle
   temperatures (including ranges that depend on print speed), bed, retraction, density, Vicat/HDT and drying.
 - **Creates a filament preset in OrcaSlicer** in one click. It is a standalone preset with its own
@@ -63,6 +66,7 @@ measurements. Every value shows where it came from and how sure it is.
 | The maker's data sheet (PDF or product page) | nozzle range per print speed, bed, retraction, Vicat/HDT, density, drying | maker |
 | [SpoolmanDB](https://github.com/Donkie/SpoolmanDB) (MIT) | temperatures, density | maker |
 | OrcaSlicer's presets | the maker's preset for this filament on your printer, and the generic preset of the material | preset / generic |
+| Your preset picked on the *From OrcaSlicer* tab | the values you print with now; it is the new preset's base | preset (ahead of the maker's preset) |
 | Your measurements, and the `orca_settings` already in Spoolman | anything you calibrated | tested |
 
 ## How a value is chosen
@@ -129,7 +133,9 @@ window or in OrcaSlicer. You can then delete the `<OrcaSlicer data>/filaforge/` 
 ## How to use it
 
 1. **Pick the filament.** On the *From Spoolman* tab pick a spool from the list (there is a search box). On the
-   *Manual* tab type the brand, material and kind; kinds are suggested from Open Filament Database.
+   *From OrcaSlicer* tab pick one of your filament presets for this printer; FilaForge reads the brand,
+   material, kind and colour from it. On the *Manual* tab type the brand, material and kind; kinds are
+   suggested from Open Filament Database.
 2. **Optionally add a data sheet**: paste the address of a PDF or product page, or pick a PDF file.
 3. Click **Find data**. The sources bar shows what was found in each source.
 4. **Review the table** and untick what you don't want.
@@ -140,8 +146,8 @@ window or in OrcaSlicer. You can then delete the `<OrcaSlicer data>/filaforge/` 
 8. In **Print process for this filament** pick a process and a variant, click **Calculate**, then
    **Save process in OrcaSlicer**.
 
-**Without Spoolman** the plugin works as usual: it opens on the *Manual* tab and the Save to Spoolman button is
-hidden. Finding data, presets, your measurements and the print process work the same.
+**Without Spoolman** the plugin works as usual: it opens on the *From OrcaSlicer* tab with your presets (or on
+*Manual* when you have none of your own), and the Save to Spoolman button is hidden. Finding data, presets, your measurements and the print process work the same.
 
 The **Saved** button in the header lists every preset and process made by FilaForge, and removes them.
 

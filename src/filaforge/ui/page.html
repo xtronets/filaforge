@@ -156,12 +156,18 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <aside>
     <div class="tabs" role="tablist">
       <button class="on" data-pick="spoolman" data-t="from_spoolman"></button>
+      <button data-pick="orca" data-t="from_orca"></button>
       <button data-pick="manual" data-t="manual"></button>
     </div>
     <div id="pick-spoolman" class="field">
       <div class="row"><input id="spool-filter" type="search" data-tp="filter_spools"><button class="secondary fit" id="btn-reload-spools" data-t="reload" title=""></button></div>
       <div class="spools" id="spools"></div>
       <div class="note" id="spool-note"></div>
+    </div>
+    <div id="pick-orca" class="field" hidden>
+      <div class="row"><input id="orca-filter" type="search" data-tp="filter_orca"><button class="secondary fit" id="btn-reload-orca" data-t="reload" title=""></button></div>
+      <div class="spools" id="orca-list"></div>
+      <div class="note" data-t="orca_note"></div>
     </div>
     <div id="pick-manual" class="field" hidden>
       <div class="field"><label data-t="brand"></label><input id="f-brand" data-tp="brand_eg" list="brands"></div>
@@ -269,6 +275,9 @@ const BOOT = /*BOOT*/null || {version: 'dev', settings: {language: 'auto', spool
 const T = {
   pl: {
     saved: 'Zapisane', settings: 'Ustawienia', from_spoolman: 'Ze Spoolmana', manual: 'Ręcznie', filter_spools: 'Szukaj szpuli…',
+    from_orca: 'Z Orki', filter_orca: 'Szukaj presetu…', orca_none: 'Brak Twoich presetów filamentów dla tej drukarki.', pick_preset: 'Wybierz preset z listy.',
+    orca_note: 'Twoje presety filamentów dla wybranej drukarki. FilaForge uzupełni wybrany danymi i zapisze go jako nowy preset z dopiskiem FF, a Twój zostanie bez zmian.',
+    src_own: 'Twój preset', base_own: 'na bazie Twojego presetu: {name}', in_use: 'w użyciu',
     reload: '↻', brand: 'Producent', brand_eg: 'np. Sunlu', material: 'Materiał', product: 'Produkt / odmiana', product_eg: 'np. PLA+, Silk, High Speed',
     sheet: 'Karta techniczna (TDS)', sheet_eg: 'Adres PDF lub strony produktu', add: 'Dodaj', or_pdf: '…albo wybierz plik PDF',
     research: 'Szukaj danych', empty: 'Wybierz szpulę ze Spoolmana albo wpisz producenta i materiał, potem „Szukaj danych”. FilaForge zbierze wartości z otwartych baz, kart technicznych producenta i presetów Orki, pokaże skąd jest każda i zrobi z nich preset.',
@@ -302,6 +311,9 @@ const T = {
   },
   en: {
     saved: 'Saved', settings: 'Settings', from_spoolman: 'From Spoolman', manual: 'Manual', filter_spools: 'Search spools…',
+    from_orca: 'From OrcaSlicer', filter_orca: 'Search presets…', orca_none: 'No filament presets of yours for this printer.', pick_preset: 'Pick a preset from the list.',
+    orca_note: 'Your filament presets for the selected printer. FilaForge fills the one you pick with data and saves it as a new preset marked FF; yours stays as it is.',
+    src_own: 'Your preset', base_own: 'based on your preset: {name}', in_use: 'in use',
     reload: '↻', brand: 'Brand', brand_eg: 'e.g. Sunlu', material: 'Material', product: 'Product / kind', product_eg: 'e.g. PLA+, Silk, High Speed',
     sheet: 'Data sheet (TDS)', sheet_eg: 'Address of a PDF or product page', add: 'Add', or_pdf: '…or pick a PDF file',
     research: 'Find data', empty: 'Pick a spool from Spoolman, or type the brand and material, then “Find data”. FilaForge gathers values from open databases, the maker’s data sheets and OrcaSlicer’s presets, shows where each comes from and turns them into a preset.',
@@ -370,7 +382,7 @@ const BRANDS = ['Sunlu', 'Polymaker', 'eSUN', 'Elegoo', 'Bambu Lab', 'Creality',
   'Overture', 'Jayo', 'Anycubic', 'Kingroon', 'Snapmaker', 'Eryone', 'Geeetech', 'Fillamentum', 'Extrudr', 'colorFabb', 'Sakata3D', 'Azurefilm'];
 
 const $ = id => document.getElementById(id);
-const S = { settings: BOOT.settings, printer: null, processes: [], saved: [], spools: [], spool: null, pick: 'spoolman',
+const S = { settings: BOOT.settings, printer: null, processes: [], saved: [], spools: [], spool: null, pick: 'spoolman', orca: [], orcaPreset: null, pickTouched: false,
             sheets: [], files: [], result: null, steps: {}, measured: {}, showSame: false };
 let L = 'pl';
 
@@ -412,7 +424,17 @@ function setPick(which) {
   S.pick = which;
   document.querySelectorAll('[data-pick]').forEach(b => b.classList.toggle('on', b.dataset.pick === which));
   $('pick-spoolman').hidden = which !== 'spoolman';
+  $('pick-orca').hidden = which !== 'orca';
   $('pick-manual').hidden = which !== 'manual';
+}
+function renderOrca() {
+  const q = $('orca-filter').value.trim().toLowerCase();
+  const list = S.orca.filter(f => !q || [f.label, f.vendor, f.type].join(' ').toLowerCase().includes(q));
+  $('orca-list').innerHTML = list.map(f => `<div class="spool${S.orcaPreset && S.orcaPreset.name === f.name ? ' on' : ''}" data-preset="${esc(f.name)}" title="${esc(f.name)}">
+      <span class="swatch" style="background:${esc(f.colour || '#ccc')}"></span>
+      <span class="name">${esc(f.label)} <span class="muted">${esc([f.vendor, f.type].filter(Boolean).join(' · '))}</span></span>
+      ${f.selected ? `<span class="tag">${esc(t('in_use'))}</span>` : ''}</div>`).join('')
+    || `<div class="spool muted">${esc(t('orca_none'))}</div>`;
 }
 function renderSpools() {
   const q = $('spool-filter').value.trim().toLowerCase();
@@ -428,6 +450,7 @@ function identity() {
     const f = S.spool;
     return { brand: f.vendor, material: f.material, product: f.variant || '', colour: f.color_hex ? '#' + f.color_hex.replace('#', '') : '' };
   }
+  if (S.pick === 'orca') return S.orcaPreset ? Object.assign({}, S.orcaPreset.identity) : { brand: '' };
   return { brand: $('f-brand').value.trim(), material: $('f-material').value, product: $('f-product').value.trim(), colour: '' };
 }
 function renderSheets() {
@@ -442,7 +465,13 @@ const MSG_PL = [[/\(match (\d+)%\)/, '(zgodność $1%)'], [/^(\d+) values from t
   [/^brand not in SpoolmanDB$/, 'brak producenta w SpoolmanDB'], [/^no matching product \(has: (.*)\)$/, 'brak pasującego produktu (są: $1)'],
   [/^no matching product$/, 'brak pasującego produktu'], [/^no text could be read from it$/, 'nie udało się odczytać tekstu'],
   [/^no preset of this brand for the printer; generic: (.*)$/, 'brak presetu tej marki dla drukarki; ogólny: $1'],
-  [/^no usable preset of this material for the printer$/, 'brak presetu tego materiału dla drukarki']];
+  [/^no usable preset of this material for the printer$/, 'brak presetu tego materiału dla drukarki'],
+  [/^Your OrcaSlicer preset/, 'Twój preset Orki'], [/^OrcaSlicer preset/, 'Preset Orki'], [/^Data sheet/, 'Karta techniczna'],
+  [/^Your measurement \(FilaForge\)/, 'Twój pomiar (FilaForge)'],
+  [/^first layer: nozzle \+5 °C, within the maker's range$/, 'pierwsza warstwa: dysza +5 °C, w zakresie producenta'], [/^as tested$/, 'jak zmierzono'],
+  [/^data sheet band (\S+)-(\S+) °C for print speeds up to (\S+) mm\/s$/, 'zakres z karty $1–$2 °C dla prędkości do $3 mm/s'],
+  [/^40% into the maker's range (\S+)-(\S+) °C$/, '40% zakresu producenta $1–$2 °C'],
+  [/^the maker's max speed (\S+) mm\/s x a 0\.45 x 0\.2 mm line$/, 'maks. prędkość producenta $1 mm/s × linia 0,45 × 0,2 mm']];
 function sourceMsg(text) {
   if (L !== 'pl') return text;
   let out = String(text || '');
@@ -477,8 +506,8 @@ function altsFor(key) {
   const items = [{ label: pick.label, value: pick.value, url: pick.url, kind: pick.kind, note: pick.note, cls: '' }]
     .concat((pick.agree || []).map(o => Object.assign({cls: ''}, o)), (pick.differ || []).map(o => Object.assign({cls: 'differ'}, o)));
   const extra = items.length - 1;
-  const body = items.map(o => `<div class="alt ${o.cls}"><span class="v">${esc(fmt(o.value))}</span><span>${esc(o.label || o.source)}${o.url ? ` <a href="#" data-open="${esc(o.url)}">↗</a>` : ''}${o.note ? ' <span class="muted">· ' + esc(o.note) + '</span>' : ''}</span></div>`).join('');
-  return `<details class="alts"><summary>${esc(pick.label ? pick.label.split(':')[0] : pick.source)}${extra ? ' +' + extra : ''}</summary>${body}</details>`;
+  const body = items.map(o => `<div class="alt ${o.cls}"><span class="v">${esc(fmt(o.value))}</span><span>${esc(sourceMsg(o.label || o.source))}${o.url ? ` <a href="#" data-open="${esc(o.url)}">↗</a>` : ''}${o.note ? ' <span class="muted">· ' + esc(sourceMsg(o.note)) + '</span>' : ''}</span></div>`).join('');
+  return `<details class="alts"><summary>${esc(sourceMsg(pick.label ? pick.label.split(':')[0] : pick.source))}${extra ? ' +' + extra : ''}</summary>${body}</details>`;
 }
 function renderResult() {
   const r = S.result;
@@ -487,7 +516,7 @@ function renderResult() {
   if (!r) return;
   $('r-title').textContent = r.identity.label;
   $('r-swatch').style.background = r.identity.colour || 'transparent';
-  $('r-base').textContent = r.base ? t(r.base.kind === 'vendor' ? 'base_vendor' : 'base_generic', {name: r.base.name}) : t('base_none');
+  $('r-base').textContent = r.base ? t({vendor: 'base_vendor', own: 'base_own'}[r.base.kind] || 'base_generic', {name: r.base.name.replace(/^_local\/[^/]+\//, '')}) : t('base_none');
   $('r-legend').textContent = t('legend');
   $('preset-name').value = r.preset_name || r.identity.label;
   const same = r.settings.filter(s => s.same_as_base && !s.apply).length;
@@ -501,7 +530,7 @@ function renderResult() {
       <td><input type="checkbox" data-apply="${i}" ${s.apply ? 'checked' : ''} title="${esc(t('apply_tip'))}"></td>
       <td>${esc(label(s.orca_key))}<div class="mono muted">${esc(s.orca_key)}</div></td>
       <td class="val"><input data-val="${i}" class="${wide ? 'wide' : ''}" value="${esc(s.value)}"> <span class="muted small">${esc(unit)}</span>
-        ${s.same_as_base ? `<div class="why">${esc(t('same'))}</div>` : (s.note ? `<div class="why">${esc(s.note)}</div>` : '')}</td>
+        ${s.same_as_base ? `<div class="why">${esc(t('same'))}</div>` : (s.note ? `<div class="why">${esc(sourceMsg(s.note))}</div>` : '')}</td>
       <td>${kindBadge(s.kind)} ${conf(s.confidence)}</td>
       <td>${altsFor(s.from)}</td></tr>`;
   }).join('');
@@ -557,7 +586,15 @@ function renderSaved() {
 }
 
 // ---------- events
-document.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => setPick(b.dataset.pick)));
+document.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { S.pickTouched = true; setPick(b.dataset.pick); }));
+$('orca-filter').addEventListener('input', renderOrca);
+$('btn-reload-orca').addEventListener('click', () => send({cmd: 'orca_filaments'}));
+$('orca-list').addEventListener('click', e => {
+  const row = e.target.closest('[data-preset]');
+  if (!row) return;
+  S.orcaPreset = S.orca.find(f => f.name === row.dataset.preset) || null;
+  renderOrca();
+});
 $('spool-filter').addEventListener('input', renderSpools);
 $('btn-reload-spools').addEventListener('click', () => send({cmd: 'spoolman_list'}));
 $('spools').addEventListener('click', e => {
@@ -585,11 +622,12 @@ $('sheets').addEventListener('click', e => {
 });
 function research() {
   const id = identity();
-  if (!id.brand) { toast(t(S.pick === 'spoolman' ? 'pick_first' : 'brand_missing'), true); return; }
+  if (!id.brand) { toast(t(S.pick === 'spoolman' ? 'pick_first' : S.pick === 'orca' ? 'pick_preset' : 'brand_missing'), true); return; }
   S.steps = {}; renderSources(null);
   busy($('btn-research'), true);
   send(Object.assign({cmd: 'research', sheet_urls: S.sheets, sheet_files: S.files,
-                      spoolman_id: S.pick === 'spoolman' && S.spool ? S.spool.id : null}, id));
+                      spoolman_id: S.pick === 'spoolman' && S.spool ? S.spool.id : null,
+                      orca_preset: S.pick === 'orca' && S.orcaPreset ? S.orcaPreset.name : null}, id));
 }
 $('btn-research').addEventListener('click', research);
 $('btn-same').addEventListener('click', () => { S.showSame = !S.showSame; renderResult(); });
@@ -677,6 +715,14 @@ function onMessage(m) {
       S.settings = m.settings; S.printer = m.printer; S.processes = m.processes || []; S.saved = m.saved || [];
       lang(); translate(); renderPrinter();
       if (S.settings.spoolman_url) send({cmd: 'spoolman_list'}); else { setPick('manual'); renderSpools(); }
+      send({cmd: 'orca_filaments'});
+      break;
+    case 'orca_filaments':
+      S.orca = m.items || [];
+      if (S.orcaPreset) S.orcaPreset = S.orca.find(f => f.name === S.orcaPreset.name) || null;
+      // no Spoolman: start from the presets the user already has
+      if (!S.pickTouched && !S.settings.spoolman_url && S.orca.length) setPick('orca');
+      renderOrca();
       break;
     case 'settings':
       S.settings = m.settings; lang(); translate(); renderPrinter(); renderSpools();
@@ -772,7 +818,7 @@ window.__filaforge = { onMessage, S };
 lang(); translate();
 $('f-material').innerHTML = MATERIALS.map(m => `<option>${m}</option>`).join('');
 $('brands').innerHTML = BRANDS.map(b => `<option value="${esc(b)}">`).join('');
-renderSpools(); renderSheets(); renderResult();
+renderSpools(); renderOrca(); renderSheets(); renderResult();
 send({cmd: 'init'});
 </script>
 </body>

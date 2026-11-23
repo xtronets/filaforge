@@ -57,7 +57,7 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(perms["threading"])
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         html = self.page.get_ui()
-        self.assertIn('"version": "0.2.3"', html)
+        self.assertIn('"version": "0.3.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -136,6 +136,28 @@ class PluginTests(unittest.TestCase):
         other = self.last("saved", self.send(**args))
         self.assertEqual((other["name"], other["renamed"]), ("Sunlu PLA+ FF (Snapmaker U1)", True))
         self.assertEqual(len(other["saved"]), 2)
+
+    def test_from_orca(self):
+        bundle = self.orca.host.preset_bundle()
+        sunlu = bundle.filaments.find_preset("SUNLU PLA+ @System")
+        config = dict(sunlu._config, filament_flow_ratio="0.95", default_filament_colour="#1E4FD8")
+        bundle.filaments.presets.append(fake_orca.Preset("Sunlu PLA+ Niebieski", config, system=False))
+        bundle.filaments.presets.append(fake_orca.Preset("_local/filaforge/Sunlu PLA+ FF", config, system=False))
+        items = self.last("orca_filaments", self.send(cmd="orca_filaments"))["items"]
+        self.assertEqual([i["label"] for i in items], ["Sunlu PLA+ Niebieski"])   # system and FilaForge's left out
+        item = items[0]
+        self.assertEqual((item["identity"]["brand"], item["identity"]["product"], item["colour"]),
+                         ("SUNLU", "PLA+", "#1E4FD8"))
+        result = self.last("result", self.send(cmd="research", orca_preset=item["name"], **item["identity"]))
+        self.assertEqual(result["base"], {"name": "Sunlu PLA+ Niebieski", "kind": "own"})
+        self.assertEqual(result["preset_name"], "Sunlu PLA+ Niebieski FF")
+        saved = self.last("saved", self.send(cmd="make_preset", identity=result["identity"], base=result["base"]["name"],
+                                             settings=[s for s in result["settings"] if s["apply"]],
+                                             name=result["preset_name"]))
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertIn(preset["filament_flow_ratio"], ("0.95", ["0.95"]))   # kept from the user's preset
+        self.assertEqual(preset["inherits"], "")
 
     def test_products(self):
         reply = self.last("products", self.send(cmd="products", brand="Sunlu"))

@@ -18,11 +18,11 @@ import orca
 from .core import measured, merge, process, research, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
-from .core.sources import ofd, spoolmandb
+from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.2.3"
+VERSION = "0.3.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -195,6 +195,31 @@ def filament_presets(bundle, identity):
     return out
 
 
+def user_filaments(bundle):
+    """The filament presets the user already has for the selected printer (their own and other plugins' local
+    ones, not FilaForge's), with what each one says about the filament."""
+    col = bundle.filaments
+    selected = getattr(_selected(col), "name", "")
+    out = []
+    for i in range(col.size()):
+        p = col.preset(i)
+        name = str(p.name)
+        own_bundle = name.startswith("_local/") and not name.startswith("_local/" + writer.BUNDLE + "/")
+        if (getattr(p, "is_system", True) and not own_bundle) or name.startswith("_local/" + writer.BUNDLE + "/"):
+            continue
+        if getattr(p, "is_default", False) or not getattr(p, "is_compatible", True):
+            continue
+        item = {"name": name, "vendor": _clean(p.config_value("filament_vendor")),
+                "type": _clean(p.config_value("filament_type")),
+                "config": {k: str(p.config_value(k) or "") for k in ("default_filament_colour", "filament_colour")}}
+        ident = orca_presets.identity_of(item)
+        out.append({"name": name, "label": orca_presets.bare_name(name), "vendor": item["vendor"],
+                    "type": item["type"], "colour": ident["colour"], "identity": ident,
+                    "selected": name == selected})
+    out.sort(key=lambda x: fold(x["label"]))
+    return out
+
+
 def process_list(bundle):
     col = bundle.prints
     names = []
@@ -357,6 +382,9 @@ class Tab:
         self.reply("init", version=VERSION, settings=settings, printer=printer_info(bundle),
                    processes=process_list(bundle), saved=saved_presets(bundle))
 
+    def on_orca_filaments(self, data):
+        self.reply("orca_filaments", items=user_filaments(orca.host.preset_bundle()))
+
     def on_settings(self, data):
         changes = {}
         if "spoolman_url" in data:
@@ -393,6 +421,14 @@ class Tab:
         bundle = orca.host.preset_bundle()
         printer = printer_info(bundle)
         presets = filament_presets(bundle, identity)
+        own = None
+        own_name = data.get("orca_preset")
+        if isinstance(own_name, str) and own_name:
+            config = preset_config(bundle.filaments, own_name)
+            own = {"name": own_name, "vendor": _clean(config.get("filament_vendor")),
+                   "type": _clean(config.get("filament_type")), "is_system": False, "compatible": True,
+                   "config": config}
+            presets = [p for p in presets if p["name"] != own_name]
         process_config = {}
         try:
             process_config = preset_config(bundle.prints, printer["process"]) if printer["process"] else {}
@@ -417,12 +453,14 @@ class Tab:
                     except spoolman.SpoolmanError as error:
                         self.reply("progress", step="spoolman", message=str(error))
                 result = research.run(identity, presets, fetcher(), process_config, tested, urls, files,
-                                      progress=lambda step: self.reply("progress", step=step), use_online=online)
+                                      progress=lambda step: self.reply("progress", step=step), use_online=online,
+                                      own=own)
                 for report in result["reports"]:
                     if report["source"] == "tds" and report["ok"]:
                         remember_origin(report["url"])
                 result.update(printer=printer, measured=store().sections(identity),
-                              preset_name=writer.with_marker(identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
+                              preset_name=writer.with_marker(orca_presets.bare_name(own["name"]) if own
+                                                             else identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
                 self.reply("result", **result)
             except Exception as error:
                 log.error("research failed:\n%s", traceback.format_exc())

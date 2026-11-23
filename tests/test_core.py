@@ -213,6 +213,34 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(result["base"]["name"], "SUNLU PLA+ @System")
         self.assertEqual([r["source"] for r in result["reports"]], ["orca"])
 
+    def test_own_preset(self):
+        sunlu = next(p for p in helpers.orca_presets() if p["name"] == "SUNLU PLA+ @System")
+        config = dict(sunlu["config"], filament_flow_ratio="0.95", nozzle_temperature="215",
+                      default_filament_colour='"#1E4FD8"')
+        own = {"name": "_local/spooler/Sunlu PLA+ Niebieski @Creality K1C", "vendor": "Sunlu", "type": "PLA",
+               "is_system": False, "compatible": True, "config": config}
+        ident = research.identity_from(orca_presets.identity_of(own))
+        self.assertEqual((ident.brand, ident.material, ident.product, ident.colour), ("Sunlu", "PLA", "PLA+", "#1E4FD8"))
+        result = research.run(ident, helpers.orca_presets(), CannedFetcher({}), use_online=False, own=own)
+        self.assertEqual(result["base"], {"name": own["name"], "kind": "own"})
+        self.assertEqual([r["source"] for r in result["reports"]], ["orca", "own"])
+        rows = {r["orca_key"]: r for r in result["settings"]}
+        # the user's own value beats the maker's preset, and equals the base, so nothing to change
+        self.assertEqual(rows["filament_flow_ratio"]["value"], "0.95")
+        self.assertEqual(result["picks"]["flow_ratio"]["source"], "own")
+
+    def test_identity_of_presets(self):
+        cases = [
+            ("Elegoo Rapid PETG Black", "Elegoo", "PETG", ("Elegoo", "PETG", "Rapid PETG")),
+            ("eSUN PLA+ Biały", "", "PLA", ("eSUN", "PLA", "PLA+")),
+            ("PLA Silk złoty", "Generic", "PLA", ("Generic", "PLA", "PLA Silk")),
+            ("Generic PETG @Creality K1C", "Generic", "PETG", ("Generic", "PETG", "")),
+            ("Bambu PLA Basic @BBL X1C", "Bambu Lab", "PLA", ("Bambu Lab", "PLA", "PLA Basic")),
+        ]
+        for name, vendor, kind, want in cases:
+            got = orca_presets.identity_of({"name": name, "vendor": vendor, "type": kind, "config": {}})
+            self.assertEqual((got["brand"], got["material"], got["product"]), want, name)
+
 
 class MeasuredTests(unittest.TestCase):
     def test_store(self):

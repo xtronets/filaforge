@@ -37,11 +37,12 @@ def typical_speed(process_config):
 
 
 def run(identity, presets, fetcher, process_config=None, tested=(), sheet_urls=(), sheet_files=(), progress=None,
-        use_online=True):
+        use_online=True, own=None):
     """The result the page shows: {identity, reports, picks, settings, base, sources}.
 
     presets: the filament presets read from OrcaSlicer (see orca_presets); tested: Observations of the user's
-    values; sheet_urls / sheet_files ({"name", "data": base64}): data sheets the user added."""
+    values; sheet_urls / sheet_files ({"name", "data": base64}): data sheets the user added; own: the user's own
+    OrcaSlicer preset (same shape as presets) to start from: its values count, and it is the base."""
     say = progress or (lambda *a: None)
     observations, reports = [], []
     hint, sheets = "", []
@@ -60,6 +61,10 @@ def run(identity, presets, fetcher, process_config=None, tested=(), sheet_urls=(
     obs, report, chosen = orca_presets.lookup(presets, identity, hint)
     observations += obs
     reports.append(report)
+    if own:
+        obs, report = orca_presets.own_lookup(own)
+        observations += obs
+        reports.append(report)
     for url in list(dict.fromkeys(list(sheet_urls) + (sheets if use_online else []))):
         say("tds")
         obs, report = tds.lookup(fetcher, url, "Data sheet: %s" % identity.label())
@@ -77,7 +82,8 @@ def run(identity, presets, fetcher, process_config=None, tested=(), sheet_urls=(
     if tested:
         reports.append(merging_report(tested))
     picks = merging.merge(observations, typical_speed(process_config))
-    base = chosen["vendor"] or chosen["generic"]
+    base = own or chosen["vendor"] or chosen["generic"]
+    base_kind = "own" if own else "vendor" if chosen["vendor"] else "generic"
     settings = merging.orca_settings(picks, (base or {}).get("config"))
     return {
         "identity": {"brand": identity.brand, "material": identity.material, "product": identity.product,
@@ -85,7 +91,7 @@ def run(identity, presets, fetcher, process_config=None, tested=(), sheet_urls=(
         "reports": [r.__dict__ for r in reports],
         "picks": {k: p.as_dict() for k, p in picks.items()},
         "settings": settings,
-        "base": {"name": base["name"], "kind": "vendor" if chosen["vendor"] else "generic"} if base else None,
+        "base": {"name": base["name"], "kind": base_kind} if base else None,
         "observations": [o.as_dict() for o in observations],
     }
 
