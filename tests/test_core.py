@@ -280,14 +280,15 @@ class SpoolmanTests(unittest.TestCase):
             return Response(fresh if request.get_method() == "GET" else {})
 
         client = spoolman.Client("192.168.1.2:7912", opener)
-        added, kept = client.write_settings(46, "*", {"filament_density": "1.21", "nozzle_temperature_range_low": "5"})
-        self.assertEqual((added, kept), (["filament_density"], ["nozzle_temperature_range_low"]))
+        added, kept = client.write_settings(46, "*", {"filament_max_volumetric_speed": "18", "filament_density": "1.21",
+                                                      "nozzle_temperature_range_low": "5"})
+        self.assertEqual((added, kept), (["filament_max_volumetric_speed"], ["nozzle_temperature_range_low"]))
         method, url, body = calls[-1]
         self.assertEqual((method, url), ("PATCH", "http://192.168.1.2:7912/api/v1/filament/46"))
         extra = json.loads(body)["extra"]
         self.assertEqual(extra["orca_max_volumetric_speed"], "18")              # every other field goes back
         written = json.loads(json.loads(extra["orca_settings"]))
-        self.assertEqual(written["*"], {"nozzle_temperature_range_low": 190, "filament_density": "1.21"})
+        self.assertEqual(written["*"], {"nozzle_temperature_range_low": 190, "filament_max_volumetric_speed": "18"})
 
 
 class ProcessTests(unittest.TestCase):
