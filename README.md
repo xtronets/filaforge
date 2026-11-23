@@ -45,7 +45,7 @@ Then:
 
 ## Install
 
-Download `filaforge_any.whl`, then in OrcaSlicer: **Plugins** (the ▾ next to File on Windows/Linux) →
+Download `filaforge_any.whl` from [Releases](https://github.com/xtronets/filaforge/releases/latest), then in OrcaSlicer: **Plugins** (the ▾ next to File on Windows/Linux) →
 **Install local plugin** → tick **Activate** and allow what it asks for (background thread, its folder, the
 addresses above). The **FilaForge** tab appears next to Prepare, Preview and Device.
 
@@ -68,4 +68,4 @@ i z Twoich pomiarów. Przy każdym ustawieniu widać, skąd jest, jak pewna jest
 Potem jednym kliknięciem tworzy preset filamentu w Orce, dopisuje brakujące ustawienia do Spoolmana
 (Spooler zrobi z nich presety) i liczy proces druku dopasowany do przepływu filamentu.
 
-Instalacja: Orca → **Wtyczki** → **Zainstaluj lokalną wtyczkę** → plik `filaforge_any.whl`.
+Instalacja: pobierz `filaforge_any.whl` z [Releases](https://github.com/xtronets/filaforge/releases/latest), potem Orca → **Wtyczki** → **Zainstaluj lokalną wtyczkę** → wskaż ten plik.
