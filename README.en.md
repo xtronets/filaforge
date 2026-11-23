@@ -106,7 +106,7 @@ for example, `0.20mm Standard Sunlu PLA+ FF`.
 ## Requirements
 
 - OrcaSlicer **2.5** or newer, with plugin support.
-- Optional: [Spoolman](https://github.com/Donkie/Spoolman), to pick spools and save settings.
+- Optional: [Spoolman](https://github.com/Donkie/Spoolman), to pick spools and save settings. Everything else works without it.
 - Optional: [Spooler](https://github.com/bloodf/spooler). If you have it, FilaForge takes the Spoolman address from it.
 
 ## Install, update, uninstall
@@ -139,6 +139,9 @@ window or in OrcaSlicer. You can then delete the `<OrcaSlicer data>/filaforge/` 
 7. After calibrating, enter the results in **Your measurements** and click **Save and recalculate**.
 8. In **Print process for this filament** pick a process and a variant, click **Calculate**, then
    **Save process in OrcaSlicer**.
+
+**Without Spoolman** the plugin works as usual: it opens on the *Manual* tab and the Save to Spoolman button is
+hidden. Finding data, presets, your measurements and the print process work the same.
 
 The **Saved** button in the header lists every preset and process made by FilaForge, and removes them.
 

@@ -506,6 +506,7 @@ function renderResult() {
       <td>${altsFor(s.from)}</td></tr>`;
   }).join('');
   $('spoolman-plan').hidden = true;
+  $('btn-spoolman-plan').hidden = !S.settings.spoolman_url;   // no Spoolman: nothing to save to
   $('btn-spoolman-plan').disabled = !(S.pick === 'spoolman' && S.spool);
   $('btn-spoolman-plan').title = S.pick === 'spoolman' && S.spool ? '' : t('sp_need');
   renderMeasured(r.measured || {});

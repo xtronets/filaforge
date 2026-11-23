@@ -107,7 +107,7 @@ np. `0.20mm Standard Sunlu PLA+ FF`.
 ## Wymagania
 
 - OrcaSlicer **2.5** lub nowszy, z obsługą wtyczek.
-- Opcjonalnie [Spoolman](https://github.com/Donkie/Spoolman), żeby wybierać szpule i zapisywać ustawienia.
+- Opcjonalnie [Spoolman](https://github.com/Donkie/Spoolman), żeby wybierać szpule i zapisywać ustawienia. Bez niego wszystko inne działa.
 - Opcjonalnie [Spooler](https://github.com/bloodf/spooler). Jeśli go masz, FilaForge sam weźmie z niego adres Spoolmana.
 
 ## Instalacja, aktualizacja, odinstalowanie
@@ -140,6 +140,9 @@ w oknie **Zapisane** albo w Orce. Folder `<dane Orki>/filaforge/` możesz potem 
 7. Po kalibracji wpisz wyniki w **Twoje pomiary** i kliknij **Zapisz pomiary i przelicz**.
 8. W **Proces druku dla tego filamentu** wybierz proces i wariant, kliknij **Przelicz**, a potem
    **Zapisz proces w Orce**.
+
+**Bez Spoolmana** wtyczka działa normalnie: od razu otwiera się karta *Ręcznie*, a przycisk zapisu do Spoolmana
+jest ukryty. Wyszukiwanie danych, presety, Twoje pomiary i proces druku działają tak samo.
 
 Przycisk **Zapisane** w nagłówku pokazuje wszystkie presety i procesy zrobione przez FilaForge. Tam też je usuniesz.
 
