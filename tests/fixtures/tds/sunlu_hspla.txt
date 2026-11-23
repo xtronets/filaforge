@@ -1,0 +1,146 @@
+Number SL-TE-WI-064
+TECHNICALDATASHEETISO
+Version A/1
+Page/Total 1/4
+Sheet Number：SL-PM-FM-001 Version：A/1
+Product Name: High Speed PLA
+Product features
+Fast-printing PLA
+Available in multiple colors
+Main applications:
+Decorative items, toys, accessories, and figurines
+Points for attention：
+Properties Test Method Test Condition S.I. Units Typical Values
+Mechanical
+(X-Y) Tensile Strength ISO 527/2 50 mm/min MPa 39±5
+(X-Y) Young’s Modulus ISO 527/2 1 mm/min MPa /
+(X-Y) Elongation at break ISO 527/2 50 mm/min % 12±4
+(X-Y) Flexural Strength ISO 178 2 mm/min MPa 70±5
+(X-Y) Flexural Modulus ISO 178 2 mm/min MPa 3200±400
+(X-Y) Izod Impact Strength of Notched
+Specimen ISO 180 23℃ KJ/m2 4.5±2
+(Z-X) Izod Impact Strength of Unnotched
+Specimen ISO 180 23℃ KJ/m2 6±3
+Shore Hardness ISO 868 23℃ HA/HD 81.4
+Thermal
+(X-Y) Heat Distortion (HDT) ISO 75 0.45 MPa ℃ 57±4
+Glass Transition (Tg) ISO 11357-2 10 ℃/min ℃ 67.2
+Melting Temperature ISO 11357-3 10 ℃/min ℃ 165.3
+@5%Decomposition Temp. ISO 11358 20 ℃/min ℃ ≥375
+Vicat Softening Temp. ISO 306 5kg, 50℃/h ℃ 54
+Moulding Shrinkage ISO 294 23℃ % 0.1-0.3
+Coefficient of Thermal Exp. ISO 11359-2 ㎛（m·℃） 101×10-6
+Others
+Melt Mass-flow Rate ISO 1133 190℃/2.16 kg g/10 min 7±2.5
+Density ISO 1183 23℃ g/cm3 1.28
+Volume Resistivity IEC 60093 - ohm-cm 2.90E+15
+Permittivity IEC 60250 1 kHz 1.51
+Flammability UL 94 1.5 mm Class HB
+Chemical
+Item Class
+Weak Acid (pH 3-6) Good
+Strong Acid (pH<3) Bad
+Weak Bases (pH 8-10) Good
+Number SL-TE-WI-064
+TECHNICALDATASHEETISO
+Version A/1
+Page/Total 2/4
+Sheet Number：SL-PM-FM-001 Version：A/1
+Grade：Excellent、Good、Normal、Bad
+Recommended Printing Parameters
+Parameters Range
+Nozzle Temp.
+Temperature
+℃
+Speed
+mm/s
+210-230 ≤250
+Plate Temp. 50-60℃
+Plate Material Textured PEI Build Plate
+Plate Treatment No processing required
+Cooling Fan Open/Close
+Raft Distance 0.2-0.4mm
+Retraction Distance 0.8-1.2mm
+Retraction Speed 30-40mm/s
+Room Temp. Room Temperature
+Supported Material PVA
+Drying Temp. 50℃
+The above values are provided for printer reference only. The parameters may be appropriately adjusted
+according to different printer models, printed objects, and specific application requirements.
+TENSILE TESTING SPECIMEN
+FLEXURAL TESTING SPECIMEN
+Strong Bases (pH >10) Bad
+Deionized Water Good
+Alcohol Normal
+Ketone Bad
+Petroleum Fuels Good
+Ester Good
+Number SL-TE-WI-064
+TECHNICALDATASHEETISO
+Version A/1
+Page/Total 3/4
+Sheet Number：SL-PM-FM-001 Version：A/1
+IMPACT TESTING SPECIMEN
+Note：
+[1] Test specimens were printed at a printing speed of 160-220 mm/s and a printing temperature of 220 °C.
+Infill: 100%, with a 90° raster orientation.
+[2] The typical values represent average laboratory data and are provided for reference only. They do not
+constitute product specifications. Results may vary depending on different printers.
+Safety and Handling Precautions
+A Material Safety Data Sheet (SDS) for this product is
+available from your local Sunlu office.
+The SDS provides customers with information on
+material handling, safety and disposal, as well as the
+requirements of applicable local health and safety
+regulations. The following are general precautions and
+apply only to the resins supplied. The various
+additives and processing aids used in plastics
+moulding and other materials used in secondary
+processes have their own safety requirements and
+must be understood separately.
+This product has extremely low toxicity, and under
+normal conditions of use, there are no particular issues
+with inhalation, eye contact, or skin contact.However,
+care must be taken when handling, storing, using or
+disposing of these resins.Workplace should be kept
+clean to avoid dust accumulation. Contact with molten
+resins during processing operations should be
+minimized.Plastic resin products generate dust and
+Number SL-TE-WI-064
+TECHNICALDATASHEETISO
+Version A/1
+Page/Total 4/4
+Sheet Number：SL-PM-FM-001 Version：A/1
+gases during the manufacturing process. Dust
+generated during operations such as sawing, filing and
+sanding of printed parts may irritate the eyes and
+upper respiratory tract. In dusty manufacturing
+environments, it is recommended that operators use
+respirators or masks approved
+by the appropriate authorities.
+The print processing area should be well ventilated as
+required by proper operating procedures. When
+plastics are processed above the melting temperature,
+fumes containing decomposing substances are
+released and may be irritating. In most cases, good
+general ventilation equipment is sufficient. Local
+extract ventilation should be used when necessary.
+When there is a risk of eye injury from airborne
+particles during work, protective goggles should be
+worn. If necessary, wear insulated gloves for
+protection when handling the resin.
+The product may yellow under the action of
+ultraviolet light, so it should be stored away from
+direct sunlight.
+Users are advised to investigate the final use of their
+product beforehand to ensure the correct use
+of Sunlu products. To prevent misuse or incorrect use
+of Sunlu products, it is advisable to contact
+the Sunlu R&D department or the marketing
+department.
+Note: Due to variations in usage conditions and applicable laws by location and time, customers are
+responsible for determining whether the products and product information in this document are suitable for their
+use. Customers should ensure that their workspaces and handling methods comply with applicable laws and other
+government regulations. Sunlu assumes no responsibility or liability for the information in this document and does
+not provide any warranties. All implied warranties of merchantability or fitness for a particular purpose under this
+document are hereby expressly excluded.
