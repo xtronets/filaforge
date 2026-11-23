@@ -57,7 +57,7 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(perms["threading"])
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         html = self.page.get_ui()
-        self.assertIn('"version": "0.1.0"', html)
+        self.assertIn('"version": "0.2.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertTrue(os.path.exists(self.page.get_icon()))
 
@@ -103,6 +103,12 @@ class PluginTests(unittest.TestCase):
                                                    max_volumetric_speed=12, identity=result["identity"]))
         self.assertTrue(plan["changes"])
         self.assertEqual(plan["name"], "0.20mm Standard Sunlu PLA+ FF")
+        self.assertIn("bridge_acceleration", [c["key"] for c in plan["changes"]])
+        small = self.last("process_plan", self.send(cmd="process_plan", process="0.20mm Standard @Creality K1C",
+                                                    max_volumetric_speed=12, identity=result["identity"],
+                                                    variant="plate"))
+        self.assertEqual((small["variant"], small["sizes"]), ("small", [[25, 30], [18, 18]]))
+        self.assertEqual(small["name"], "0.20mm Standard Sunlu PLA+ small parts FF")
         saved = self.last("saved", self.send(cmd="process_save", base=plan["base"], name=plan["name"],
                                              changes=plan["changes"]))
         with open(saved["path"], encoding="utf-8") as f:
@@ -127,6 +133,10 @@ class PluginTests(unittest.TestCase):
         other = self.last("saved", self.send(**args))
         self.assertEqual((other["name"], other["renamed"]), ("Sunlu PLA+ FF (Snapmaker U1)", True))
         self.assertEqual(len(other["saved"]), 2)
+
+    def test_products(self):
+        reply = self.last("products", self.send(cmd="products", brand="Sunlu"))
+        self.assertIn("PLA+", [p["name"] for p in reply["products"]])
 
     def test_errors_reach_the_page(self):
         err = self.last("error", self.send(cmd="research", brand="", material="PLA"))

@@ -111,3 +111,21 @@ def lookup(fetcher, identity):
     extra["match"] = {"name": data.get("name") or chosen.get("name"), "score": round(score, 2)}
     return obs, SourceReport("ofd", True, len(obs), "%s (match %.0f%%)" % (fold(data.get("name")), score * 100),
                              page, extra), extra
+
+
+def products(fetcher, brand):
+    """[{"name", "material"}] of every filament OFD lists for the brand ([] when it doesn't know the brand)."""
+    brands = fetcher.json(API + "brands/index.json", ttl=WEEK).get("brands") or []
+    found = find_brand(brands, brand)
+    if found is None:
+        return []
+    doc = fetcher.json(API + "brands/%s/index.json" % found["slug"], ttl=WEEK)
+    out = []
+    for m in doc.get("materials") or []:
+        try:
+            mdoc = fetcher.json(API + "brands/%s/materials/%s/index.json" % (found["slug"], m["slug"]), ttl=WEEK)
+        except FetchError:
+            continue
+        out += [{"name": f.get("name") or f.get("slug"), "material": m.get("material") or m["slug"]}
+                for f in mdoc.get("filaments") or []]
+    return out

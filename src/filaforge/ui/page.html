@@ -166,9 +166,10 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
       <div class="row">
         <div class="field"><label data-t="material"></label>
           <select id="f-material"></select></div>
-        <div class="field"><label data-t="product"></label><input id="f-product" data-tp="product_eg"></div>
+        <div class="field"><label data-t="product"></label><input id="f-product" data-tp="product_eg" list="products"></div>
       </div>
-      <datalist id="brands"></datalist>
+      <datalist id="brands"></datalist><datalist id="products"></datalist>
+      <div class="note small" id="products-note"></div>
     </div>
     <div class="field">
       <label data-t="sheet"></label>
@@ -227,8 +228,11 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
       <div class="head"><h2 data-t="process_title"></h2></div>
       <div class="body">
         <div class="note" data-t="process_note" style="margin-bottom:10px"></div>
-        <div class="row"><select id="p-base"></select><button class="secondary fit" id="btn-process-plan" data-t="calculate"></button></div>
+        <div class="row"><select id="p-base"></select>
+          <select id="p-variant" class="fit"><option value="standard" data-t="v_standard"></option><option value="small" data-t="v_small"></option><option value="plate" data-t="v_plate"></option></select>
+          <button class="secondary fit" id="btn-process-plan" data-t="calculate"></button></div>
         <div id="p-plan" hidden style="margin-top:12px">
+          <div class="note" id="p-variant-note" style="margin-bottom:8px"></div>
           <table><thead><tr><th data-t="setting"></th><th data-t="now"></th><th data-t="new"></th><th data-t="why"></th></tr></thead><tbody id="p-rows"></tbody></table>
           <div class="field" style="margin-top:10px"><label data-t="process_name"></label><input id="p-name"></div>
           <div class="actions" style="margin-top:10px"><button id="btn-process-save" data-t="save_process"></button><span class="note" id="p-note"></span></div>
@@ -288,7 +292,11 @@ const T = {
     sec_all: 'Wszystkie drukarki', sec_printer: 'Tylko {name}', no_changes: 'Proces już mieści się w przepływie filamentu: nic do zmiany.',
     legend: 'Kolor = skąd wartość, kreski = pewność', confidence: 'pewność: {c}', c_high: 'wysoka', c_medium: 'średnia', c_low: 'niska',
     err: 'Błąd: {m}', brand_missing: 'Podaj producenta.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'Presety Orki…', step_tds: 'Karta techniczna…',
-    apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', renamed: 'Ta nazwa była już zajęta przez preset dla innej drukarki, więc dopisałem model drukarki.', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
+    apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', name_small: 'małe detale', v_standard: 'Zwykłe modele', v_small: 'Małe detale (do 40 mm)', v_plate: 'Według modeli na płycie', g_speed: 'Prędkości', g_accel: 'Przyspieszenia',
+    plate_sizes: 'Modele na płycie: {sizes} mm → {v}.', plate_empty: 'Na płycie nie ma modeli: liczę jak dla zwykłych.',
+    r_material: 'materiał {cls} ×{f}', r_variant: 'małe detale ×{f}', r_flow: 'maks. przepływ {mvs} mm³/s przez przekrój {a} mm²',
+    r_tpu: 'TPU maks. {cap} mm/s', r_machine: 'limit drukarki {cap}', r_bridge: 'most rozpędza się do {v} mm/s w {ms} ms, żeby nie zerwać nitki',
+    products_found: 'Producent ma w bazie {n} produktów – podpowiadam je w polu „Produkt”.', renamed: 'Ta nazwa była już zajęta przez preset dla innej drukarki, więc dopisałem model drukarki.', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
   },
   en: {
     saved: 'Saved', settings: 'Settings', from_spoolman: 'From Spoolman', manual: 'Manual', filter_spools: 'Search spools…',
@@ -317,7 +325,11 @@ const T = {
     sec_all: 'Every printer', sec_printer: 'Only {name}', no_changes: 'The process already fits the filament’s flow: nothing to change.',
     legend: 'Colour = where a value comes from, bars = confidence', confidence: 'confidence: {c}', c_high: 'high', c_medium: 'medium', c_low: 'low',
     err: 'Error: {m}', brand_missing: 'Type the brand.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'OrcaSlicer presets…', step_tds: 'Data sheet…',
-    apply_tip: 'Ticked ones go into the preset and Spoolman', renamed: 'That name was already a preset for another printer, so the printer model was added.', show_same: 'Also show {n} settings equal to the base preset', hide_same: 'Hide {n} settings equal to the base preset', printer_none: 'No printer selected in OrcaSlicer', layer: 'layer {h} mm'
+    apply_tip: 'Ticked ones go into the preset and Spoolman', name_small: 'small parts', v_standard: 'Regular parts', v_small: 'Small parts (up to 40 mm)', v_plate: 'From the parts on the plate', g_speed: 'Speeds', g_accel: 'Accelerations',
+    plate_sizes: 'Parts on the plate: {sizes} mm → {v}.', plate_empty: 'No parts on the plate: calculated for regular parts.',
+    r_material: 'material {cls} ×{f}', r_variant: 'small parts ×{f}', r_flow: 'max flow {mvs} mm³/s through {a} mm²',
+    r_tpu: 'TPU max {cap} mm/s', r_machine: 'printer limit {cap}', r_bridge: 'a bridge reaches {v} mm/s in {ms} ms so the strand isn’t torn',
+    products_found: 'The maker has {n} products in the database – suggested in “Product”.', renamed: 'That name was already a preset for another printer, so the printer model was added.', show_same: 'Also show {n} settings equal to the base preset', hide_same: 'Hide {n} settings equal to the base preset', printer_none: 'No printer selected in OrcaSlicer', layer: 'layer {h} mm'
   }
 };
 const KEY_LABELS = {
@@ -328,7 +340,10 @@ const KEY_LABELS = {
         chamber_temperature: 'Temperatura komory', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Włącz pressure advance',
         filament_retraction_length: 'Retrakcja – długość', filament_retraction_speed: 'Retrakcja – prędkość', filament_notes: 'Notatki',
         outer_wall_speed: 'Ściana zewnętrzna', inner_wall_speed: 'Ściany wewnętrzne', sparse_infill_speed: 'Wypełnienie', internal_solid_infill_speed: 'Wypełnienie pełne',
-        top_surface_speed: 'Powierzchnia górna', gap_infill_speed: 'Szczeliny', support_speed: 'Podpory', initial_layer_speed: 'Pierwsza warstwa', initial_layer_infill_speed: 'Wypełnienie 1. warstwy' },
+        top_surface_speed: 'Powierzchnia górna', gap_infill_speed: 'Szczeliny', support_speed: 'Podpory', initial_layer_speed: 'Pierwsza warstwa', initial_layer_infill_speed: 'Wypełnienie 1. warstwy',
+        small_perimeter_speed: 'Małe obwody', scarf_joint_speed: 'Szew skośny (scarf)', support_interface_speed: 'Styk podpór', bridge_speed: 'Mosty', internal_bridge_speed: 'Mosty wewnętrzne', skirt_speed: 'Skirt',
+        default_acceleration: 'Przyspieszenie domyślne', outer_wall_acceleration: 'Przysp. ściany zewn.', inner_wall_acceleration: 'Przysp. ścian wewn.', top_surface_acceleration: 'Przysp. powierzchni górnej',
+        sparse_infill_acceleration: 'Przysp. wypełnienia', internal_solid_infill_acceleration: 'Przysp. wypełnienia pełnego', bridge_acceleration: 'Przysp. mostów', initial_layer_acceleration: 'Przysp. 1. warstwy', travel_acceleration: 'Przysp. przejazdów' },
   en: { nozzle_temperature: 'Nozzle temperature', nozzle_temperature_initial_layer: 'Nozzle – first layer', nozzle_temperature_range_low: 'Nozzle range from',
         nozzle_temperature_range_high: 'Nozzle range to', hot_plate_temp: 'Bed (smooth PEI)', hot_plate_temp_initial_layer: 'Smooth bed – first layer',
         textured_plate_temp: 'Bed (textured PEI)', textured_plate_temp_initial_layer: 'Textured bed – first layer', filament_density: 'Density',
@@ -336,7 +351,10 @@ const KEY_LABELS = {
         chamber_temperature: 'Chamber temperature', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Enable pressure advance',
         filament_retraction_length: 'Retraction length', filament_retraction_speed: 'Retraction speed', filament_notes: 'Notes',
         outer_wall_speed: 'Outer wall', inner_wall_speed: 'Inner walls', sparse_infill_speed: 'Sparse infill', internal_solid_infill_speed: 'Solid infill',
-        top_surface_speed: 'Top surface', gap_infill_speed: 'Gap infill', support_speed: 'Support', initial_layer_speed: 'First layer', initial_layer_infill_speed: 'First layer infill' }
+        top_surface_speed: 'Top surface', gap_infill_speed: 'Gap infill', support_speed: 'Support', initial_layer_speed: 'First layer', initial_layer_infill_speed: 'First layer infill',
+        small_perimeter_speed: 'Small perimeters', scarf_joint_speed: 'Scarf joint', support_interface_speed: 'Support interface', bridge_speed: 'Bridges', internal_bridge_speed: 'Internal bridges', skirt_speed: 'Skirt',
+        default_acceleration: 'Default acceleration', outer_wall_acceleration: 'Outer wall accel.', inner_wall_acceleration: 'Inner wall accel.', top_surface_acceleration: 'Top surface accel.',
+        sparse_infill_acceleration: 'Sparse infill accel.', internal_solid_infill_acceleration: 'Solid infill accel.', bridge_acceleration: 'Bridge accel.', initial_layer_acceleration: 'First layer accel.', travel_acceleration: 'Travel accel.' }
 };
 const UNITS = { nozzle_temperature: '°C', nozzle_temperature_initial_layer: '°C', nozzle_temperature_range_low: '°C', nozzle_temperature_range_high: '°C',
   hot_plate_temp: '°C', hot_plate_temp_initial_layer: '°C', textured_plate_temp: '°C', textured_plate_temp_initial_layer: '°C', filament_density: 'g/cm³',
@@ -417,13 +435,25 @@ function renderSheets() {
 
 // ---------- sources
 const SRC = ['ofd', 'spoolmandb', 'orca', 'tds', 'tested'];
+const MSG_PL = [[/\(match (\d+)%\)/, '(zgodność $1%)'], [/^(\d+) values from the PDF$/, '$1 wartości z PDF'],
+  [/^(\d+) values from the page$/, '$1 wartości ze strony'], [/^brand not in the database$/, 'brak producenta w bazie'],
+  [/^brand not in SpoolmanDB$/, 'brak producenta w SpoolmanDB'], [/^no matching product \(has: (.*)\)$/, 'brak pasującego produktu (są: $1)'],
+  [/^no matching product$/, 'brak pasującego produktu'], [/^no text could be read from it$/, 'nie udało się odczytać tekstu'],
+  [/^no preset of this brand for the printer; generic: (.*)$/, 'brak presetu tej marki dla drukarki; ogólny: $1'],
+  [/^no usable preset of this material for the printer$/, 'brak presetu tego materiału dla drukarki']];
+function sourceMsg(text) {
+  if (L !== 'pl') return text;
+  let out = String(text || '');
+  for (const [re, to] of MSG_PL) out = out.replace(re, to);
+  return out;
+}
 function renderSources(reports) {
   const html = [];
   if (reports) {
     for (const r of reports) {
       const cls = !r.ok ? 'fail' : (r.found ? 'ok' : 'empty');
       const link = r.url ? ` <a href="#" data-open="${esc(r.url)}">↗</a>` : '';
-      html.push(`<div class="source ${cls}"><span class="dot"></span><b>${esc(t('src_' + r.source))}${link}</b><span class="msg">${esc(r.message)}</span></div>`);
+      html.push(`<div class="source ${cls}"><span class="dot"></span><b>${esc(t('src_' + r.source))}${link}</b><span class="msg">${esc(sourceMsg(r.message))}</span></div>`);
     }
   } else {
     for (const s of SRC.slice(0, 4)) {
@@ -597,7 +627,25 @@ $('btn-save-measured').addEventListener('click', () => {
 });
 $('m-section').addEventListener('change', fillMeasured);
 $('btn-process-plan').addEventListener('click', () => {
-  send({cmd: 'process_plan', process: $('p-base').value, max_volumetric_speed: currentMvs(), identity: S.result.identity});
+  send({cmd: 'process_plan', process: $('p-base').value, max_volumetric_speed: currentMvs(), identity: S.result.identity,
+        variant: $('p-variant').value});
+});
+function fmtNum(v) { const n = Number(v); return Number.isFinite(n) ? n.toLocaleString(L === 'pl' ? 'pl-PL' : 'en-US', {maximumFractionDigits: 1}) : v; }
+function reasonText(r) {
+  switch (r.code) {
+    case 'material': return t('r_material', {cls: r.cls, f: r.factor});
+    case 'variant': return t('r_variant', {f: r.factor});
+    case 'flow': return t('r_flow', {mvs: fmtNum(r.mvs), a: r.area});
+    case 'tpu': return t('r_tpu', {cap: r.cap});
+    case 'machine': return t('r_machine', {cap: fmtNum(r.cap)});
+    case 'bridge_ramp': return t('r_bridge', {v: fmtNum(r.speed), ms: Math.round(r.seconds * 1000)});
+    default: return r.code;
+  }
+}
+let productTimer = null;
+$('f-brand').addEventListener('input', () => {
+  clearTimeout(productTimer);
+  productTimer = setTimeout(() => send({cmd: 'products', brand: $('f-brand').value.trim()}), 600);
 });
 $('btn-process-save').addEventListener('click', () => {
   busy($('btn-process-save'), true);
@@ -632,6 +680,12 @@ function onMessage(m) {
       if (S.result) renderResult();
       if (S.settings.spoolman_url) send({cmd: 'spoolman_list'});
       break;
+    case 'products': {
+      if (m.brand !== $('f-brand').value.trim()) break;
+      const list = m.products || [];
+      $('products').innerHTML = list.map(p => `<option value="${esc(p.name)}">${esc(p.material)}</option>`).join('');
+      $('products-note').textContent = list.length ? t('products_found', {n: list.length}) : '';
+      break; }
     case 'spoolman_list':
       S.spools = m.filaments || []; renderSpools();
       $('spool-note').textContent = '';
@@ -684,9 +738,18 @@ function onMessage(m) {
     case 'process_plan':
       S.plan = m;
       $('p-plan').hidden = false;
-      $('p-name').value = m.name;
-      $('p-rows').innerHTML = m.changes.length ? m.changes.map(c => `<tr><td>${esc(label(c.key))}</td><td class="mono">${esc(Math.round(c.base))}</td><td class="mono"><b>${esc(c.new)}</b></td><td class="why">${esc(c.reason)}</td></tr>`).join('')
-        : `<tr><td colspan="4" class="muted">${esc(t('no_changes'))}</td></tr>`;
+      $('p-name').value = m.name.replace(' small parts ', ' ' + t('name_small') + ' ');
+      $('p-variant').value = m.asked || m.variant;
+      const groups = [['speed', t('g_speed')], ['accel', t('g_accel')]];
+      $('p-rows').innerHTML = m.changes.length ? groups.map(([g, title]) => {
+          const rows = m.changes.filter(c => c.group === g);
+          if (!rows.length) return '';
+          return `<tr><td colspan="4" class="small" style="font-weight:650;padding-top:10px">${esc(title)} (${rows.length})</td></tr>` +
+            rows.map(c => `<tr><td>${esc(label(c.key))}</td><td class="mono">${esc(fmtNum(c.base))} ${esc(c.unit)}</td><td class="mono"><b style="color:var(--tested)">${esc(fmtNum(c.new))} ${esc(c.unit)}</b></td><td class="why">${esc((c.reasons || []).map(reasonText).join(' · '))}</td></tr>`).join('');
+        }).join('') : `<tr><td colspan="4" class="muted">${esc(t('no_changes'))}</td></tr>`;
+      $('p-variant-note').textContent = m.asked === 'plate'
+        ? (m.sizes && m.sizes.length ? t('plate_sizes', {sizes: m.sizes.map(s => s[0] + '×' + s[1]).join(', '), v: t('v_' + m.variant)}) : t('plate_empty'))
+        : '';
       $('btn-process-save').disabled = !m.changes.length;
       $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
       break;
