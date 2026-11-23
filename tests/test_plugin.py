@@ -57,7 +57,7 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(perms["threading"])
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         html = self.page.get_ui()
-        self.assertIn('"version": "0.2.0"', html)
+        self.assertIn('"version": "0.2.1"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertTrue(os.path.exists(self.page.get_icon()))
 

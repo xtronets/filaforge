@@ -35,7 +35,21 @@ if orca is not None:
             return orca.PluginType.Pages
 
         def get_icon(self):
-            return os.path.join(_plugin.HERE, "ui", "icon.png")
+            # A copy named after its content: OrcaSlicer keeps a tab icon by its name, so a new icon needs a new
+            # name (and a plain "icon" could meet another plugin's).
+            source = os.path.join(_plugin.HERE, "ui", "icon.png")
+            try:
+                import hashlib
+                with open(source, "rb") as f:
+                    data = f.read()
+                path = os.path.join(_plugin.own_dir(), "filaforge-tab-%s.png" % hashlib.sha256(data).hexdigest()[:8])
+                if not os.path.exists(path):
+                    os.makedirs(_plugin.own_dir(), exist_ok=True)
+                    with open(path, "wb") as f:
+                        f.write(data)
+                return path
+            except OSError:
+                return source
 
         def get_default_config(self):
             return {}
