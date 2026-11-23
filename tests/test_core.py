@@ -350,6 +350,12 @@ class WriterTests(unittest.TestCase):
             self.assertTrue(bundle.remove("A/B: test", reloads.append))
             self.assertFalse(os.path.exists(path))
 
+    def test_marker(self):
+        self.assertEqual(writer.with_marker("Sunlu PLA+ @Creality K1C 0.4 nozzle"), "Sunlu PLA+ FF @Creality K1C 0.4 nozzle")
+        self.assertEqual(writer.with_marker("Sunlu PLA+ FF @K1C"), "Sunlu PLA+ FF @K1C")
+        self.assertEqual(writer.with_marker("Sunlu PLA+"), "Sunlu PLA+ FF")
+        self.assertEqual(writer.with_marker("FFG PLA"), "FFG PLA FF")
+
     def test_account_folders(self):
         with tempfile.TemporaryDirectory() as data:
             os.makedirs(os.path.join(data, "user", "123"))

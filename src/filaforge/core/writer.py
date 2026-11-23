@@ -26,6 +26,19 @@ TEXT_KEYS = frozenset({"filament_notes", "filament_vendor", "filament_type", "fi
 _NAME_BAD = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 
+MARKER = "FF"
+
+
+def with_marker(name):
+    """The name with FilaForge's "FF" mark before its "@printer" part ("Sunlu PLA+ FF @Creality K1C"), once."""
+    name = re.sub(r"\s+", " ", str(name or "")).strip()
+    head, at, tail = name.partition("@")
+    head = head.strip()
+    if MARKER not in head.split():
+        head = (head + " " + MARKER).strip()
+    return "%s @%s" % (head, tail.strip()) if at else head
+
+
 def safe_name(name):
     """A preset name that is also a valid file name on every OS."""
     name = _NAME_BAD.sub("-", str(name)).strip(" .")

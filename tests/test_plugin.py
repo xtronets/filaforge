@@ -69,7 +69,7 @@ class PluginTests(unittest.TestCase):
 
         result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+", colour="#ffffff"))
         self.assertEqual(result["base"]["name"], "SUNLU PLA+ @System")
-        self.assertEqual(result["preset_name"], "Sunlu PLA+ @Creality K1C 0.4 nozzle")
+        self.assertEqual(result["preset_name"], "Sunlu PLA+ FF @Creality K1C 0.4 nozzle")
         settings = [s for s in result["settings"] if s["apply"]]
         self.assertTrue(settings)
         json.dumps(result)
@@ -85,7 +85,12 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(preset["compatible_printers"], ["Creality K1C 0.4 nozzle"])
         self.assertEqual(preset["filament_density"], ["1.21"])
         self.assertEqual(preset["filament_type"], ["PLA"])
-        self.assertEqual([s["name"] for s in saved["saved"]], ["Sunlu PLA+ @Creality K1C 0.4 nozzle"])
+        self.assertEqual([s["name"] for s in saved["saved"]], ["Sunlu PLA+ FF @Creality K1C 0.4 nozzle"])
+        # a name typed without the mark gets it
+        again = self.last("saved", self.send(cmd="make_preset", identity=result["identity"], settings=settings,
+                                             base=result["base"]["name"], name="Moja Sunlu @Creality K1C 0.4 nozzle"))
+        self.assertEqual(again["name"], "Moja Sunlu FF @Creality K1C 0.4 nozzle")
+        self.send(cmd="remove_preset", name=again["name"])
 
         measured = self.last("measured", self.send(cmd="save_measured", identity=result["identity"],
                                                    section="Creality K1C", values={"flow_ratio": "0.97"}))
@@ -97,6 +102,7 @@ class PluginTests(unittest.TestCase):
         plan = self.last("process_plan", self.send(cmd="process_plan", process="0.20mm Standard @Creality K1C",
                                                    max_volumetric_speed=12, identity=result["identity"]))
         self.assertTrue(plan["changes"])
+        self.assertEqual(plan["name"], "0.20mm Standard Sunlu PLA+ FF @Creality K1C")
         saved = self.last("saved", self.send(cmd="process_save", base=plan["base"], name=plan["name"],
                                              changes=plan["changes"]))
         with open(saved["path"], encoding="utf-8") as f:
