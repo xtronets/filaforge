@@ -46,7 +46,10 @@ input[type=checkbox] { accent-color: var(--accent); }
 
 header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
-.brand svg { width: 22px; height: 22px; }
+.brand img { width: 32px; height: 32px; margin: -6px 0; }
+.wordmark { font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+.wordmark b { font-weight: 800; background: linear-gradient(180deg, #f5841f, #c9331c); -webkit-background-clip: text;
+              background-clip: text; color: transparent; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--soft);
         font-size: 12px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spacer { flex: 1; }
@@ -88,7 +91,8 @@ section.results { overflow: auto; padding: 14px 18px 24px; display: flex; flex-d
 .source .msg { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
 
 .empty-state { margin: auto; text-align: center; color: var(--muted); max-width: 440px; padding: 40px 0; }
-.empty-state svg { width: 64px; height: 64px; opacity: .5; margin-bottom: 8px; }
+.empty-state .splash { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto 14px; border-radius: 12px;
+                      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 
 .card { border: 1px solid var(--border); border-radius: 10px; }
 .card > .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
@@ -140,10 +144,8 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 <body>
 <header>
   <div class="brand">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#00a08a"/>
-      <circle cx="12" cy="12" r="7" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="12" cy="12" r="2.3" fill="#fff"/>
-      <path d="M12 5v4.2M12 14.8V19M5 12h4.2M14.8 12H19" stroke="#fff" stroke-width="1.3" opacity=".7"/></svg>
-    FilaForge
+    <img src="{{img:emblem.png}}" alt="" width="32" height="32">
+    <span class="wordmark">Fila<b>Forge</b></span>
   </div>
   <span class="chip" id="printer-chip" title=""></span>
   <span class="spacer"></span>
@@ -184,7 +186,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 
   <section class="results" id="results">
     <div class="empty-state" id="empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>
+      <img class="splash" src="{{img:splash.webp}}" alt="FilaForge" width="420" height="237">
       <div data-t="empty"></div>
     </div>
 

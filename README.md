@@ -1,9 +1,18 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.jpg">
+    <img src="docs/logo-light.jpg" alt="FilaForge" width="600">
+  </picture>
+</p>
+
 # FilaForge
 
 Filament profiles for OrcaSlicer, built from open data, the maker's data sheet and your own measurements, with
 the origin of every value in plain sight.
 
 *Polski opis niżej.*
+
+<p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
 ## What it does
 

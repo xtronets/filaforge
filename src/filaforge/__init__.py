@@ -21,7 +21,26 @@ if orca is not None:
             html = f.read()
         boot = json.dumps({"version": _plugin.VERSION, "settings": _plugin.read_settings()})
         boot = boot.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-        return html.replace("/*BOOT*/null", boot)
+        return _inline_images(html.replace("/*BOOT*/null", boot))
+
+    _MIME = {".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".jpg": "image/jpeg"}
+
+    def _inline_images(html):
+        # The page comes to OrcaSlicer as a string, with no folder to load files from: {{img:name}} becomes the
+        # file in ui/ as a data: address.
+        import base64
+        import re
+
+        def data_url(m):
+            name = m.group(1)
+            try:
+                with open(os.path.join(_plugin.HERE, "ui", name), "rb") as f:
+                    data = base64.b64encode(f.read()).decode("ascii")
+            except OSError:
+                return ""
+            return "data:%s;base64,%s" % (_MIME.get(os.path.splitext(name)[1].lower(), "application/octet-stream"), data)
+
+        return re.sub(r"\{\{img:([\w.-]+)\}\}", data_url, html)
 
     class FilaForgePage(orca.pages.PagesPluginCapabilityBase):
         def __init__(self):
