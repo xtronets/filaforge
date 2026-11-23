@@ -306,7 +306,7 @@ class ProcessTests(unittest.TestCase):
     def test_preset(self):
         changes = process.fit(self.CONFIG, 0.4, 12, "PLA")
         name = process.process_name("0.20mm Standard @Creality K1C", "Sunlu PLA+")
-        self.assertEqual(name, "0.20mm Standard Sunlu PLA+ @Creality K1C")
+        self.assertEqual(name, "0.20mm Standard Sunlu PLA+")
         p = process.preset("0.20mm Standard @Creality K1C", name, ["Creality K1C 0.4 nozzle"], changes)
         self.assertEqual(p["inherits"], "0.20mm Standard @Creality K1C")
         self.assertEqual(p["inner_wall_speed"], "147")

@@ -111,9 +111,6 @@ def preset(base_name, name, printer_names, changes):
 
 
 def process_name(base_name, filament_label):
+    """The process's name: the base's without its "@printer" part, then the filament ("0.20mm Standard Sunlu PLA+")."""
     bare = base_name.split("@")[0].strip() if "@" in base_name else base_name
-    printer = base_name.split("@", 1)[1].strip() if "@" in base_name else ""
-    name = "%s %s" % (bare, filament_label)
-    return ("%s @%s" % (name, printer) if printer else name).strip()
-
-
+    return ("%s %s" % (bare, filament_label)).strip()

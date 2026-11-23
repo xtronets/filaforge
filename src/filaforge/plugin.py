@@ -226,14 +226,23 @@ def preset_files(bundle):
     return files
 
 
-def install(preset, bundle):
+def unique_name(name, printer, bundle):
+    """(name, renamed): OrcaSlicer needs every preset name once, and a preset is made for one printer; when the
+    name is already FilaForge's preset for another printer, this printer's model goes after it."""
+    taken = {s["name"]: s.get("printer") for s in saved_presets(bundle)}
+    if name in taken and taken[name] and taken[name] != printer["name"]:
+        return writer.safe_name("%s (%s)" % (name, printer["model"] or printer["name"])), True
+    return name, False
+
+
+def install(preset, bundle, printer=""):
     """Write the preset into FilaForge's bundle in the signed-in account's folder and reload it."""
     reload_fn = orca.host.preset.bundles.reload_local
     last = None
     for account in writer.account_folders(data_dir(), preset_files(bundle)):
         folder = os.path.join(data_dir(), "user", account, "_local", writer.BUNDLE)
         try:
-            return writer.Bundle(folder).save(preset, reload_fn)
+            return writer.Bundle(folder).save(preset, reload_fn, {"printer": printer})
         except RuntimeError as error:
             last = error
             if "does not exist" not in str(error) and "not found" not in str(error):
@@ -377,8 +386,7 @@ class Tab:
                     if report["source"] == "tds" and report["ok"]:
                         remember_origin(report["url"])
                 result.update(printer=printer, measured=store().sections(identity),
-                              preset_name=writer.with_marker("%s @%s" % (identity.label(), printer["name"])
-                                                             if printer["name"] else identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
+                              preset_name=writer.with_marker(identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
                 self.reply("result", **result)
             except Exception as error:
                 log.error("research failed:\n%s", traceback.format_exc())
@@ -397,8 +405,8 @@ class Tab:
         identity = _identity(data.get("identity"))
         bundle = orca.host.preset_bundle()
         printer = printer_info(bundle)
-        name = writer.safe_name(writer.with_marker(str(data.get("name") or "%s @%s" % (identity.label(),
-                                                                                         printer["name"]))))
+        name = writer.safe_name(writer.with_marker(str(data.get("name") or identity.label())))
+        name, renamed = unique_name(name, printer, bundle)
         base_name = str(data.get("base") or "")
         base_config = preset_config(bundle.filaments, base_name) if base_name else {}
         values = {}
@@ -413,8 +421,8 @@ class Tab:
         preset = writer.filament_preset(name, base_config, values, printer["name"], identity,
                                         measured.identity_key(identity),
                                         "FilaForge %s from %s" % (VERSION, base_name or "defaults"))
-        path = install(preset, bundle)
-        self.reply("saved", kind="filament", name=name, path=path, saved=saved_presets(bundle))
+        path = install(preset, bundle, printer["name"])
+        self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
 
     def on_remove_preset(self, data):
         bundle = orca.host.preset_bundle()
@@ -480,9 +488,10 @@ class Tab:
         changes = [c for c in data.get("changes") or [] if c.get("key") in process.SPEEDS and
                    isinstance(c.get("new"), (int, float))]
         name = writer.safe_name(writer.with_marker(str(data.get("name") or base_name)))
+        name, renamed = unique_name(name, printer, bundle)
         preset = process.preset(base_name, name, [printer["name"]] if printer["name"] else [], changes)
-        path = install(preset, bundle)
-        self.reply("saved", kind="process", name=name, path=path, saved=saved_presets(bundle))
+        path = install(preset, bundle, printer["name"])
+        self.reply("saved", kind="process", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
 
     def on_saved(self, data):
         self.reply("saved", kind="list", saved=saved_presets(orca.host.preset_bundle()))
