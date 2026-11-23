@@ -28,6 +28,10 @@ CALIBRATION_FIELDS = {"orca_flow_ratio": "flow_ratio", "orca_pressure_advance": 
                       "orca_max_volumetric_speed": "max_volumetric_speed"}
 
 
+# Spoolman's own filament fields: a copy in orca_settings would hide a later edit of the field from Spooler's preset
+NATIVE_KEYS = {"filament_density": "density", "filament_diameter": "diameter", "filament_cost": "price"}
+
+
 class SpoolmanError(Exception):
     pass
 
@@ -155,6 +159,7 @@ def add_missing(data, section, values):
     """(new object, added keys, kept keys): values added to section where no section that applies to the
     same printers already has the key."""
     data = json.loads(json.dumps(data or {}))
+    values = {k: v for k, v in values.items() if k not in NATIVE_KEYS}
     target = data.setdefault(section or "*", {})
     applies = [data.get("*") or {}] + ([target] if section and section != "*" else [])
     added, kept = [], []
