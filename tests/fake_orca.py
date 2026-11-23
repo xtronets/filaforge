@@ -84,12 +84,19 @@ def install(filament_presets, user_file=""):
     process = Preset("0.20mm Standard @Creality K1C", {
         "layer_height": "0.2", "initial_layer_print_height": "0.2", "line_width": "0.42", "outer_wall_line_width": "0.42",
         "inner_wall_line_width": "0.45", "sparse_infill_line_width": "0.45", "outer_wall_speed": "200",
-        "inner_wall_speed": "300", "sparse_infill_speed": "270", "top_surface_speed": "200"})
+        "inner_wall_speed": "300", "sparse_infill_speed": "270", "top_surface_speed": "200", "bridge_speed": "25",
+        "internal_bridge_speed": "150%", "outer_wall_acceleration": "3000", "bridge_acceleration": "50%",
+        "default_acceleration": "10000"})
     user = Preset("My process", {"layer_height": "0.2"}, system=False, file=user_file)
     printers = Collection([Preset("Creality K1C 0.4 nozzle", {"printer_model": "Creality K1C"})])
     bundle = Bundle(filaments, Collection([process, user]), printers,
-                    {"nozzle_diameter": "0.4", "printer_model": '"Creality K1C"'})
-    orca.host = types.SimpleNamespace(preset_bundle=lambda: bundle,
+                    {"nozzle_diameter": "0.4", "printer_model": '"Creality K1C"',
+                     "machine_max_acceleration_extruding": "20000,20000", "machine_max_acceleration_travel": "20000,20000",
+                     "machine_max_speed_x": "600,600", "machine_max_speed_y": "600,600"})
+    box = lambda x, y: types.SimpleNamespace(bounding_box=lambda: types.SimpleNamespace(defined=True, size=[x, y, 10]))
+    orca.plate = [box(25, 30), box(18, 18)]
+    model = types.SimpleNamespace(objects=lambda: list(orca.plate))
+    orca.host = types.SimpleNamespace(preset_bundle=lambda: bundle, model=lambda: model,
                                       preset=types.SimpleNamespace(bundles=types.SimpleNamespace(
                                           reload_local=reload_local, list_ids=lambda: ["filaforge"])))
     sys.modules["orca"] = orca

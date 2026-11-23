@@ -22,7 +22,7 @@ from .core.sources import ofd, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -212,6 +212,42 @@ def preset_config(collection, name):
     if preset is None:
         raise ValueError("preset_missing:%s" % name)
     return _config(preset)
+
+
+def machine_limits(bundle):
+    """The printer's max extruding and travel acceleration and max XY speed ({} parts it doesn't say)."""
+    cfg = bundle.full_config_value
+    out = {}
+    for key, name in (("accel", "machine_max_acceleration_extruding"), ("travel_accel", "machine_max_acceleration_travel")):
+        try:
+            value = float(_clean(cfg(name)))
+            if value > 0:
+                out[key] = value
+        except (TypeError, ValueError):
+            pass
+    speeds = []
+    for name in ("machine_max_speed_x", "machine_max_speed_y"):
+        try:
+            speeds.append(float(_clean(cfg(name))))
+        except (TypeError, ValueError):
+            pass
+    if speeds and min(speeds) > 0:
+        out["speed"] = min(speeds)
+    return out
+
+
+def plate_sizes():
+    """[(x, y)] mm of every object on the plate, from OrcaSlicer's model; [] when it can't be read."""
+    sizes = []
+    try:
+        for obj in orca.host.model().objects():
+            box = obj.bounding_box()
+            if getattr(box, "defined", True):
+                size = list(box.size)
+                sizes.append((float(size[0]), float(size[1])))
+    except Exception as error:
+        log.info("plate sizes: %s", error)
+    return sizes
 
 
 def preset_files(bundle):
@@ -475,9 +511,16 @@ class Tab:
         config = preset_config(bundle.prints, base_name)
         mvs = float(data.get("max_volumetric_speed") or 0) or None
         identity = _identity(data.get("identity"))
-        changes = process.fit(config, printer["nozzle"], mvs, identity.material, identity.product)
-        name = writer.with_marker(process.process_name(base_name, identity.label()))
-        self.reply("process_plan", base=base_name, name=writer.safe_name(name), changes=changes,
+        variant = str(data.get("variant") or "standard")
+        sizes = plate_sizes() if variant == "plate" else []
+        used = process.variant_for(sizes) if variant == "plate" else (variant if variant in process.VARIANTS
+                                                                      else "standard")
+        changes = process.fit(config, printer["nozzle"], mvs, identity.material, identity.product,
+                              machine_limits(bundle), used)
+        label = identity.label() + ("" if used == "standard" else " small parts")
+        name = writer.with_marker(process.process_name(base_name, label))
+        self.reply("process_plan", base=base_name, name=writer.safe_name(name), changes=changes, variant=used,
+                   asked=variant, sizes=[[round(x), round(y)] for x, y in sizes],
                    layer_height=_clean(config.get("layer_height")))
 
     def on_process_save(self, data):
@@ -485,13 +528,29 @@ class Tab:
         printer = printer_info(bundle)
         base_name = str(data.get("base") or "")
         preset_config(bundle.prints, base_name)   # it must exist
-        changes = [c for c in data.get("changes") or [] if c.get("key") in process.SPEEDS and
+        allowed = set(process.SPEEDS) | set(process.ACCELERATIONS)
+        changes = [c for c in data.get("changes") or [] if c.get("key") in allowed and
                    isinstance(c.get("new"), (int, float))]
         name = writer.safe_name(writer.with_marker(str(data.get("name") or base_name)))
         name, renamed = unique_name(name, printer, bundle)
         preset = process.preset(base_name, name, [printer["name"]] if printer["name"] else [], changes)
         path = install(preset, bundle, printer["name"])
         self.reply("saved", kind="process", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
+
+    # -- the maker's products, to pick from
+    def on_products(self, data):
+        brand = str(data.get("brand") or "").strip()
+        if len(brand) < 2 or not read_settings().get("online", True):
+            self.reply("products", brand=brand, products=[])
+            return
+
+        def work():
+            try:
+                self.reply("products", brand=brand, products=ofd.products(fetcher(), brand))
+            except Exception as error:
+                log.info("products of %s: %s", brand, error)
+                self.reply("products", brand=brand, products=[])
+        spawn(work)
 
     def on_saved(self, data):
         self.reply("saved", kind="list", saved=saved_presets(orca.host.preset_bundle()))

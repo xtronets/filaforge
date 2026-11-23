@@ -56,6 +56,12 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(obs, [])
         self.assertFalse(report.ok)
 
+    def test_ofd_products(self):
+        names = {p["name"] for p in ofd.products(self.fetcher, "SUNLU")}
+        self.assertIn("PLA+", names)
+        self.assertIn("High Speed PLA", names)
+        self.assertEqual(ofd.products(self.fetcher, "Nobody"), [])
+
     def test_spoolmandb(self):
         obs, report = spoolmandb.lookup(self.fetcher, Identity("Sunlu", "PLA", "Silk PLA+"))
         v = self.values(obs)
@@ -285,23 +291,60 @@ class SpoolmanTests(unittest.TestCase):
 
 
 class ProcessTests(unittest.TestCase):
+    # OrcaSlicer's "0.20mm Standard @Creality K1C", as it resolves
     CONFIG = {"layer_height": "0.2", "initial_layer_print_height": "0.2", "line_width": "0.42",
               "outer_wall_line_width": "0.42", "inner_wall_line_width": "0.45", "sparse_infill_line_width": "0.45",
               "outer_wall_speed": "200", "inner_wall_speed": "300", "sparse_infill_speed": "270",
-              "top_surface_speed": "200", "initial_layer_speed": "50", "initial_layer_line_width": "0.5"}
+              "top_surface_speed": "200", "initial_layer_speed": "50", "initial_layer_line_width": "0.5",
+              "gap_infill_speed": "250", "bridge_speed": "25", "internal_bridge_speed": "150%",
+              "scarf_joint_speed": "100%", "small_perimeter_speed": "50%", "thick_bridges": "0", "bridge_flow": "0.9",
+              "default_acceleration": "10000", "outer_wall_acceleration": "3000", "inner_wall_acceleration": "3000",
+              "top_surface_acceleration": "2000", "sparse_infill_acceleration": "100%", "bridge_acceleration": "50%",
+              "travel_acceleration": "10000", "initial_layer_acceleration": "1000"}
 
-    def test_fit(self):
-        changes = {c["key"]: c for c in process.fit(self.CONFIG, 0.4, 12, "PLA")}
+    def changes(self, *a, **k):
+        return {c["key"]: c for c in process.fit(self.CONFIG, 0.4, *a, **k)}
+
+    def test_flow_limit(self):
+        changes = self.changes(12, "PLA")
         # 12 mm³/s through 0.45 x 0.2 mm (0.0814 mm²) is 147 mm/s
         self.assertEqual(changes["inner_wall_speed"]["new"], 147)
-        self.assertIn("max flow", changes["inner_wall_speed"]["reason"])
+        self.assertEqual(changes["inner_wall_speed"]["reasons"][0]["code"], "flow")
+        self.assertEqual(changes["gap_infill_speed"]["new"], 159)   # solid infill width, here the 0.42 default
         self.assertNotIn("initial_layer_speed", changes)
-        petg = {c["key"]: c for c in process.fit(self.CONFIG, 0.4, 30, "PETG")}
-        self.assertEqual(petg["outer_wall_speed"]["new"], 140)
-        tpu = {c["key"]: c for c in process.fit(self.CONFIG, 0.4, 3.6, "TPU")}
+        self.assertNotIn("small_perimeter_speed", changes)        # 50% of the outer wall follows it by itself
+        self.assertEqual(changes["scarf_joint_speed"]["base"], 200)  # 100% of the outer wall, written in mm/s
+
+    def test_relative_values(self):
+        self.assertEqual(process.resolved(self.CONFIG, "internal_bridge_speed"), 37.5)
+        self.assertEqual(process.resolved(self.CONFIG, "bridge_acceleration"), 1500)
+        self.assertEqual(process.resolved(self.CONFIG, "sparse_infill_acceleration"), 10000)
+
+    def test_accelerations(self):
+        changes = self.changes(30, "PLA")
+        # 25 mm/s reached in 25 ms: 1000 mm/s², under the 1500 (50% of 3000) the process had
+        self.assertEqual(changes["bridge_acceleration"]["new"], 1000)
+        self.assertEqual(changes["bridge_acceleration"]["group"], "accel")
+        capped = self.changes(30, "PLA", machine={"accel": 5000, "travel_accel": 8000, "speed": 250})
+        self.assertEqual(capped["default_acceleration"]["new"], 5000)
+        self.assertEqual(capped["travel_acceleration"]["new"], 8000)
+        self.assertEqual(capped["inner_wall_speed"]["new"], 250)
+        tpu = self.changes(3.6, "TPU")
+        self.assertEqual(tpu["outer_wall_acceleration"]["new"], 1500)
         self.assertLessEqual(tpu["inner_wall_speed"]["new"], 60)
+
+    def test_materials_and_variants(self):
+        petg = self.changes(30, "PETG")
+        self.assertEqual(petg["outer_wall_speed"]["new"], 140)
+        small = self.changes(30, "PLA", variant="small")
+        self.assertEqual(small["outer_wall_speed"]["new"], 140)
+        self.assertEqual(small["outer_wall_acceleration"]["new"], 1800)
         self.assertEqual(process.material_class("PLA+", "Silk"), "SILK")
         self.assertEqual(process.width_mm("110%", 0.4), 0.44)
+        self.assertEqual(process.variant_for([(20, 30), (35, 10)]), "small")
+        self.assertEqual(process.variant_for([(20, 30), (120, 10)]), "standard")
+        self.assertEqual(process.variant_for([]), "standard")
+        self.assertIn("bridge speed", process.describe({"code": "bridge_ramp", "speed": 25, "seconds": 0.025}))
 
     def test_preset(self):
         changes = process.fit(self.CONFIG, 0.4, 12, "PLA")
@@ -310,6 +353,7 @@ class ProcessTests(unittest.TestCase):
         p = process.preset("0.20mm Standard @Creality K1C", name, ["Creality K1C 0.4 nozzle"], changes)
         self.assertEqual(p["inherits"], "0.20mm Standard @Creality K1C")
         self.assertEqual(p["inner_wall_speed"], "147")
+        self.assertEqual(p["bridge_acceleration"], "1000")
         self.assertEqual(writer.problem(p), "")
 
 
