@@ -58,6 +58,9 @@ internet are cached for a day (a week for the databases) in `<OrcaSlicer data>/f
     python3 scripts/build.py                   # dist/filaforge_any.whl
     python3 scripts/vendor_pypdf.py pypdf-*.whl  # refresh the vendored PDF reader
 
+Releases: raise `VERSION` in `src/filaforge/plugin.py`, push, then publish a release tagged `v<VERSION>` on
+GitHub. The *Build* workflow runs the tests, builds `filaforge_any.whl` and attaches it to the release.
+
 ---
 
 ## Po polsku
