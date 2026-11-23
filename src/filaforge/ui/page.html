@@ -288,7 +288,7 @@ const T = {
     sec_all: 'Wszystkie drukarki', sec_printer: 'Tylko {name}', no_changes: 'Proces już mieści się w przepływie filamentu: nic do zmiany.',
     legend: 'Kolor = skąd wartość, kreski = pewność', confidence: 'pewność: {c}', c_high: 'wysoka', c_medium: 'średnia', c_low: 'niska',
     err: 'Błąd: {m}', brand_missing: 'Podaj producenta.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'Presety Orki…', step_tds: 'Karta techniczna…',
-    apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
+    apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', renamed: 'Ta nazwa była już zajęta przez preset dla innej drukarki, więc dopisałem model drukarki.', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
   },
   en: {
     saved: 'Saved', settings: 'Settings', from_spoolman: 'From Spoolman', manual: 'Manual', filter_spools: 'Search spools…',
@@ -317,7 +317,7 @@ const T = {
     sec_all: 'Every printer', sec_printer: 'Only {name}', no_changes: 'The process already fits the filament’s flow: nothing to change.',
     legend: 'Colour = where a value comes from, bars = confidence', confidence: 'confidence: {c}', c_high: 'high', c_medium: 'medium', c_low: 'low',
     err: 'Error: {m}', brand_missing: 'Type the brand.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'OrcaSlicer presets…', step_tds: 'Data sheet…',
-    apply_tip: 'Ticked ones go into the preset and Spoolman', show_same: 'Also show {n} settings equal to the base preset', hide_same: 'Hide {n} settings equal to the base preset', printer_none: 'No printer selected in OrcaSlicer', layer: 'layer {h} mm'
+    apply_tip: 'Ticked ones go into the preset and Spoolman', renamed: 'That name was already a preset for another printer, so the printer model was added.', show_same: 'Also show {n} settings equal to the base preset', hide_same: 'Hide {n} settings equal to the base preset', printer_none: 'No printer selected in OrcaSlicer', layer: 'layer {h} mm'
   }
 };
 const KEY_LABELS = {
@@ -655,8 +655,9 @@ function onMessage(m) {
     case 'saved':
       busy($('btn-make-preset'), false); busy($('btn-process-save'), false);
       S.saved = m.saved || S.saved; renderSaved();
-      if (m.kind === 'filament') toast(t('made_preset', {name: m.name}));
-      else if (m.kind === 'process') toast(t('made_process', {name: m.name}));
+      if (m.renamed) $('preset-name').value = m.name;
+      if (m.kind === 'filament') toast(t('made_preset', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
+      else if (m.kind === 'process') toast(t('made_process', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
       else if (m.kind === 'removed') toast(t('removed', {name: m.name}));
       break;
     case 'spoolman_plan': {
