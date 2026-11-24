@@ -4,12 +4,7 @@ name: Publish to Orca Cloud
 
 on:
   release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Publish this existing release (e.g. v0.4.0)"
-        required: true
+    types: [published]     # only a release event: Orca Cloud refuses a token from a manual run
 
 permissions:
   id-token: write      # GitHub OIDC token: Orca Cloud needs no secret
@@ -19,7 +14,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAG: ${{ github.event.release.tag_name }}
       PLUGIN_FILES: dist/filaforge_any.whl
     steps:
       - uses: actions/checkout@v4
@@ -47,16 +42,12 @@ jobs:
       - name: Publish
         env:
           RELEASE_BODY: ${{ github.event.release.body }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=orcacloud" | jq -r .value)
           version="${TAG#v}"
           body="${RELEASE_BODY:-}"
-          if [ -z "$body" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            body=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body || true)
-          fi
           metadata=$(jq -n --arg v "$version" --arg c "${body:0:4000}" \
             '{version: $v} + (if $c == "" then {} else {changelog: $c} end)')
           args=()
