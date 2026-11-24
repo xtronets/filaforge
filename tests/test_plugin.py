@@ -98,6 +98,11 @@ class PluginTests(unittest.TestCase):
         measured = self.last("measured", self.send(cmd="save_measured", identity=result["identity"],
                                                    section="Creality K1C", values={"flow_ratio": "0.97"}))
         self.assertEqual(measured["sections"]["Creality K1C"]["flow_ratio"], 0.97)
+        # max flow for a 0.6 mm nozzle picked on the page: kept for that nozzle, not used on this 0.4 mm printer
+        six = self.last("measured", self.send(cmd="save_measured", identity=result["identity"], section="Creality K1C",
+                                              values={"flow_ratio": "0.97", "max_volumetric_speed": "30"}, nozzle="0.6"))
+        self.assertEqual(six["sections"]["Creality K1C"]["_nozzle"], {"0.6": {"max_volumetric_speed": 30.0}})
+        self.assertEqual(six["nozzle"], "0.6")
         again = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
         row = next(s for s in again["settings"] if s["orca_key"] == "filament_flow_ratio")
         self.assertEqual((row["value"], row["kind"]), ("0.97", "tested"))

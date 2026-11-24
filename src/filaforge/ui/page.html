@@ -232,6 +232,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 
     <div class="card" id="card-measured" hidden>
       <div class="head"><h2 data-t="measured_title"></h2><span class="spacer"></span>
+        <select id="m-nozzle-sel" class="fit" title=""></select>
         <select id="m-section"></select></div>
       <div class="body">
         <div class="note" data-t="measured_note" style="margin-bottom:10px"></div>
@@ -303,7 +304,9 @@ const T = {
     make_preset: 'Utwórz preset w Orce', to_spoolman: 'Zapisz w Spoolmanie…', measured_title: 'Twoje pomiary',
     measured_note: 'Wartości z Twojej kalibracji mają pierwszeństwo przed wszystkimi źródłami. Puste pole = brak pomiaru.',
     calib_title: 'Kalibracja w Orce:', calib_use: 'Wstaw do pomiarów', calib_put: 'Wstawione do „{field}”. Kliknij „Zapisz pomiary i przelicz”.',
-    calib_need: 'Uzupełnij pola kalibracji.', per_nozzle: '⌀{n}',
+    calib_need: 'Uzupełnij pola kalibracji.', nozzle_opt: 'Dysza {n} mm', nozzle_opt_orca: 'Dysza {n} mm (w Orce)',
+    nozzle_pick: 'Dla której dyszy są pressure advance i maks. przepływ',
+    nozzle_not_orca: 'W Orce jest teraz dysza {orca} mm: wartości dla {n} mm zadziałają, gdy wybierzesz drukarkę z taką dyszą.', per_nozzle: '⌀{n}',
     nozzle_other: 'Dysza {n} mm: pressure advance i maks. przepływ zapisują się osobno dla tej dyszy. Wartości producenta dotyczą zwykle dyszy 0.4 mm, więc maks. przepływ warto zmierzyć.',
     c_flow_yolo: 'Flow ratio – YOLO', c_flow_pass: 'Flow ratio – Pass 1 / Pass 2', c_max_flow: 'Maks. przepływ', c_pa: 'Pressure advance', c_temp: 'Temperatura (wieża)', c_retraction: 'Retrakcja',
     h_flow_yolo: 'Orca → Kalibracja → Flow rate → YOLO. Wybierz blok z najgładszą górą i wpisz jego modyfikator (np. +0.01). Nowy = stary + modyfikator.',
@@ -352,7 +355,9 @@ const T = {
     make_preset: 'Create preset in OrcaSlicer', to_spoolman: 'Save to Spoolman…', measured_title: 'Your measurements',
     measured_note: 'Values from your own calibration win over every source. An empty field means not measured.',
     calib_title: 'OrcaSlicer calibration:', calib_use: 'Put into measurements', calib_put: 'Put into “{field}”. Click “Save and recalculate”.',
-    calib_need: 'Fill in the calibration fields.', per_nozzle: '⌀{n}',
+    calib_need: 'Fill in the calibration fields.', nozzle_opt: '{n} mm nozzle', nozzle_opt_orca: '{n} mm nozzle (in OrcaSlicer)',
+    nozzle_pick: 'The nozzle pressure advance and max flow are for',
+    nozzle_not_orca: 'OrcaSlicer has a {orca} mm nozzle now: the {n} mm values apply once you pick a printer with that nozzle.', per_nozzle: '⌀{n}',
     nozzle_other: '{n} mm nozzle: pressure advance and max flow are kept for this nozzle on their own. Makers’ values are usually for a 0.4 mm nozzle, so max flow is worth measuring.',
     c_flow_yolo: 'Flow ratio – YOLO', c_flow_pass: 'Flow ratio – Pass 1 / Pass 2', c_max_flow: 'Max flow', c_pa: 'Pressure advance', c_temp: 'Temperature (tower)', c_retraction: 'Retraction',
     h_flow_yolo: 'OrcaSlicer → Calibration → Flow rate → YOLO. Pick the block with the smoothest top and enter its modifier (e.g. +0.01). New = old + modifier.',
@@ -602,13 +607,26 @@ function renderMeasured(sections) {
   const current = sel.value || (S.printer && S.printer.model && S.measured[S.printer.model] ? S.printer.model : '*');
   sel.innerHTML = sectionNames().map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('');
   sel.value = sectionNames().some(([v]) => v === current) ? current : '*';
+  renderNozzles();
   fillMeasured();
   renderCalib();
 }
 const NOZZLE_KEYS = ['pressure_advance', 'max_volumetric_speed'];
-function nozzleTag() {
+function printerNozzle() {
   const n = parseFloat(S.printer && S.printer.nozzle);
   return n > 0 ? String(Math.round(n * 100) / 100) : '0.4';
+}
+function nozzleTag() {
+  // the nozzle the measurements are for: OrcaSlicer's printer unless picked here
+  return S.mNozzle || printerNozzle();
+}
+function renderNozzles() {
+  const mine = printerNozzle();
+  const list = Array.from(new Set(['0.2', '0.25', '0.4', '0.5', '0.6', '0.8', '1', mine]))
+    .sort((a, b) => parseFloat(a) - parseFloat(b));
+  $('m-nozzle-sel').innerHTML = list.map(n => `<option value="${n}">${esc(t(n === mine ? 'nozzle_opt_orca' : 'nozzle_opt', {n}))}</option>`).join('');
+  $('m-nozzle-sel').value = nozzleTag();
+  $('m-nozzle-sel').title = t('nozzle_pick');
 }
 function sectionValues(section) {
   // the values for every nozzle, then this nozzle's own (PA, max flow); old ones at the top count for 0.4 mm
@@ -624,8 +642,11 @@ function fillMeasured() {
   const tag = nozzleTag();
   $('m-fields').innerHTML = MEASURE.map(([k, orcaKey, step]) => `<div class="field"><label>${esc(label(orcaKey))}${UNITS[orcaKey] ? ' (' + UNITS[orcaKey] + ')' : ''}${NOZZLE_KEYS.includes(k) ? ' · ' + esc(t('per_nozzle', {n: tag})) : ''}</label>
     <input type="number" step="${step}" data-m="${k}" value="${values[k] != null ? esc(values[k]) : ''}"></div>`).join('');
-  $('m-nozzle').hidden = tag === '0.4';
-  $('m-nozzle').textContent = t('nozzle_other', {n: tag});
+  const notes = [];
+  if (tag !== printerNozzle()) notes.push(t('nozzle_not_orca', {n: tag, orca: printerNozzle()}));
+  if (tag !== '0.4') notes.push(t('nozzle_other', {n: tag}));
+  $('m-nozzle').hidden = !notes.length;
+  $('m-nozzle').textContent = notes.join(' ');
 }
 
 // ---------- calibration helper: an OrcaSlicer test's result to a measured value
@@ -765,9 +786,13 @@ function planSpoolman() {
 $('btn-save-measured').addEventListener('click', () => {
   const values = {};
   document.querySelectorAll('[data-m]').forEach(el => values[el.dataset.m] = el.value.trim());
-  send({cmd: 'save_measured', identity: S.result.identity, section: $('m-section').value, values});
+  send({cmd: 'save_measured', identity: S.result.identity, section: $('m-section').value, values, nozzle: nozzleTag()});
 });
 $('m-section').addEventListener('change', fillMeasured);
+$('m-nozzle-sel').addEventListener('change', () => {
+  S.mNozzle = $('m-nozzle-sel').value === printerNozzle() ? null : $('m-nozzle-sel').value;
+  fillMeasured();
+});
 $('c-test').addEventListener('change', renderCalib);
 $('c-inputs').addEventListener('input', calcCalib);
 $('btn-c-use').addEventListener('click', () => {

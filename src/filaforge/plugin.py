@@ -471,7 +471,7 @@ class Tab:
     def on_save_measured(self, data):
         identity = _identity(data.get("identity"))
         section = str(data.get("section") or "*").strip() or "*"
-        nozzle = printer_info(orca.host.preset_bundle())["nozzle"]
+        nozzle = measured.nozzle_tag(data.get("nozzle")) or printer_info(orca.host.preset_bundle())["nozzle"]
         sections = store().set(identity, section, data.get("values") or {}, nozzle)
         self.reply("measured", sections=sections, nozzle=measured.nozzle_tag(nozzle))
 
