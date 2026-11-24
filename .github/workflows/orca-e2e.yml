@@ -72,9 +72,9 @@ jobs:
           export DISPLAY=:99
           Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 &
           sleep 2
-          FILAFORGE_SELFTEST="$REPORT" ./squashfs-root/AppRun --datadir "$DATA" > orca-stdout.log 2>&1 &
+          FILAFORGE_SELFTEST="$REPORT" ./squashfs-root/AppRun --datadir "$DATA" --debug 3 > orca-stdout.log 2>&1 &
           pid=$!
-          for i in $(seq 1 120); do                      # up to 10 minutes
+          for i in $(seq 1 60); do                       # up to 5 minutes
             [ -f "$REPORT" ] && break
             if ! kill -0 $pid 2>/dev/null; then echo "OrcaSlicer exited"; break; fi
             [ $((i % 12)) -eq 0 ] && import -display :99 -window root "screen-$i.png" || true
@@ -91,6 +91,12 @@ jobs:
       - name: Logs
         if: always()
         run: |
+          ls -la "$DATA" "$DATA/log" 2>/dev/null || true
+          for f in "$DATA"/log/*.log; do [ -f "$f" ] && { echo "== $f"; grep -iv "^\s*$" "$f" | grep -i "plugin\|python\|error\|warn\|preset" | tail -n 60; }; done
+          if [ -f screen-final.png ]; then
+            convert screen-final.png -resize 60% -quality 70 screen-small.jpg
+            echo "SCREENSHOT-BEGIN"; base64 -w0 screen-small.jpg; echo; echo "SCREENSHOT-END"
+          fi
           tail -n 80 orca-stdout.log || true
           for f in "$DATA"/log/python_*.log "$DATA"/filaforge/filaforge.log; do
             [ -f "$f" ] && { echo "== $f"; tail -n 80 "$f"; }
