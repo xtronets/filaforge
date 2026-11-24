@@ -220,6 +220,13 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # odświeżenie dołączonego czy
 - `src/filaforge/ui/page.html`: interfejs (PL/EN).
 - `src/filaforge/_vendor/pypdf/`: dołączony [pypdf](https://github.com/py-pdf/pypdf) 5.4.0 (BSD).
 
+**Test w prawdziwej Orce**: workflow *Real OrcaSlicer* uruchamia Orkę dla Linuksa (2.5.2 i najnowszą) na wirtualnym
+ekranie z czystym katalogiem danych i zainstalowaną wtyczką. Wtyczka sama się testuje (`src/filaforge/selftest.py`,
+tylko przy ustawionej zmiennej `FILAFORGE_SELFTEST`): API wtyczek, presety, wyszukiwanie, zapis i usuwanie presetu
+i procesu. Drugie zadanie sprawdza w przeglądarce, czy w niskim oknie żadna karta nie jest ucinana
+(`tests/layout_check.py`). Workflow działa przy każdej zmianie i co tydzień, żeby nowa Orka nie zepsuła wtyczki
+niezauważenie.
+
 **Wydanie nowej wersji**: podnieś `VERSION` w `src/filaforge/plugin.py`, wypchnij zmiany i opublikuj na
 GitHubie wydanie z tagiem `v<VERSION>`. Workflow *Build* uruchomi testy, zbuduje `filaforge_any.whl`
 i dołączy go do wydania. Workflow *Publish to Orca Cloud* wyśle tę samą wersję do Orca Cloud

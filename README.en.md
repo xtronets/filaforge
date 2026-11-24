@@ -220,6 +220,12 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # refresh the vendored PDF reader
 - `src/filaforge/ui/page.html`: the interface (PL/EN).
 - `src/filaforge/_vendor/pypdf/`: vendored [pypdf](https://github.com/py-pdf/pypdf) 5.4.0 (BSD).
 
+**Test in a real OrcaSlicer**: the *Real OrcaSlicer* workflow runs the Linux OrcaSlicer (2.5.2 and the latest) on a
+virtual screen with a clean data folder and the plugin installed. The plugin tests itself (`src/filaforge/selftest.py`,
+only when `FILAFORGE_SELFTEST` is set): the plugin API, presets, research, saving and removing a preset and a process.
+A second job checks in a browser that no card is cut off in a short window (`tests/layout_check.py`). It runs on every
+change and weekly, so a new OrcaSlicer that breaks the plugin shows up before users see it.
+
 **Releasing**: raise `VERSION` in `src/filaforge/plugin.py`, push, then publish a release tagged `v<VERSION>` on
 GitHub. The *Build* workflow runs the tests, builds `filaforge_any.whl` and attaches it to the release. The *Publish to Orca Cloud* workflow sends the same version to Orca Cloud
 (the repository has to be connected in Orca Cloud: *Edit plugin → GitHub publishing*).
