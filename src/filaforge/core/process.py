@@ -224,10 +224,23 @@ def variant_for(sizes):
     return "standard"
 
 
-def preset(base_name, name, printer_names, changes):
-    """An OrcaSlicer process preset that inherits base_name and sets only the changed speeds."""
+# not copied from a resolved base: they name the base itself
+_OWN_KEYS = frozenset({"inherits", "compatible_printers", "compatible_printers_condition", "print_settings_id",
+                       "name", "version", "from", "instantiation", "type", "setting_id", "description", "url",
+                       "is_custom_defined", "renamed_from", "includes", "alias", "base_id", "user_id", "updated_time"})
+
+
+def preset(base_name, name, printer_names, changes, base_config=None):
+    """An OrcaSlicer process preset with the changed speeds over base_name.
+
+    A system base is inherited. A user's own base (base_config given: its resolved settings) can't be: OrcaSlicer
+    loads plugin bundles before the user's presets, so on the next start the parent would be missing and the
+    preset dropped. Then the preset carries all the base's settings and inherits the base's own system parent."""
     out = {"type": "process", "name": name, "from": "User", "instantiation": "true", "inherits": base_name,
            "print_settings_id": name, "version": "1.0.0"}
+    if base_config is not None:
+        out.update({k: v for k, v in base_config.items() if k not in _OWN_KEYS and isinstance(v, str)})
+        out["inherits"] = str(base_config.get("inherits") or "").strip().strip('"')
     if printer_names:
         out["compatible_printers"] = list(printer_names)
         out["compatible_printers_condition"] = ""

@@ -22,7 +22,7 @@ from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -239,6 +239,41 @@ def preset_config(collection, name):
     return _config(preset)
 
 
+def is_system(collection, name):
+    preset = collection.find_preset(name)
+    return bool(preset is not None and getattr(preset, "is_system", False))
+
+
+def repair_processes(bundle):
+    """Processes saved before 0.4.3 over a user's own process inherit it, and OrcaSlicer drops them on start (it
+    loads plugin bundles before user presets). Rewrite them standalone while the parent is loaded. Returns names."""
+    fixed = []
+    for account in writer.account_folders(data_dir(), preset_files(bundle)):
+        folder = os.path.join(data_dir(), "user", account, "_local", writer.BUNDLE)
+        if not os.path.isdir(folder):
+            continue
+        for item in writer.Bundle(folder).listing():
+            if item.get("kind") != "process" or not item.get("exists"):
+                continue
+            try:
+                with open(item["file"], encoding="utf-8") as f:
+                    data = json.load(f)
+                parent = str(data.get("inherits") or "")
+                if not parent or is_system(bundle.prints, parent) or bundle.prints.find_preset(parent) is None:
+                    continue
+                base = preset_config(bundle.prints, parent)
+                changes = [{"key": k, "new": v} for k, v in data.items() if k in process.SPEEDS or k in process.ACCELERATIONS]
+                new = process.preset(parent, data["name"], data.get("compatible_printers") or [], [], base)
+                new.update({c["key"]: c["new"] for c in changes})
+                writer.Bundle(folder).save(new, orca.host.preset.bundles.reload_local, {"printer": item.get("printer", "")})
+                fixed.append(data["name"])
+            except Exception:
+                log.exception("repairing %s", item.get("name"))
+    if fixed:
+        log.info("repaired processes over user presets: %s", fixed)
+    return fixed
+
+
 def machine_limits(bundle):
     """The printer's max extruding and travel acceleration and max XY speed ({} parts it doesn't say)."""
     cfg = bundle.full_config_value
@@ -378,6 +413,9 @@ class Tab:
     # -- start
     def on_init(self, data):
         bundle = orca.host.preset_bundle()
+        if not getattr(Tab, "_repaired", False):
+            Tab._repaired = True
+            repair_processes(bundle)
         settings = read_settings()
         self.reply("init", version=VERSION, settings=settings, printer=printer_info(bundle),
                    processes=process_list(bundle), saved=saved_presets(bundle))
@@ -565,13 +603,15 @@ class Tab:
         bundle = orca.host.preset_bundle()
         printer = printer_info(bundle)
         base_name = str(data.get("base") or "")
-        preset_config(bundle.prints, base_name)   # it must exist
+        base_config = preset_config(bundle.prints, base_name)   # it must exist
+        own_base = not is_system(bundle.prints, base_name)
         allowed = set(process.SPEEDS) | set(process.ACCELERATIONS)
         changes = [c for c in data.get("changes") or [] if c.get("key") in allowed and
                    isinstance(c.get("new"), (int, float))]
         name = writer.safe_name(writer.with_marker(str(data.get("name") or base_name)))
         name, renamed = unique_name(name, printer, bundle)
-        preset = process.preset(base_name, name, [printer["name"]] if printer["name"] else [], changes)
+        preset = process.preset(base_name, name, [printer["name"]] if printer["name"] else [], changes,
+                                base_config if own_base else None)
         path = install(preset, bundle, printer["name"])
         self.reply("saved", kind="process", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
 

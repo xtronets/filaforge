@@ -57,7 +57,7 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(perms["threading"])
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         html = self.page.get_ui()
-        self.assertIn('"version": "0.4.2"', html)
+        self.assertIn('"version": "0.4.3"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -179,6 +179,35 @@ class PluginTests(unittest.TestCase):
         failed = [s for s in data["steps"] if not s["ok"]]
         self.assertFalse(failed, json.dumps(failed, indent=1))
         self.assertGreaterEqual(len(data["steps"]), 10)
+
+    def test_process_over_own_process(self):
+        # OrcaSlicer loads plugin bundles before user presets: a process over the user's own one must not
+        # inherit it, or it is gone after a restart
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        plan = self.last("process_plan", self.send(cmd="process_plan", process="My process", max_volumetric_speed=12,
+                                                   identity=result["identity"]))
+        saved = self.last("saved", self.send(cmd="process_save", base=plan["base"], name=plan["name"],
+                                             changes=plan["changes"]))
+        with open(saved["path"], encoding="utf-8") as f:
+            proc = json.load(f)
+        self.assertEqual(proc["inherits"], "")
+        self.assertEqual(proc["layer_height"], "0.2")          # the user's settings carried over
+
+    def test_repair_old_process(self):
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        saved = self.last("saved", self.send(cmd="process_save", base="0.20mm Standard @Creality K1C",
+                                             name="Old FF", changes=[]))
+        with open(saved["path"], encoding="utf-8") as f:
+            old = json.load(f)
+        old["inherits"] = "My process"                         # as 0.4.2 wrote it
+        old["outer_wall_speed"] = "120"
+        with open(saved["path"], "w", encoding="utf-8") as f:
+            json.dump(old, f)
+        self.plugin.Tab._repaired = False
+        self.send(cmd="init")
+        with open(saved["path"], encoding="utf-8") as f:
+            new = json.load(f)
+        self.assertEqual((new["inherits"], new["layer_height"], new["outer_wall_speed"]), ("", "0.2", "120"))
 
     def test_products(self):
         reply = self.last("products", self.send(cmd="products", brand="Sunlu"))
