@@ -95,7 +95,7 @@ section.results { overflow: auto; padding: 14px 18px 24px; display: flex; flex-d
                       background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 
 .card { border: 1px solid var(--border); border-radius: 10px; }
-.card { overflow: hidden; }
+.card { overflow: hidden; flex-shrink: 0; }   /* overflow: hidden alone lets the results column squeeze cards */
 .card > .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
                 background: color-mix(in srgb, var(--accent) 9%, var(--bg)); box-shadow: inset 3px 0 0 var(--accent); }
 .card > .head h2, .card > .head .title { color: color-mix(in srgb, var(--accent) 35%, var(--fg)); }
