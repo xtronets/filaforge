@@ -97,3 +97,5 @@ if orca is not None:
             _plugin._setup_log()
             _plugin.request_permissions()
             orca.register_capability(FilaForgePage)
+            from . import selftest      # only with FILAFORGE_SELFTEST set (the real-OrcaSlicer CI job)
+            selftest.start()

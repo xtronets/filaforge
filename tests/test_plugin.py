@@ -164,6 +164,22 @@ class PluginTests(unittest.TestCase):
         self.assertIn(preset["filament_flow_ratio"], ("0.95", ["0.95"]))   # kept from the user's preset
         self.assertEqual(preset["inherits"], "")
 
+    def test_selftest(self):
+        # the self-test the real-OrcaSlicer CI job runs, here against the fake host
+        selftest = importlib.import_module("filaforge.selftest")
+        report = os.path.join(self.data, "selftest.json")
+        os.environ[selftest.ENV] = report
+        try:
+            selftest.WAIT_REPLY = 5
+            selftest._run()
+        finally:
+            del os.environ[selftest.ENV]
+        with open(report, encoding="utf-8") as f:
+            data = json.load(f)
+        failed = [s for s in data["steps"] if not s["ok"]]
+        self.assertFalse(failed, json.dumps(failed, indent=1))
+        self.assertGreaterEqual(len(data["steps"]), 10)
+
     def test_products(self):
         reply = self.last("products", self.send(cmd="products", brand="Sunlu"))
         self.assertIn("PLA+", [p["name"] for p in reply["products"]])

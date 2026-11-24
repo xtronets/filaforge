@@ -1,0 +1,107 @@
+# FilaForge in a real OrcaSlicer: the Linux AppImage on a virtual screen, a clean data folder with the plugin
+# installed, and the plugin's self-test (src/filaforge/selftest.py) against the real plugin API and presets.
+# Weekly too, so a new OrcaSlicer release that breaks the plugin API shows up before users see it.
+name: Real OrcaSlicer
+
+on:
+  push:
+    branches: [main, "ci/**"]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        orca: ["v2.5.2", "latest"]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DATA: ${{ github.workspace }}/orca-data
+      REPORT: ${{ github.workspace }}/selftest.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the wheel
+        run: python scripts/build.py
+
+      - name: System libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb imagemagick libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
+            libglu1-mesa libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good libsecret-1-0 \
+            libfuse2t64 locales >/dev/null
+
+      - name: Download OrcaSlicer
+        id: orca
+        run: |
+          tag="${{ matrix.orca }}"
+          if [ "$tag" = "latest" ]; then
+            tag=$(gh release view --repo OrcaSlicer/OrcaSlicer --json tagName -q .tagName)
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          gh release view "$tag" --repo OrcaSlicer/OrcaSlicer --json assets -q '.assets[].name' | tee assets.txt
+          asset=$(grep -i 'linux' assets.txt | grep -i 'appimage' | grep -i '2404' | head -1 || true)
+          [ -n "$asset" ] || asset=$(grep -i 'linux' assets.txt | grep -i 'appimage' | head -1)
+          echo "asset: $asset"
+          gh release download "$tag" --repo OrcaSlicer/OrcaSlicer --pattern "$asset" --output orca.AppImage
+          chmod +x orca.AppImage
+          ./orca.AppImage --appimage-extract >/dev/null
+          ls squashfs-root | head -30
+
+      - name: Data folder with FilaForge
+        run: python scripts/e2e_prepare.py "$DATA" dist/filaforge_any.whl "${{ steps.orca.outputs.tag }}"
+
+      - name: Run OrcaSlicer with the self-test
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 &
+          sleep 2
+          FILAFORGE_SELFTEST="$REPORT" ./squashfs-root/AppRun --datadir "$DATA" > orca-stdout.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 120); do                      # up to 10 minutes
+            [ -f "$REPORT" ] && break
+            if ! kill -0 $pid 2>/dev/null; then echo "OrcaSlicer exited"; break; fi
+            [ $((i % 12)) -eq 0 ] && import -display :99 -window root "screen-$i.png" || true
+            sleep 5
+          done
+          import -display :99 -window root screen-final.png || true
+          kill $pid 2>/dev/null || true
+          sleep 3
+          kill -9 $pid 2>/dev/null || true
+
+      - name: Report
+        run: python scripts/e2e_check.py "$REPORT"
+
+      - name: Logs
+        if: always()
+        run: |
+          tail -n 80 orca-stdout.log || true
+          for f in "$DATA"/log/python_*.log "$DATA"/filaforge/filaforge.log; do
+            [ -f "$f" ] && { echo "== $f"; tail -n 80 "$f"; }
+          done
+          ls -R "$DATA/orca_plugins" | head -40 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orca-${{ steps.orca.outputs.tag || matrix.orca }}
+          path: |
+            selftest.json
+            orca-stdout.log
+            screen-*.png
+            orca-data/log/
+            orca-data/filaforge/filaforge.log
+            orca-data/OrcaSlicer.conf
+          if-no-files-found: ignore

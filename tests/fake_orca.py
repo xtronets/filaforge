@@ -1,6 +1,8 @@
 """A stand-in for OrcaSlicer's `orca` module: just what FilaForge uses, with presets from the fixtures."""
 
 import sys
+import json
+import os
 import types
 
 
@@ -77,7 +79,20 @@ def install(filament_presets, user_file=""):
     orca.reloads = []
 
     def reload_local(bundle_id):
+        # like OrcaSlicer: the bundle's presets as "_local/<bundle>/<name>", read again from its folder
         orca.reloads.append(bundle_id)
+        if not user_file:
+            return
+        root = os.path.join(os.path.dirname(os.path.dirname(user_file)), "_local", bundle_id)
+        prefix = "_local/%s/" % bundle_id
+        for kind, col in (("filament", bundle.filaments), ("process", bundle.prints)):
+            col.presets = [p for p in col.presets if not p.name.startswith(prefix)]
+            folder = os.path.join(root, kind)
+            for f in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+                if f.endswith(".json"):
+                    with open(os.path.join(folder, f), encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    col.presets.append(Preset(prefix + data.get("name", f[:-5]), {}, system=False))
     filaments = Collection([Preset(p["name"], dict(p["config"], filament_vendor='"%s"' % p["vendor"],
                                                       filament_type='"%s"' % p["type"]),
                                    compatible=p["compatible"]) for p in filament_presets])
