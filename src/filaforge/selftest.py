@@ -172,8 +172,9 @@ def _flow(report, orca, plugin):
 
     init = report.step("init", lambda: _init(page.ask(tab, "init", "init")))
     report.step("orca_filaments", lambda: len(page.ask(tab, "orca_filaments", "orca_filaments")["items"]))
-    result = report.step("research (offline)", lambda: _research(page.ask(tab, "research", "result", brand="Generic",
-                                                                          material="PLA", product="")))
+    # a filament OrcaSlicer has a maker's preset for: the research must find it and give settings
+    result = report.step("research (offline)", lambda: _research(page.ask(tab, "research", "result", brand="Sunlu",
+                                                                          material="PLA", product="PLA+")))
     if result:
         name = "FilaForge selftest PLA"
         saved = report.step("make_preset", lambda: _make(orca, page, tab, result, name))
@@ -199,7 +200,8 @@ def _init(m):
 
 def _research(m):
     _check(m.get("base"), "research: no base preset")
-    _check(m.get("settings") is not None, "research: no settings")
+    _check(m["base"].get("kind") == "vendor", "research: no maker's preset, base %s" % m["base"])
+    _check(m.get("settings"), "research: no settings")
     return {"base": m["base"], "settings": len(m["settings"]), "identity": m["identity"],
             "rows": [s for s in m["settings"] if s.get("apply")]}
 

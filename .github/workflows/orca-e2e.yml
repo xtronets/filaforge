@@ -15,6 +15,22 @@ permissions:
   contents: read
 
 jobs:
+  layout:
+    # the tab in a browser: short windows, light and dark: no card cut off, every button reachable
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Playwright
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium >/dev/null
+      - name: Layout
+        run: python tests/layout_check.py
+
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
