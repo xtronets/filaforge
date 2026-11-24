@@ -93,7 +93,8 @@ NUMERIC_KEYS = frozenset({"nozzle_temperature", "nozzle_temperature_initial_laye
                           "filament_max_volumetric_speed", "fan_min_speed", "fan_max_speed",
                           "temperature_vitrification", "chamber_temperature", "filament_flow_ratio",
                           "pressure_advance", "enable_pressure_advance", "filament_retraction_length",
-                          "filament_retraction_speed"})
+                          "filament_retraction_speed", "overhang_fan_speed", "close_fan_the_first_x_layers",
+                          "activate_chamber_temp_control"})
 
 
 def _numberish(text):

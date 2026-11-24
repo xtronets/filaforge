@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 import helpers
-from filaforge.core import measured, merge, process, research, spoolman, writer
+from filaforge.core import habits, measured, merge, process, research, spoolman, writer
 from filaforge.core.model import BASELINE, DECLARED, ESTIMATED, PRESET, TESTED, Identity, Observation
 from filaforge.core.net import CannedFetcher, FetchError
 from filaforge.core.sources import ofd, orca_presets, spoolmandb, tds
@@ -432,6 +432,65 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(p["inner_wall_speed"], "147")
         self.assertEqual(p["bridge_acceleration"], "1000")
         self.assertEqual(writer.problem(p), "")
+
+
+class HabitTests(unittest.TestCase):
+    CONFIG = ProcessTests.CONFIG
+
+    def changes(self, *a, **k):
+        return {c["key"]: c for c in process.fit(self.CONFIG, 0.4, *a, **k)}
+
+    def test_petg_bridges(self):
+        petg, pla = self.changes(30, "PETG"), self.changes(30, "PLA")
+        self.assertEqual(petg["bridge_speed"]["new"], 20)                 # 25 x 0.8
+        self.assertEqual(petg["internal_bridge_speed"]["new"], 30)        # 150% of 25 = 37.5, x 0.8
+        self.assertEqual(petg["bridge_acceleration"]["new"], 800)         # 20 mm/s reached in 25 ms
+        self.assertNotIn("bridge_speed", pla)
+
+    def test_user_table(self):
+        table = habits.table({"PETG": {"outer": "0,5", "bridge": None}, "PLA": {"bridge_fan": None},
+                              "XYZ": {"outer": 0.1}, "ABS": {"outer": 7, "nope": 1, "chamber": "hot"}})
+        self.assertEqual(table["PETG"]["outer"], 0.5)
+        self.assertNotIn("bridge", table["PETG"])                         # cleared: bridges at full speed
+        self.assertNotIn("bridge_fan", table["PLA"])
+        self.assertEqual(table["ABS"]["outer"], 1.0)                      # factors only lower
+        self.assertEqual(table["ABS"]["chamber"], 45)                     # not a number: default kept
+        changes = {c["key"]: c for c in process.fit(self.CONFIG, 0.4, 30, "PETG", table=table)}
+        self.assertEqual(changes["outer_wall_speed"]["new"], 100)
+        self.assertNotIn("bridge_speed", changes)
+        self.assertEqual(habits.clean_overrides({"PETG": {"outer": 0.7, "top": 0.6}}), {"PETG": {"top": 0.6}})
+        self.assertEqual(habits.material_class("PETG-CF"), "PETG")
+        self.assertEqual(habits.material_class("PA6-CF"), "PA")
+
+    def test_enclosure_warnings(self):
+        row = habits.table()["ASA"]
+        self.assertEqual(habits.warnings("ASA", row, {"name": "K1C"})[0]["code"], "enclosure")
+        self.assertEqual(habits.warnings("ASA", row, {"name": "K1C"}, ["K1C"])[0]["code"], "chamber_passive")
+        self.assertEqual(habits.warnings("ASA", row, {"name": "X1C", "chamber_control": True}), [])
+        self.assertEqual(habits.warnings("PLA", habits.table()["PLA"], {"name": "K1C"}), [])
+
+    def test_filament_estimates(self):
+        ident = Identity("Sunlu", "ABS")
+        row = habits.table()["ABS"]
+        generic = [Observation("bridge_fan", 100.0, BASELINE, "generic", "Generic ABS"),
+                   Observation("fan_off_layers", 1.0, BASELINE, "generic", "Generic ABS")]
+        base = {"overhang_fan_speed": "100", "close_fan_the_first_x_layers": "1", "chamber_temperature": "0"}
+        open_obs = research.habit_observations(ident, row, "ABS", chamber_control=False)
+        self.assertEqual({o.key for o in open_obs}, {"bridge_fan", "fan_off_layers"})   # no chamber to heat
+        rows = {r["orca_key"]: r for r in merge.orca_settings(merge.merge(generic + open_obs), base)}
+        self.assertEqual((rows["overhang_fan_speed"]["value"], rows["overhang_fan_speed"]["kind"]), ("50", ESTIMATED))
+        self.assertTrue(rows["close_fan_the_first_x_layers"]["apply"])
+        self.assertNotIn("activate_chamber_temp_control", rows)
+        heated = research.habit_observations(ident, row, "ABS", chamber_control=True)
+        rows = {r["orca_key"]: r for r in merge.orca_settings(merge.merge(generic + heated), base, chamber_control=True)}
+        self.assertEqual(rows["chamber_temperature"]["value"], "45")
+        self.assertEqual(rows["activate_chamber_temp_control"]["value"], "1")
+        # a preset made for the filament says otherwise: it wins over the rule of thumb
+        vendor = [Observation("bridge_fan", 80.0, PRESET, "orca", "Sunlu ABS")]
+        rows = {r["orca_key"]: r for r in merge.orca_settings(merge.merge(generic + vendor + heated), base)}
+        self.assertEqual(rows["overhang_fan_speed"]["value"], "80")
+        self.assertIsNone(writer.problem(writer.filament_preset("X", {"overhang_fan_speed": "100"},
+                                                                 {"overhang_fan_speed": "50"}, "K1C", ident, "k")) or None)
 
 
 class WriterTests(unittest.TestCase):

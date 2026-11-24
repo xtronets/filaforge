@@ -149,6 +149,20 @@ dialog .head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-
 dialog .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 .saved-list { max-height: 50vh; overflow: auto; }
+#dlg-habits { width: min(1040px, 96vw); }
+.habits { overflow: auto; max-height: 62vh; }
+.habits th { white-space: normal; vertical-align: bottom; font-size: 11px; padding: 4px 5px; text-align: center; }
+.habits th.grp { text-align: center; border-bottom: 0; color: var(--fg); }
+.habits td { padding: 3px 5px; text-align: center; }
+.habits td:first-child, .habits th:first-child { text-align: left; white-space: nowrap; }
+.habits input[type=number] { width: 62px; text-align: right; font-family: var(--mono); padding: 3px 5px; }
+.habits input.changed { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+.habits .sep { border-left: 1px solid var(--border); }
+.warns { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.warns:empty { display: none; }
+.warn-box { padding: 8px 10px; border-radius: 8px; font-size: 12px; border: 1px solid color-mix(in srgb, var(--estimated) 45%, transparent);
+            background: color-mix(in srgb, var(--estimated) 10%, var(--bg)); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.warn-box span { flex: 1; min-width: 220px; }
 .saved-item { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .saved-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 820px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--border); } }
@@ -163,6 +177,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <span class="chip" id="printer-chip" title=""></span>
   <span class="spacer"></span>
   <button class="secondary" id="btn-saved" data-t="saved"></button>
+  <button class="secondary" id="btn-habits" data-t="habits"></button>
   <button class="secondary" id="btn-settings" data-t="settings"></button>
 </header>
 <main>
@@ -217,6 +232,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
         <div class="small muted" id="r-legend"></div>
       </div>
       <div class="body">
+        <div class="warns" id="r-warn"></div>
         <table>
           <thead><tr><th style="width:28px"></th><th data-t="setting"></th><th data-t="value"></th><th data-t="origin"></th><th data-t="sources"></th></tr></thead>
           <tbody id="rows"></tbody>
@@ -264,6 +280,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
           <button class="secondary fit" id="btn-process-plan" data-t="calculate"></button></div>
         <div id="p-plan" hidden style="margin-top:12px">
           <div class="note" id="p-variant-note" style="margin-bottom:8px"></div>
+          <div class="warns" id="p-warn"></div>
           <table><thead><tr><th data-t="setting"></th><th data-t="now"></th><th data-t="new"></th><th data-t="why"></th></tr></thead><tbody id="p-rows"></tbody></table>
           <div class="field" style="margin-top:10px"><label data-t="process_name"></label><input id="p-name"></div>
           <div class="actions" style="margin-top:10px"><button id="btn-process-save" data-t="save_process"></button><span class="note" id="p-note"></span></div>
@@ -282,6 +299,16 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
     <label class="row" style="justify-content:flex-start;gap:8px"><input type="checkbox" id="s-online" style="flex:none"><span data-t="online"></span></label>
   </div>
   <div class="foot"><button class="secondary" data-close data-t="cancel"></button><button id="btn-settings-save" data-t="save"></button></div>
+</dialog>
+
+<dialog id="dlg-habits">
+  <div class="head" data-t="habits_title"></div>
+  <div class="body">
+    <div class="note" data-t="habits_note"></div>
+    <div class="habits"><table id="habits-table"></table></div>
+  </div>
+  <div class="foot"><button class="secondary" id="btn-habits-reset" data-t="habits_reset" style="margin-right:auto"></button>
+    <button class="secondary" data-close data-t="cancel"></button><button id="btn-habits-save" data-t="save"></button></div>
 </dialog>
 
 <dialog id="dlg-saved">
@@ -322,7 +349,7 @@ const T = {
     i_old_flow: 'Flow ratio z testu', i_mod: 'Modyfikator', i_mod_pct: 'Modyfikator (%)', i_start: 'Start (mm³/s)', i_step: 'Krok (mm³/s na mm)', i_height: 'Wysokość (mm)',
     i_margin: 'Zapas (%)', i_value: 'Wynik',
     save_measured: 'Zapisz pomiary i przelicz', process_title: 'Proces druku dla tego filamentu',
-    process_note: 'Kopia wybranego procesu drukarki z prędkościami obniżonymi do przepływu filamentu i do zwyczajów materiału (np. wolniejsze ściany zewnętrzne dla PETG i Silk). Orca i tak ogranicza prędkość do maks. przepływu przy cięciu; tu widzisz to wprost.',
+    process_note: 'Kopia wybranego procesu drukarki z prędkościami obniżonymi do przepływu filamentu i do zwyczajów materiału (np. wolniejsze ściany zewnętrzne dla PETG i Silk, wolniejsze mosty dla PETG). Współczynniki zmienisz w oknie „Materiały”. Orca i tak ogranicza prędkość do maks. przepływu przy cięciu; tu widzisz to wprost.',
     calculate: 'Przelicz', now: 'Teraz', new: 'Nowa', why: 'Dlaczego', process_name: 'Nazwa procesu', save_process: 'Zapisz proces w Orce',
     spoolman_url: 'Adres Spoolmana', language: 'Język', online: 'Szukaj w internecie (Open Filament Database, SpoolmanDB, karty TDS)',
     cancel: 'Anuluj', save: 'Zapisz', close: 'Zamknij', saved_title: 'Presety zrobione przez FilaForge',
@@ -341,6 +368,16 @@ const T = {
     sec_all: 'Wszystkie drukarki', sec_printer: 'Tylko {name}', no_changes: 'Proces już mieści się w przepływie filamentu: nic do zmiany.',
     legend: 'Kolor = skąd wartość, kreski = pewność', confidence: 'pewność: {c}', c_high: 'wysoka', c_medium: 'średnia', c_low: 'niska',
     err: 'Błąd: {m}', brand_missing: 'Podaj producenta.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'Presety Orki…', step_tds: 'Karta techniczna…',
+    habits: 'Materiały', habits_title: 'Zwyczaje materiałów',
+    habits_note: 'Mnożniki prędkości i przyspieszeń dla procesu: 1 = bez zmian, 0,7 = 70% prędkości z procesu drukarki. Puste pole w grupie (np. Mosty) bierze wartość z kolumny „Wszystkie”. Kolumny presetu filamentu to szacunki FilaForge: wygrywa z nimi preset producenta, karta techniczna i Twój pomiar. Puste pole = nie proponuj. Zmienione pola są podświetlone.',
+    habits_reset: 'Przywróć domyślne', habits_saved: 'Zapisane. Kliknij „Szukaj danych” albo „Przelicz”, żeby zobaczyć nowe wartości.',
+    h_speed: 'Prędkości (×)', h_accel: 'Przyspieszenia (×)', h_filament: 'Preset filamentu',
+    hf_all: 'Wszystkie', hf_outer: 'Ściana zewn.', hf_inner: 'Ściany wewn.', hf_top: 'Góra', hf_infill: 'Wypełn.', hf_bridge: 'Mosty',
+    hf_accel: 'Wszystkie', hf_outer_accel: 'Ściana zewn.', hf_bridge_fan: 'Nawiew mostów (%)', hf_fan_off_layers: 'Warstwy bez nawiewu',
+    hf_chamber: 'Komora (°C)', hf_enclosure: 'Wymaga obudowy',
+    cls_PLA: 'PLA', cls_SILK: 'PLA Silk', cls_PETG: 'PETG, PCTG', cls_ABS: 'ABS', cls_ASA: 'ASA', cls_PC: 'PC', cls_PA: 'PA (nylon)', cls_CF: 'Z włóknem węglowym', cls_TPU: 'TPU',
+    w_enclosure: '{cls} wypacza się i pęka w otwartej drukarce. Drukuj go w zamkniętej obudowie, bez przeciągów.', w_enclosed_yes: 'Moja drukarka jest zamknięta',
+    w_chamber_passive: 'Drukarka nie grzeje komory, więc temperatury komory nie ustawiam. Przed drukiem {cls} rozgrzej wnętrze stołem przez 10–15 minut i nie otwieraj drzwi.', w_enclosed_no: 'Nie jest zamknięta',
     apply_tip: 'Zaznaczone trafią do presetu i do Spoolmana', name_small: 'małe detale', v_standard: 'Zwykłe modele', v_small: 'Małe detale (do 40 mm)', v_plate: 'Według modeli na płycie', g_speed: 'Prędkości', g_accel: 'Przyspieszenia',
     plate_sizes: 'Modele na płycie: {sizes} mm → {v}.', plate_empty: 'Na płycie nie ma modeli: liczę jak dla zwykłych.',
     r_material: 'materiał {cls} ×{f}', r_variant: 'małe detale ×{f}', r_flow: 'maks. przepływ {mvs} mm³/s przez przekrój {a} mm²',
@@ -373,7 +410,7 @@ const T = {
     i_old_flow: 'Flow ratio of the test', i_mod: 'Modifier', i_mod_pct: 'Modifier (%)', i_start: 'Start (mm³/s)', i_step: 'Step (mm³/s per mm)', i_height: 'Height (mm)',
     i_margin: 'Margin (%)', i_value: 'Result',
     save_measured: 'Save and recalculate', process_title: 'Print process for this filament',
-    process_note: 'A copy of the printer’s process with speeds lowered to the filament’s flow and to the material’s habits (e.g. slower outer walls for PETG and silk). OrcaSlicer caps speeds to the max flow while slicing anyway; here you see it plainly.',
+    process_note: 'A copy of the printer’s process with speeds lowered to the filament’s flow and to the material’s habits (e.g. slower outer walls for PETG and silk, slower bridges for PETG). Change the factors in “Materials”. OrcaSlicer caps speeds to the max flow while slicing anyway; here you see it plainly.',
     calculate: 'Calculate', now: 'Now', new: 'New', why: 'Why', process_name: 'Process name', save_process: 'Save process in OrcaSlicer',
     spoolman_url: 'Spoolman address', language: 'Language', online: 'Search online (Open Filament Database, SpoolmanDB, data sheets)',
     cancel: 'Cancel', save: 'Save', close: 'Close', saved_title: 'Presets made by FilaForge',
@@ -392,6 +429,16 @@ const T = {
     sec_all: 'Every printer', sec_printer: 'Only {name}', no_changes: 'The process already fits the filament’s flow: nothing to change.',
     legend: 'Colour = where a value comes from, bars = confidence', confidence: 'confidence: {c}', c_high: 'high', c_medium: 'medium', c_low: 'low',
     err: 'Error: {m}', brand_missing: 'Type the brand.', step_ofd: 'Open Filament Database…', step_spoolmandb: 'SpoolmanDB…', step_orca: 'OrcaSlicer presets…', step_tds: 'Data sheet…',
+    habits: 'Materials', habits_title: 'Material habits',
+    habits_note: 'Speed and acceleration factors for the process: 1 = unchanged, 0.7 = 70% of the printer process’s speed. An empty field in a group (e.g. Bridges) takes the “All” column. The filament preset columns are FilaForge’s estimates: a maker’s preset, a data sheet and your own measurement win over them. An empty field = no suggestion. Changed fields are highlighted.',
+    habits_reset: 'Restore defaults', habits_saved: 'Saved. Click “Find data” or “Calculate” to see the new values.',
+    h_speed: 'Speeds (×)', h_accel: 'Accelerations (×)', h_filament: 'Filament preset',
+    hf_all: 'All', hf_outer: 'Outer wall', hf_inner: 'Inner walls', hf_top: 'Top', hf_infill: 'Infill', hf_bridge: 'Bridges',
+    hf_accel: 'All', hf_outer_accel: 'Outer wall', hf_bridge_fan: 'Bridge fan (%)', hf_fan_off_layers: 'Layers without fan',
+    hf_chamber: 'Chamber (°C)', hf_enclosure: 'Needs enclosure',
+    cls_PLA: 'PLA', cls_SILK: 'Silk PLA', cls_PETG: 'PETG, PCTG', cls_ABS: 'ABS', cls_ASA: 'ASA', cls_PC: 'PC', cls_PA: 'PA (nylon)', cls_CF: 'Carbon fibre filled', cls_TPU: 'TPU',
+    w_enclosure: '{cls} warps and cracks in an open printer. Print it in a closed enclosure, out of drafts.', w_enclosed_yes: 'My printer is enclosed',
+    w_chamber_passive: 'The printer doesn’t heat its chamber, so no chamber temperature is set. Before printing {cls}, warm the inside with the bed for 10–15 minutes and keep the door shut.', w_enclosed_no: 'It isn’t enclosed',
     apply_tip: 'Ticked ones go into the preset and Spoolman', name_small: 'small parts', v_standard: 'Regular parts', v_small: 'Small parts (up to 40 mm)', v_plate: 'From the parts on the plate', g_speed: 'Speeds', g_accel: 'Accelerations',
     plate_sizes: 'Parts on the plate: {sizes} mm → {v}.', plate_empty: 'No parts on the plate: calculated for regular parts.',
     r_material: 'material {cls} ×{f}', r_variant: 'small parts ×{f}', r_flow: 'max flow {mvs} mm³/s through {a} mm²',
@@ -404,7 +451,8 @@ const KEY_LABELS = {
         nozzle_temperature_range_high: 'Zakres dyszy do', hot_plate_temp: 'Stół (gładki PEI)', hot_plate_temp_initial_layer: 'Stół gładki – 1. warstwa',
         textured_plate_temp: 'Stół (teksturowany PEI)', textured_plate_temp_initial_layer: 'Stół teksturowany – 1. warstwa', filament_density: 'Gęstość',
         filament_max_volumetric_speed: 'Maks. przepływ', fan_min_speed: 'Wentylator min.', fan_max_speed: 'Wentylator maks.', temperature_vitrification: 'Temp. mięknięcia',
-        chamber_temperature: 'Temperatura komory', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Włącz pressure advance',
+        chamber_temperature: 'Temperatura komory', activate_chamber_temp_control: 'Sterowanie temp. komory', overhang_fan_speed: 'Nawiew na mostach i nawisach',
+        close_fan_the_first_x_layers: 'Bez nawiewu przez pierwsze warstwy', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Włącz pressure advance',
         filament_retraction_length: 'Retrakcja – długość', filament_retraction_speed: 'Retrakcja – prędkość', filament_notes: 'Notatki',
         outer_wall_speed: 'Ściana zewnętrzna', inner_wall_speed: 'Ściany wewnętrzne', sparse_infill_speed: 'Wypełnienie', internal_solid_infill_speed: 'Wypełnienie pełne',
         top_surface_speed: 'Powierzchnia górna', gap_infill_speed: 'Szczeliny', support_speed: 'Podpory', initial_layer_speed: 'Pierwsza warstwa', initial_layer_infill_speed: 'Wypełnienie 1. warstwy',
@@ -415,7 +463,8 @@ const KEY_LABELS = {
         nozzle_temperature_range_high: 'Nozzle range to', hot_plate_temp: 'Bed (smooth PEI)', hot_plate_temp_initial_layer: 'Smooth bed – first layer',
         textured_plate_temp: 'Bed (textured PEI)', textured_plate_temp_initial_layer: 'Textured bed – first layer', filament_density: 'Density',
         filament_max_volumetric_speed: 'Max volumetric speed', fan_min_speed: 'Fan min', fan_max_speed: 'Fan max', temperature_vitrification: 'Softening temperature',
-        chamber_temperature: 'Chamber temperature', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Enable pressure advance',
+        chamber_temperature: 'Chamber temperature', activate_chamber_temp_control: 'Chamber temperature control', overhang_fan_speed: 'Fan on bridges and overhangs',
+        close_fan_the_first_x_layers: 'No fan for the first layers', filament_flow_ratio: 'Flow ratio', pressure_advance: 'Pressure advance', enable_pressure_advance: 'Enable pressure advance',
         filament_retraction_length: 'Retraction length', filament_retraction_speed: 'Retraction speed', filament_notes: 'Notes',
         outer_wall_speed: 'Outer wall', inner_wall_speed: 'Inner walls', sparse_infill_speed: 'Sparse infill', internal_solid_infill_speed: 'Solid infill',
         top_surface_speed: 'Top surface', gap_infill_speed: 'Gap infill', support_speed: 'Support', initial_layer_speed: 'First layer', initial_layer_infill_speed: 'First layer infill',
@@ -426,7 +475,7 @@ const KEY_LABELS = {
 const UNITS = { nozzle_temperature: '°C', nozzle_temperature_initial_layer: '°C', nozzle_temperature_range_low: '°C', nozzle_temperature_range_high: '°C',
   hot_plate_temp: '°C', hot_plate_temp_initial_layer: '°C', textured_plate_temp: '°C', textured_plate_temp_initial_layer: '°C', filament_density: 'g/cm³',
   filament_max_volumetric_speed: 'mm³/s', fan_min_speed: '%', fan_max_speed: '%', temperature_vitrification: '°C', chamber_temperature: '°C',
-  filament_retraction_length: 'mm', filament_retraction_speed: 'mm/s' };
+  filament_retraction_length: 'mm', filament_retraction_speed: 'mm/s', overhang_fan_speed: '%' };
 const MEASURE = [['nozzle_temp', 'nozzle_temperature', 1], ['bed_temp', 'hot_plate_temp', 1], ['flow_ratio', 'filament_flow_ratio', 0.01],
   ['pressure_advance', 'pressure_advance', 0.001], ['max_volumetric_speed', 'filament_max_volumetric_speed', 0.5],
   ['retraction_length', 'filament_retraction_length', 0.1], ['retraction_speed', 'filament_retraction_speed', 1]];
@@ -521,6 +570,8 @@ const MSG_PL = [[/\(match (\d+)%\)/, '(zgodność $1%)'], [/^(\d+) values from t
   [/^no usable preset of this material for the printer$/, 'brak presetu tego materiału dla drukarki'],
   [/^Your OrcaSlicer preset/, 'Twój preset Orki'], [/^OrcaSlicer preset/, 'Preset Orki'], [/^Data sheet/, 'Karta techniczna'],
   [/^Your measurement \(FilaForge\)/, 'Twój pomiar (FilaForge)'],
+  [/^FilaForge: (\S+) habits$/, 'FilaForge: zwyczaje $1'], [/^rule of thumb for (\S+) \(Settings → Materials\)$/, 'reguła z doświadczenia dla $1 (okno „Materiały”)'],
+  [/^the printer heats its chamber$/, 'drukarka grzeje komorę'],
   [/^first layer: nozzle \+5 °C, within the maker's range$/, 'pierwsza warstwa: dysza +5 °C, w zakresie producenta'], [/^as tested$/, 'jak zmierzono'],
   [/^data sheet band (\S+)-(\S+) °C for print speeds up to (\S+) mm\/s$/, 'zakres z karty $1–$2 °C dla prędkości do $3 mm/s'],
   [/^40% into the maker's range (\S+)-(\S+) °C$/, '40% zakresu producenta $1–$2 °C'],
@@ -594,6 +645,8 @@ function renderResult() {
   renderMeasured(r.measured || {});
   renderProcessBase();
   $('p-plan').hidden = true;
+  S.plan = null;
+  renderWarnings();
   $('licences').textContent = (r.licences || []).join(' · ');
 }
 function chosenSettings() {
@@ -703,6 +756,79 @@ function currentMvs() {
   if (row) return parseFloat(row.value);
   const pick = S.result.picks.max_volumetric_speed;
   return pick ? parseFloat(pick.value) : 0;
+}
+
+// ---------- material habits
+const H_COLS = [['h_speed', ['all', 'outer', 'inner', 'top', 'infill', 'bridge']], ['h_accel', ['accel', 'outer_accel']],
+                ['h_filament', ['bridge_fan', 'fan_off_layers', 'chamber', 'enclosure']]];
+function habitDefault(cls, f) { const d = ((S.habits && S.habits.defaults) || {})[cls] || {}; return d[f] == null ? null : d[f]; }
+function habitValue(cls, f) {
+  const o = (S.settings.habits || {})[cls] || {};
+  return Object.prototype.hasOwnProperty.call(o, f) ? o[f] : habitDefault(cls, f);
+}
+function renderHabits(fromDefaults) {
+  const info = S.habits;
+  if (!info) return;
+  const step = f => info.fields[f].kind === 'factor' ? 0.05 : 1;
+  const head1 = `<tr><th></th>${H_COLS.map(([g, fs]) => `<th class="grp sep" colspan="${fs.length}">${esc(t(g))}</th>`).join('')}</tr>`;
+  const head2 = `<tr><th></th>${H_COLS.map(([, fs]) => fs.map((f, i) => `<th class="${i ? '' : 'sep'}">${esc(t('hf_' + f))}</th>`).join('')).join('')}</tr>`;
+  const rows = info.classes.map(cls => `<tr><td>${esc(t('cls_' + cls))}</td>${H_COLS.map(([, fs]) => fs.map((f, i) => {
+    const v = fromDefaults ? habitDefault(cls, f) : habitValue(cls, f);
+    const fd = info.fields[f], cell = i ? '' : 'sep';
+    if (fd.kind === 'bool') return `<td class="${cell}"><input type="checkbox" data-h="${cls}" data-f="${f}"${v ? ' checked' : ''}></td>`;
+    return `<td class="${cell}"><input type="number" data-h="${cls}" data-f="${f}" min="${fd.min}" max="${fd.max}" step="${step(f)}"
+      value="${v == null ? '' : esc(v)}" placeholder="${f !== 'all' && fd.kind === 'factor' && f !== 'accel' ? '–' : ''}"></td>`;
+  }).join('')).join('')}</tr>`).join('');
+  $('habits-table').innerHTML = `<thead>${head1}${head2}</thead><tbody>${rows}</tbody>`;
+  markHabits();
+}
+function habitInput(el) {
+  if (el.type === 'checkbox') return el.checked;
+  const raw = String(el.value).trim().replace(',', '.');
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+function markHabits() {
+  document.querySelectorAll('#habits-table [data-h]').forEach(el => {
+    const d = habitDefault(el.dataset.h, el.dataset.f), v = habitInput(el);
+    el.classList.toggle('changed', el.type === 'checkbox' ? !!v !== !!d : v !== d);
+  });
+}
+function habitOverrides() {
+  const out = {};
+  document.querySelectorAll('#habits-table [data-h]').forEach(el => {
+    const cls = el.dataset.h, f = el.dataset.f, d = habitDefault(cls, f), v = habitInput(el);
+    if (el.type === 'checkbox' ? !!v === !!d : v === d) return;
+    (out[cls] = out[cls] || {})[f] = v;
+  });
+  return out;
+}
+
+// ---------- warnings (material habits)
+function warningsHtml(list) {
+  return (list || []).map(w => {
+    const cls = t('cls_' + w.cls);
+    if (w.code === 'enclosure') return `<div class="warn-box"><span>${esc(t('w_enclosure', {cls}))}</span>
+      ${S.printer && S.printer.name ? `<button class="secondary" data-enclosed="1">${esc(t('w_enclosed_yes'))}</button>` : ''}</div>`;
+    if (w.code === 'chamber_passive') return `<div class="warn-box"><span>${esc(t('w_chamber_passive', {cls}))}</span>
+      <button class="link small" data-enclosed="0">${esc(t('w_enclosed_no'))}</button></div>`;
+    return '';
+  }).join('');
+}
+function renderWarnings() {
+  $('r-warn').innerHTML = S.result ? warningsHtml(S.result.warnings) : '';
+  $('p-warn').innerHTML = S.plan ? warningsHtml(S.plan.warnings) : '';
+}
+function setEnclosed(on) {
+  if (!S.printer || !S.printer.name) return;
+  send({cmd: 'settings', enclosed: {printer: S.printer.name, on}});
+  // the same answer the plugin would give, without searching again
+  const flip = list => (list || []).map(w => (on && w.code === 'enclosure') ? {code: 'chamber_passive', cls: w.cls}
+                                          : (!on && w.code === 'chamber_passive') ? {code: 'enclosure', cls: w.cls} : w);
+  if (S.result) S.result.warnings = flip(S.result.warnings);
+  if (S.plan) S.plan.warnings = flip(S.plan.warnings);
+  renderWarnings();
 }
 
 // ---------- saved
@@ -843,6 +969,19 @@ $('btn-settings-save').addEventListener('click', () => {
   send({cmd: 'settings', spoolman_url: $('s-spoolman').value.trim(), language: $('s-language').value, online: $('s-online').checked});
   $('dlg-settings').close();
 });
+$('btn-habits').addEventListener('click', () => { renderHabits(false); $('dlg-habits').showModal(); });
+$('habits-table').addEventListener('input', markHabits);
+$('habits-table').addEventListener('change', markHabits);
+$('btn-habits-reset').addEventListener('click', () => renderHabits(true));
+$('btn-habits-save').addEventListener('click', () => {
+  send({cmd: 'settings', habits: habitOverrides()});
+  $('dlg-habits').close();
+  toast(t('habits_saved'));
+});
+document.body.addEventListener('click', e => {
+  const b = e.target.closest('[data-enclosed]');
+  if (b) setEnclosed(b.dataset.enclosed === '1');
+});
 $('btn-saved').addEventListener('click', () => { renderSaved(); $('dlg-saved').showModal(); send({cmd: 'saved'}); });
 $('saved-list').addEventListener('click', e => { const n = e.target.dataset.remove; if (n) send({cmd: 'remove_preset', name: n}); });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
@@ -853,7 +992,7 @@ function onMessage(m) {
   if (!m || !m.cmd) return;
   switch (m.cmd) {
     case 'init':
-      S.settings = m.settings; S.printer = m.printer; S.processes = m.processes || []; S.saved = m.saved || [];
+      S.settings = m.settings; S.printer = m.printer; S.processes = m.processes || []; S.saved = m.saved || []; S.habits = m.habits || null;
       lang(); translate(); renderPrinter();
       if (S.settings.spoolman_url) send({cmd: 'spoolman_list'}); else { setPick('manual'); renderSpools(); }
       send({cmd: 'orca_filaments'});
@@ -865,11 +1004,13 @@ function onMessage(m) {
       if (!S.pickTouched && !S.settings.spoolman_url && S.orca.length) setPick('orca');
       renderOrca();
       break;
-    case 'settings':
+    case 'settings': {
+      const before = {lang: L, url: S.settings.spoolman_url};
       S.settings = m.settings; lang(); translate(); renderPrinter(); renderSpools();
-      if (S.result) renderResult();
-      if (S.settings.spoolman_url) send({cmd: 'spoolman_list'});
-      break;
+      const changed = before.lang !== L || before.url !== S.settings.spoolman_url;
+      if (S.result && changed) renderResult();     // the material table or an enclosure: the open plan stays
+      if (S.settings.spoolman_url && changed) send({cmd: 'spoolman_list'});
+      break; }
     case 'products': {
       if (m.brand !== $('f-brand').value.trim()) break;
       const list = m.products || [];
@@ -954,6 +1095,7 @@ function onMessage(m) {
         : '';
       $('btn-process-save').disabled = !m.changes.length;
       $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
+      renderWarnings();
       break;
     case 'error': {
       busy($('btn-research'), false); busy($('btn-make-preset'), false); busy($('btn-process-save'), false);

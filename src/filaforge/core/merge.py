@@ -10,6 +10,7 @@ from .model import BASELINE, DECLARED, ESTIMATED, KIND_RANK, PRESET, TESTED, Obs
 from .text import round_to
 
 TOLERANCE = {"nozzle_temp": 5, "bed_temp": 5, "density": 0.03, "fan_min": 10, "fan_max": 10, "vitrification": 5,
+             "bridge_fan": 10, "fan_off_layers": 0,
              "chamber_temp": 5, "retraction_length": 0.3, "retraction_speed": 10, "flow_ratio": 0.03,
              "pressure_advance": 0.01, "dry_temp": 5, "dry_time": 2, "print_speed_max": 30}
 REL_TOLERANCE = {"max_volumetric_speed": 0.2}
@@ -205,6 +206,9 @@ ORCA_MAP = (
     ("fan_max_speed", "fan_max", True),
     ("temperature_vitrification", "vitrification", True),
     ("chamber_temperature", "chamber_temp", True),
+    ("activate_chamber_temp_control", "chamber_temp", True),
+    ("overhang_fan_speed", "bridge_fan", True),
+    ("close_fan_the_first_x_layers", "fan_off_layers", True),
     ("filament_flow_ratio", "flow_ratio", True),
     ("pressure_advance", "pressure_advance", True),
     ("enable_pressure_advance", "pressure_advance", True),
@@ -220,9 +224,10 @@ def _fmt(value):
     return str(int(value)) if value.is_integer() else ("%.4f" % value).rstrip("0").rstrip(".")
 
 
-def orca_settings(picks, base_config=None):
+def orca_settings(picks, base_config=None, chamber_control=False):
     """[{orca_key, value, from, kind, apply, note}] of the OrcaSlicer filament settings the picks give.
-    base_config ({key: text}) is the preset they go on; a value equal to it is still listed (apply off)."""
+    base_config ({key: text}) is the preset they go on; a value equal to it is still listed (apply off).
+    chamber_control: the printer heats its chamber, so a chamber temperature also switches its control on."""
     base_config = base_config or {}
     out = []
     nozzle = picks.get("nozzle_temp")
@@ -249,6 +254,11 @@ def orca_settings(picks, base_config=None):
             value = pick.value[1]
         elif orca_key == "enable_pressure_advance":
             value = 1
+        elif orca_key == "activate_chamber_temp_control":
+            if not chamber_control or not pick.value:
+                continue
+            value = 1
+            note = "the printer heats its chamber"
         text = _fmt(value)
         base_text = str(base_config.get(orca_key, "")).split(",")[0].strip().strip('"')
         try:

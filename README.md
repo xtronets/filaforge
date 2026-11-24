@@ -26,6 +26,7 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 - [Skąd bierze dane](#skąd-bierze-dane)
 - [Jak wybiera wartość](#jak-wybiera-wartość)
 - [Proces druku dla filamentu](#proces-druku-dla-filamentu)
+- [Zwyczaje materiałów](#zwyczaje-materiałów)
 - [Wymagania](#wymagania)
 - [Instalacja, aktualizacja, odinstalowanie](#instalacja-aktualizacja-odinstalowanie)
 - [Jak używać](#jak-używać)
@@ -104,15 +105,41 @@ Karta **Proces druku dla tego filamentu** bierze wybrany proces drukarki i robi 
   jak dla okrągłej nitki.
 - **Zwyczaje materiału**: PETG i PLA Silk mają wolniejsze ściany zewnętrzne i górę. ABS, ASA i materiały z
   włóknem węglowym są trochę wolniejsze, PC i PA ok. 70%. TPU ma ok. 30% prędkości, nie więcej niż 60 mm/s,
-  oraz łagodniejsze przyspieszenia.
-- **Mosty**: przyspieszenie mostu jest takie, żeby most rozpędzał się do swojej prędkości w ok. 25 ms i nie
-  zrywał nitki na starcie (minimum 500 mm/s²).
+  oraz łagodniejsze przyspieszenia. Wszystkie te współczynniki zmienisz sam, zob.
+  [Zwyczaje materiałów](#zwyczaje-materiałów).
+- **Mosty**: PETG dostaje wolniejsze mosty (×0,8), bo przy wolnym moście z łagodnym nawiewem mniej się
+  ciągnie i opada. PLA zostaje bez zmian. Przyspieszenie mostu jest takie, żeby most rozpędzał się do swojej
+  prędkości w ok. 25 ms i nie zrywał nitki na starcie (minimum 500 mm/s²).
 - **Limity drukarki**: żadna prędkość ani przyspieszenie nie przekracza limitów maszyny z profilu drukarki.
 - **Warianty**: *Zwykłe modele*, *Małe detale (do 40 mm)* z wolniejszymi ścianami i przyspieszeniami, albo
   *Według modeli na płycie*. Ten ostatni sam wybiera wariant na podstawie wymiarów modeli na płycie.
 
 Przy każdej zmianie widać wartość „teraz”, „nowa” i powód. Proces zapisuje się w Orce jako
 np. `0.20mm Standard Sunlu PLA+ FF`.
+
+## Zwyczaje materiałów
+
+Przycisk **Materiały** w nagłówku otwiera tabelę zasad, które FilaForge stosuje dla każdego rodzaju materiału
+(PLA, PLA Silk, PETG/PCTG, ABS, ASA, PC, PA, z włóknem węglowym, TPU). To reguły z doświadczenia, nie dane
+producenta, więc możesz je zmienić. Zmiany zapisują się w `settings.json`, a **Przywróć domyślne** wraca do
+wartości FilaForge.
+
+- **Prędkości i przyspieszenia (×)**: mnożniki procesu dla ściany zewnętrznej, ścian wewnętrznych, góry,
+  wypełnienia, mostów i przyspieszeń. 1 = bez zmian. Puste pole w grupie bierze wartość z kolumny
+  „Wszystkie”. Mnożnik tylko obniża prędkość, nigdy jej nie podnosi.
+- **Nawiew na mostach i nawisach** (`overhang_fan_speed`): domyślnie PLA 100%, PETG 60%, ABS i ASA 50%,
+  PC i PA 40%.
+- **Warstwy bez nawiewu** (`close_fan_the_first_x_layers`): ABS i ASA 3, PC 4, PA 3, żeby pierwsze warstwy
+  dobrze trzymały się stołu.
+- **Komora** (`chamber_temperature`): ABS i ASA 45 °C, PC 55 °C, PA 45 °C. Ustawiana tylko wtedy, gdy
+  profil drukarki ma sterowanie temperaturą komory (`support_chamber_temp_control`). Wtedy FilaForge włącza
+  też `activate_chamber_temp_control`.
+- **Wymaga obudowy**: ABS, ASA, PC i PA. Gdy drukarka nie grzeje komory i nie wiadomo, czy jest zamknięta,
+  wynik i proces pokazują ostrzeżenie z przyciskiem **Moja drukarka jest zamknięta**. FilaForge zapamiętuje
+  to dla tej drukarki i zamiast ostrzeżenia radzi rozgrzać wnętrze przed drukiem.
+
+Wartości dla presetu filamentu mają w tabeli wyników znaczek **Szacunek**. Wygrywa z nimi preset producenta,
+karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu materiału.
 
 ## Wymagania
 
@@ -170,6 +197,7 @@ nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np.
 | Adres Spoolmana | np. `http://192.168.1.2:7912`. Gdy pole jest puste, a masz Spoolera, użyty jest adres ze Spoolera. |
 | Język | Automatycznie (według języka systemu), polski albo angielski. |
 | Szukaj w internecie | Wyłączone = tylko presety Orki, Twoje pomiary i zapisane wcześniej odpowiedzi. |
+| Materiały (osobny przycisk) | Współczynniki i szacunki dla każdego materiału, zob. [Zwyczaje materiałów](#zwyczaje-materiałów). |
 
 ## Gdzie co zapisuje
 

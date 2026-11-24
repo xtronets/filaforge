@@ -2,13 +2,15 @@
 
 Two things lower a speed: the filament's max volumetric speed (the most plastic per second the hot end melts for
 it, which OrcaSlicer also enforces while slicing; here it shows up in the preset) and the material's habits
-(PETG and silk PLA look better with slower outer walls, TPU needs everything slow). The factors are rules of
-thumb, marked "estimated"; the volumetric limit is arithmetic.
+(PETG and silk PLA look better with slower outer walls, PETG with slower bridges, TPU needs everything slow). The
+factors are rules of thumb from habits.py, which the user can change; the volumetric limit is arithmetic.
 """
 
 import math
 
-from .text import fold, number, split_material, tokens
+from . import habits
+from .habits import material_class  # noqa: F401  (the page's and tests' name for it)
+from .text import number
 
 # speed key -> (line width key, layer height key)
 SPEEDS = {
@@ -39,21 +41,7 @@ RELATIVE = {
 ACCELERATIONS = ("default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
                  "top_surface_acceleration", "sparse_infill_acceleration", "internal_solid_infill_acceleration",
                  "bridge_acceleration", "initial_layer_acceleration", "travel_acceleration")
-# material class -> {speed key: factor}; "*" for every speed key not named
-FACTORS = {
-    "PLA": {},
-    "SILK": {"outer_wall_speed": 0.6, "top_surface_speed": 0.7, "inner_wall_speed": 0.85, "scarf_joint_speed": 0.6},
-    "PETG": {"outer_wall_speed": 0.7, "top_surface_speed": 0.75, "inner_wall_speed": 0.85, "sparse_infill_speed": 0.85,
-             "gap_infill_speed": 0.8, "scarf_joint_speed": 0.7},
-    "ABS": {"outer_wall_speed": 0.85, "top_surface_speed": 0.85},
-    "ASA": {"outer_wall_speed": 0.85, "top_surface_speed": 0.85},
-    "PC": {"*": 0.7},
-    "PA": {"*": 0.7},
-    "CF": {"outer_wall_speed": 0.8, "top_surface_speed": 0.8},
-    "TPU": {"*": 0.3},
-}
-# the same for accelerations (a soft filament in a direct drive wants gentle starts)
-ACCEL_FACTORS = {"TPU": {"*": 0.5}, "SILK": {"outer_wall_acceleration": 0.7}}
+# material factors: see habits.py (the user can change them)
 TPU_CAP = 60.0          # mm/s: no TPU speed above this, whatever the process said
 BRIDGE_RAMP = 0.025     # s: a bridge reaches its speed this fast at most, so the strand isn't torn at the start
 MIN_ACCEL = 500.0
@@ -65,20 +53,6 @@ VARIANTS = {
               {"outer_wall_acceleration": 0.6, "inner_wall_acceleration": 0.6, "top_surface_acceleration": 0.6}),
 }
 SMALL_PART_MM = 40.0    # a part whose footprint fits in this square counts as small
-
-
-def material_class(material, product=""):
-    base, words = split_material(material, product)
-    words = set(tokens(words)) | set(tokens(material))
-    if base == "TPU":
-        return "TPU"
-    if base.endswith("-CF") or "cf" in words or "carbon" in words:
-        return "CF" if base.startswith("PLA") else (base.split("-")[0] if base.split("-")[0] in FACTORS else "CF")
-    if base == "PLA" and "silk" in words:
-        return "SILK"
-    if base in ("PETG", "PCTG", "PET"):
-        return "PETG"
-    return base if base in FACTORS else "PLA"
 
 
 def width_mm(text, nozzle, fallback=None):
@@ -125,14 +99,15 @@ def _area(config, key, width_key, height, nozzle, default_width):
     return area(width, height)
 
 
-def fit(config, nozzle, max_volumetric_speed, material, product="", machine=None, variant="standard"):
+def fit(config, nozzle, max_volumetric_speed, material, product="", machine=None, variant="standard", table=None):
     """[{key, group, base, new, unit, reasons}] of what changes for this filament (and part size).
 
     reasons: [{"code": "material"|"flow"|"tpu"|"machine"|"bridge_ramp"|"variant", ...numbers}] for the page to word.
-    machine: {"accel": max extruding acceleration, "travel_accel", "speed": max XY speed} of the printer."""
+    machine: {"accel": max extruding acceleration, "travel_accel", "speed": max XY speed} of the printer.
+    table: habits.table() with the user's changes (the defaults when None)."""
     machine = machine or {}
     cls = material_class(material, product)
-    factors = FACTORS.get(cls, {})
+    row = (table or habits.table()).get(cls, {})
     vspeed, vaccel = VARIANTS.get(variant, VARIANTS["standard"])
     default_width = width_mm(config.get("line_width"), nozzle, nozzle * 1.125)
     changes, new_speeds = [], {}
@@ -145,7 +120,7 @@ def fit(config, nozzle, max_volumetric_speed, material, product="", machine=None
         limit = max_volumetric_speed / cross if max_volumetric_speed and cross else None
         reasons = []
         new = base
-        factor = factors.get(key, factors.get("*", 1.0))
+        factor = habits.speed_factor(row, key)
         if factor != 1.0:
             new *= factor
             reasons.append({"code": "material", "cls": cls, "factor": factor})
@@ -166,13 +141,12 @@ def fit(config, nozzle, max_volumetric_speed, material, product="", machine=None
         if new < int(math.floor(base)):
             changes.append({"key": key, "group": "speed", "unit": "mm/s", "base": round(base, 1), "new": new,
                             "limit": round(limit, 1) if limit else None, "reasons": reasons})
-    accel_factors = ACCEL_FACTORS.get(cls, {})
     for key in ACCELERATIONS:
         base = resolved(config, key)
         if not base:
             continue
         new, reasons = base, []
-        factor = accel_factors.get(key, accel_factors.get("*", 1.0))
+        factor = habits.accel_factor(row, key)
         if factor != 1.0:
             new *= factor
             reasons.append({"code": "material", "cls": cls, "factor": factor})

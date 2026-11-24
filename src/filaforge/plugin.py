@@ -14,14 +14,14 @@ import webbrowser
 
 import orca
 
-from .core import files, measured, merge, process, research, spoolman, writer
+from .core import files, habits, measured, merge, process, research, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.4.4"
+VERSION = "0.5.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -54,7 +54,7 @@ def _setup_log():
         pass
 
 
-DEFAULTS = {"spoolman_url": "", "language": "auto", "online": True, "origins": []}
+DEFAULTS = {"spoolman_url": "", "language": "auto", "online": True, "origins": [], "habits": {}, "enclosed_printers": []}
 
 
 def read_settings():
@@ -65,6 +65,9 @@ def read_settings():
         data = {}
     out = dict(DEFAULTS)
     out.update({k: v for k, v in data.items() if k in DEFAULTS})
+    out["habits"] = habits.clean_overrides(out.get("habits"))
+    if not isinstance(out.get("enclosed_printers"), list):
+        out["enclosed_printers"] = []
     if not out["spoolman_url"]:
         out["spoolman_url"] = spooler_spoolman_url()
     return out
@@ -166,7 +169,8 @@ def printer_info(bundle):
     except ValueError:
         nozzle = 0.4
     return {"name": getattr(printer, "name", "") or "", "model": _clean(cfg("printer_model")),
-            "nozzle": nozzle, "process": getattr(process_preset, "name", "") or ""}
+            "nozzle": nozzle, "process": getattr(process_preset, "name", "") or "",
+            "chamber_control": _clean(cfg("support_chamber_temp_control")).lower() in ("1", "true")}
 
 
 def filament_presets(bundle, identity):
@@ -356,6 +360,12 @@ def saved_presets(bundle):
     return out
 
 
+def habits_info():
+    """What the page needs to show and edit the material table."""
+    return {"classes": list(habits.CLASSES), "defaults": habits.DEFAULTS,
+            "fields": {k: {"kind": v[0], "min": v[1], "max": v[2]} for k, v in habits.FIELDS.items()}}
+
+
 # --- the work ----------------------------------------------------------------------------------------------------
 def spawn(fn, *args):
     def run():
@@ -419,7 +429,7 @@ class Tab:
             repair_processes(bundle)
         settings = read_settings()
         self.reply("init", version=VERSION, settings=settings, printer=printer_info(bundle),
-                   processes=process_list(bundle), saved=saved_presets(bundle))
+                   processes=process_list(bundle), saved=saved_presets(bundle), habits=habits_info())
 
     def on_orca_filaments(self, data):
         self.reply("orca_filaments", items=user_filaments(orca.host.preset_bundle()))
@@ -435,6 +445,12 @@ class Tab:
             changes["language"] = data["language"]
         if isinstance(data.get("online"), bool):
             changes["online"] = data["online"]
+        if isinstance(data.get("habits"), dict):
+            changes["habits"] = habits.clean_overrides(data["habits"])
+        if isinstance(data.get("enclosed"), dict):
+            name = str(data["enclosed"].get("printer") or "").strip()
+            have = [p for p in read_settings()["enclosed_printers"] if p != name]
+            changes["enclosed_printers"] = have + [name] if name and data["enclosed"].get("on") else have
         self.reply("settings", settings=write_settings(changes))
 
     def on_open_url(self, data):
@@ -493,7 +509,8 @@ class Tab:
                         self.reply("progress", step="spoolman", message=str(error))
                 result = research.run(identity, presets, fetcher(), process_config, tested, urls, files,
                                       progress=lambda step: self.reply("progress", step=step), use_online=online,
-                                      own=own)
+                                      own=own, table=habits.table(settings["habits"]), printer=printer,
+                                      enclosed_printers=settings["enclosed_printers"])
                 for report in result["reports"]:
                     if report["source"] == "tds" and report["ok"]:
                         remember_origin(report["url"])
@@ -592,13 +609,17 @@ class Tab:
         sizes = plate_sizes() if variant == "plate" else []
         used = process.variant_for(sizes) if variant == "plate" else (variant if variant in process.VARIANTS
                                                                       else "standard")
+        settings = read_settings()
+        table = habits.table(settings["habits"])
+        cls = habits.material_class(identity.material, identity.product)
         changes = process.fit(config, printer["nozzle"], mvs, identity.material, identity.product,
-                              machine_limits(bundle), used)
+                              machine_limits(bundle), used, table)
         label = identity.label() + ("" if used == "standard" else " small parts")
         name = writer.with_marker(process.process_name(base_name, label))
         self.reply("process_plan", base=base_name, name=writer.safe_name(name), changes=changes, variant=used,
                    asked=variant, sizes=[[round(x), round(y)] for x, y in sizes],
-                   layer_height=_clean(config.get("layer_height")))
+                   layer_height=_clean(config.get("layer_height")), material_class=cls,
+                   warnings=habits.warnings(cls, table[cls], printer, settings["enclosed_printers"]))
 
     def on_process_save(self, data):
         bundle = orca.host.preset_bundle()

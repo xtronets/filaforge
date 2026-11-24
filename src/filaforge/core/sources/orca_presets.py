@@ -28,6 +28,8 @@ READ = {
     "filament_flow_ratio": ("flow_ratio", "first"),
     "temperature_vitrification": ("vitrification", "first"),
     "chamber_temperature": ("chamber_temp", "first"),
+    "overhang_fan_speed": ("bridge_fan", "first"),
+    "close_fan_the_first_x_layers": ("fan_off_layers", "first"),
     "filament_retraction_length": ("retraction_length", "first"),
     "filament_retraction_speed": ("retraction_speed", "first"),
 }

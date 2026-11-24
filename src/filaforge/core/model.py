@@ -76,6 +76,8 @@ KEYS = {
     "fan_min": ("%", "minimum part fan speed"),
     "fan_max": ("%", "maximum part fan speed"),
     "chamber_temp": ("°C", "chamber temperature"),
+    "bridge_fan": ("%", "part fan on bridges and overhangs"),
+    "fan_off_layers": ("", "first layers without the part fan"),
     "vitrification": ("°C", "softening temperature (Vicat / HDT)"),
     "retraction_length": ("mm", "retraction length"),
     "retraction_speed": ("mm/s", "retraction speed"),

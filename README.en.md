@@ -26,6 +26,7 @@ measurements. Every value shows where it came from and how sure it is.
 - [Where the data comes from](#where-the-data-comes-from)
 - [How a value is chosen](#how-a-value-is-chosen)
 - [A print process for the filament](#a-print-process-for-the-filament)
+- [Material habits](#material-habits)
 - [Requirements](#requirements)
 - [Install, update, uninstall](#install-update-uninstall)
 - [How to use it](#how-to-use-it)
@@ -102,15 +103,39 @@ inherits it (`inherits`), changing only what is needed:
   supports and their interface, and bridges. Bridges use the cross-section of a round strand.
 - **Material habits**: PETG and silk PLA get slower outer walls and top surfaces. ABS, ASA and carbon-filled
   materials are a little slower, PC and PA about 70%. TPU runs at about 30%, never above 60 mm/s, with gentler
-  accelerations.
-- **Bridges**: the bridge acceleration is set so a bridge reaches its speed in about 25 ms and the strand isn't
-  torn at the start (at least 500 mm/s²).
+  accelerations. You can change every one of these factors, see [Material habits](#material-habits).
+- **Bridges**: PETG gets slower bridges (×0.8), since a slow bridge with a gentle fan strings and sags less.
+  PLA stays as it is. The bridge acceleration is set so a bridge reaches its speed in about 25 ms and the
+  strand isn't torn at the start (at least 500 mm/s²).
 - **Printer limits**: no speed or acceleration goes above the machine limits in the printer profile.
 - **Variants**: *Regular parts*, *Small parts (up to 40 mm)* with slower walls and accelerations, or
   *From the parts on the plate*, which picks the variant from the sizes of the models on the plate.
 
 Every change shows the current value, the new one and the reason. The process is saved in OrcaSlicer as,
 for example, `0.20mm Standard Sunlu PLA+ FF`.
+
+## Material habits
+
+The **Materials** button in the header opens the table of rules FilaForge uses for each kind of material (PLA,
+silk PLA, PETG/PCTG, ABS, ASA, PC, PA, carbon-filled, TPU). They are rules of thumb, not the maker's data, so
+you can change them. Changes are kept in `settings.json`; **Restore defaults** goes back to FilaForge's values.
+
+- **Speeds and accelerations (×)**: process factors for the outer wall, inner walls, top, infill, bridges and
+  accelerations. 1 = unchanged. An empty field in a group takes the "All" column. A factor only lowers a
+  speed, it never raises one.
+- **Fan on bridges and overhangs** (`overhang_fan_speed`): by default PLA 100%, PETG 60%, ABS and ASA 50%,
+  PC and PA 40%.
+- **Layers without fan** (`close_fan_the_first_x_layers`): ABS and ASA 3, PC 4, PA 3, so the first layers
+  stick to the bed.
+- **Chamber** (`chamber_temperature`): ABS and ASA 45 °C, PC 55 °C, PA 45 °C. Set only when the printer
+  profile has chamber temperature control (`support_chamber_temp_control`); FilaForge then also turns on
+  `activate_chamber_temp_control`.
+- **Needs enclosure**: ABS, ASA, PC and PA. When the printer doesn't heat its chamber and nothing says it is
+  closed, the result and the process show a warning with a **My printer is enclosed** button. FilaForge
+  remembers that for the printer and then suggests warming the inside up before printing instead.
+
+The filament preset values show as **Estimate** in the results table. A maker's preset, a data sheet and your
+own measurement win over them; they only replace the value of the material's generic preset.
 
 ## Requirements
 
@@ -169,6 +194,7 @@ already exists for another printer, the printer model is added in brackets, e.g.
 | Spoolman address | e.g. `http://192.168.1.2:7912`. When empty and Spooler is installed, Spooler's address is used. |
 | Language | Automatic (system language), Polish or English. |
 | Search online | Off = only OrcaSlicer's presets, your measurements and answers fetched earlier. |
+| Materials (its own button) | Factors and estimates for each material, see [Material habits](#material-habits). |
 
 ## What it stores and where
 

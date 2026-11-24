@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.4.4"', html)
+        self.assertIn('"version": "0.5.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -237,6 +237,27 @@ class PluginTests(unittest.TestCase):
         reply = self.last("settings", self.send(cmd="settings", spoolman_url="192.168.1.2:7912", language="pl"))
         self.assertEqual(reply["settings"]["spoolman_url"], "192.168.1.2:7912")
         self.assertEqual(self.plugin.read_settings()["language"], "pl")
+        reply = self.last("settings", self.send(cmd="settings", habits={"PETG": {"outer": 0.5, "bogus": 1}},
+                                                enclosed={"printer": "Creality K1C 0.4 nozzle", "on": True}))
+        self.assertEqual(reply["settings"]["habits"], {"PETG": {"outer": 0.5}})
+        self.assertEqual(reply["settings"]["enclosed_printers"], ["Creality K1C 0.4 nozzle"])
+        reply = self.last("settings", self.send(cmd="settings", enclosed={"printer": "Creality K1C 0.4 nozzle", "on": False}))
+        self.assertEqual(reply["settings"]["enclosed_printers"], [])
+
+    def test_habits_reach_the_process(self):
+        init = self.last("init", self.send(cmd="init"))
+        self.assertIn("PETG", init["habits"]["classes"])
+        self.assertEqual(init["habits"]["defaults"]["PETG"]["bridge"], 0.8)
+        ident = {"brand": "Sunlu", "material": "PETG"}
+        plan = self.last("process_plan", self.send(cmd="process_plan", max_volumetric_speed=30, identity=ident))
+        keys = {c["key"]: c["new"] for c in plan["changes"]}
+        self.assertEqual((keys["outer_wall_speed"], keys["bridge_speed"]), (140, 20))
+        self.send(cmd="settings", habits={"PETG": {"outer": 0.5}})
+        plan = self.last("process_plan", self.send(cmd="process_plan", max_volumetric_speed=30, identity=ident))
+        self.assertEqual({c["key"]: c["new"] for c in plan["changes"]}["outer_wall_speed"], 100)
+        plan = self.last("process_plan", self.send(cmd="process_plan", max_volumetric_speed=30,
+                                                   identity={"brand": "Sunlu", "material": "ASA"}))
+        self.assertEqual(plan["warnings"][0]["code"], "enclosure")
 
 
 if __name__ == "__main__":
