@@ -37,11 +37,14 @@ jobs:
         run: python scripts/build.py
 
       - name: System libraries
+        timeout-minutes: 10
         run: |
+          export DEBIAN_FRONTEND=noninteractive
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null 2>&1 || true
+          sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb imagemagick libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
-            libglu1-mesa libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good libsecret-1-0 \
-            libfuse2t64 locales >/dev/null
+          sudo -E apt-get install -y -qq --no-install-recommends xvfb imagemagick libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
+            libglu1-mesa libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good libsecret-1-0 >/dev/null
 
       - name: Download OrcaSlicer
         id: orca
@@ -52,8 +55,9 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           gh release view "$tag" --repo OrcaSlicer/OrcaSlicer --json assets -q '.assets[].name' | tee assets.txt
-          asset=$(grep -i 'linux' assets.txt | grep -i 'appimage' | grep -i '2404' | head -1 || true)
-          [ -n "$asset" ] || asset=$(grep -i 'linux' assets.txt | grep -i 'appimage' | head -1)
+          x86=$(grep -i 'linux' assets.txt | grep -i 'appimage' | grep -vi 'aarch64\|arm64' || true)
+          asset=$(echo "$x86" | grep -i '2404' | head -1 || true)
+          [ -n "$asset" ] || asset=$(echo "$x86" | head -1)
           echo "asset: $asset"
           gh release download "$tag" --repo OrcaSlicer/OrcaSlicer --pattern "$asset" --output orca.AppImage
           chmod +x orca.AppImage
