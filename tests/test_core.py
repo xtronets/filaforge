@@ -257,6 +257,28 @@ class MeasuredTests(unittest.TestCase):
             store.set(ident, "*", {})
             self.assertEqual(store.get(ident, "Snapmaker U1"), {})
 
+    def test_per_nozzle(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = measured.Store(folder)
+            ident = Identity("SUNLU", "PLA", "PLA+")
+            # saved before 0.3.1: max flow at the top of the section, measured on a 0.4 mm nozzle
+            store.set(ident, "Creality K1C", {"max_volumetric_speed": 20, "flow_ratio": 0.97})
+            self.assertEqual(store.get(ident, "Creality K1C", 0.4), {"max_volumetric_speed": 20, "flow_ratio": 0.97})
+            self.assertEqual(store.get(ident, "Creality K1C", 0.6), {"flow_ratio": 0.97})
+            # a 0.6 mm nozzle gets its own; the 0.4 mm value stays
+            store.set(ident, "Creality K1C", {"max_volumetric_speed": 28, "pressure_advance": 0.02,
+                                              "flow_ratio": 0.97}, nozzle=0.6)
+            self.assertEqual(store.get(ident, "Creality K1C", 0.6),
+                             {"max_volumetric_speed": 28, "pressure_advance": 0.02, "flow_ratio": 0.97})
+            self.assertEqual(store.get(ident, "Creality K1C", "0.40"), {"max_volumetric_speed": 20, "flow_ratio": 0.97})
+            # a 0.4 mm save moves the old value under its nozzle
+            store.set(ident, "Creality K1C", {"max_volumetric_speed": 21, "flow_ratio": 0.97}, nozzle=0.4)
+            section = store.sections(ident)["Creality K1C"]
+            self.assertEqual((section["_nozzle"]["0.4"], "max_volumetric_speed" in section),
+                             ({"max_volumetric_speed": 21}, False))
+            self.assertEqual(store.get(ident, "Creality K1C", 0.6)["max_volumetric_speed"], 28)
+            self.assertEqual(measured.nozzle_tag("0,6"), "0.6")
+
 
 class SpoolmanTests(unittest.TestCase):
     FILAMENT = {"id": 46, "name": "Biały", "material": "PLA+", "vendor": {"name": "Sunlu"},
@@ -308,15 +330,41 @@ class SpoolmanTests(unittest.TestCase):
             return Response(fresh if request.get_method() == "GET" else {})
 
         client = spoolman.Client("192.168.1.2:7912", opener)
-        added, kept = client.write_settings(46, "*", {"filament_max_volumetric_speed": "18", "filament_density": "1.21",
-                                                      "nozzle_temperature_range_low": "5"})
-        self.assertEqual((added, kept), (["filament_max_volumetric_speed"], ["nozzle_temperature_range_low"]))
+        result = client.write_settings(46, "*", {"filament_max_volumetric_speed": "18", "filament_density": "1.21",
+                                                 "nozzle_temperature_range_low": "5"})
+        self.assertEqual((result["added"], result["differs"]), (["filament_max_volumetric_speed"],
+                                                                ["nozzle_temperature_range_low"]))
         method, url, body = calls[-1]
         self.assertEqual((method, url), ("PATCH", "http://192.168.1.2:7912/api/v1/filament/46"))
         extra = json.loads(body)["extra"]
         self.assertEqual(extra["orca_max_volumetric_speed"], "18")              # every other field goes back
         written = json.loads(json.loads(extra["orca_settings"]))
         self.assertEqual(written["*"], {"nozzle_temperature_range_low": 190, "filament_max_volumetric_speed": "18"})
+        # asked to overwrite: the differing value is replaced, a same one isn't written again
+        fresh["extra"]["orca_settings"] = extra["orca_settings"]
+        result = client.write_settings(46, "*", {"nozzle_temperature_range_low": "200",
+                                                 "filament_max_volumetric_speed": "18.0"},
+                                       overwrite=["nozzle_temperature_range_low", "filament_max_volumetric_speed"])
+        self.assertEqual((result["replaced"], result["same"]), (["nozzle_temperature_range_low"],
+                                                               ["filament_max_volumetric_speed"]))
+        written = json.loads(json.loads(json.loads(calls[-1][2])["extra"]["orca_settings"]))
+        self.assertEqual(written["*"]["nozzle_temperature_range_low"], "200")
+        # nothing new and nothing to replace: no PATCH
+        before = len(calls)
+        fresh["extra"]["orca_settings"] = json.loads(calls[-1][2])["extra"]["orca_settings"]
+        result = client.write_settings(46, "*", {"nozzle_temperature_range_low": "200"})
+        self.assertEqual(result["same"], ["nozzle_temperature_range_low"])
+        self.assertFalse([c for c in calls[before:] if c[0] == "PATCH"])
+
+    def test_merge_model_section_wins(self):
+        data = spoolman.settings_of(self.FILAMENT)
+        r = spoolman.merge_settings(data, "K1C", {"filament_flow_ratio": "0.98", "pressure_advance": "0.05",
+                                                  "nozzle_temperature_range_low": "200"},
+                                    overwrite=["pressure_advance", "nozzle_temperature_range_low"])
+        self.assertEqual((r["same"], r["replaced"]), (["filament_flow_ratio"],
+                                                      ["pressure_advance", "nozzle_temperature_range_low"]))
+        self.assertEqual(r["data"]["K1C"]["nozzle_temperature_range_low"], "200")   # in the model's section
+        self.assertEqual(r["data"]["*"]["nozzle_temperature_range_low"], 190)       # "*" left for other printers
 
 
 class ProcessTests(unittest.TestCase):

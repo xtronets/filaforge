@@ -49,10 +49,16 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
   *Synchronizacja z AMS* i agenci drukarek (np. U1 Control) potrafią go dopasować. Nazwa dostaje znacznik
   **FF** (np. `Sunlu PLA+ FF`), a preset jest przypisany do wybranej drukarki.
 - **Zapisuje ustawienia w Spoolmanie**, w polu `orca_settings` filamentu, dla wszystkich drukarek albo tylko
-  dla tego modelu. Dopisuje wyłącznie brakujące ustawienia, a przed zapisem pokazuje, co doda i co zostawi.
+  dla tego modelu. Dopisuje brakujące ustawienia, a te, które już są z inną wartością (np. stary flow ratio), nadpisuje tylko
+  wtedy, gdy je zaznaczysz. Przed zapisem pokazuje, co doda, co nadpisze i co zostawi.
   Z tych ustawień [Spooler](https://github.com/bloodf/spooler) robi potem presety.
 - **Pamięta Twoje pomiary**: temperaturę dyszy i stołu, flow ratio, pressure advance, maks. przepływ
   i retrakcję. Pomiary są per filament, dla wszystkich drukarek albo dla jednej, i zawsze mają pierwszeństwo.
+  Pressure advance i maks. przepływ zapisują się osobno dla każdej średnicy dyszy (0.4, 0.6…), bo wartość
+  zmierzona na 0.4 jest zła dla 0.6.
+- **Pomaga w kalibracji Orki**: dla testów flow ratio (YOLO, Pass 1/2), maks. przepływu, pressure advance,
+  temperatury i retrakcji podpowiada, jak odczytać wynik, przelicza go według wzorów z wiki OrcaSlicera
+  i wstawia do Twoich pomiarów.
 - **Liczy proces druku dopasowany do filamentu**: prędkości obniżone do maks. przepływu, zwyczaje materiału,
   mosty, przyspieszenia, limity drukarki i warianty dla małych detali.
 - **Ma interfejs po polsku i po angielsku**, w jasnym i ciemnym motywie Orki.
@@ -143,7 +149,9 @@ w oknie **Zapisane** albo w Orce. Folder `<dane Orki>/filaforge/` możesz potem 
 5. Kliknij **Utwórz preset w Orce**. Preset pojawi się w Filament → Presety użytkownika.
 6. Opcjonalnie kliknij **Zapisz w Spoolmanie…**: wybierz sekcję (wszystkie drukarki albo tylko ten model),
    sprawdź plan i zatwierdź.
-7. Po kalibracji wpisz wyniki w **Twoje pomiary** i kliknij **Zapisz pomiary i przelicz**.
+7. Po kalibracji wpisz wyniki w **Twoje pomiary**. Możesz też użyć **Kalibracja w Orce**: wybierz test, wpisz to,
+   co odczytałeś z wydruku (np. modyfikator bloku albo wysokość), i kliknij **Wstaw do pomiarów**. Na koniec
+   kliknij **Zapisz pomiary i przelicz**.
 8. W **Proces druku dla tego filamentu** wybierz proces i wariant, kliknij **Przelicz**, a potem
    **Zapisz proces w Orce**.
 

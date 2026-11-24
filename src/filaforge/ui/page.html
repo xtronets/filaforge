@@ -114,6 +114,15 @@ tr.off td:not(:first-child) { opacity: .5; }
 .conf i { width: 5px; height: 11px; border-radius: 2px; background: var(--border); }
 .conf.c1 i:nth-child(-n+1), .conf.c2 i:nth-child(-n+2), .conf.c3 i:nth-child(-n+3) { background: var(--accent); }
 .why { color: var(--muted); font-size: 11.5px; }
+.calib { margin-top: 14px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; display: grid; gap: 8px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.grid4 input { width: 100%; box-sizing: border-box; min-width: 0; }
+ul.ow { list-style: none; padding-left: 2px; }
+.grid4 label { font-size: 11.5px; color: var(--muted); display: block; margin-bottom: 3px; }
+.note.warn { color: var(--estimated); }
+.plan ul { margin: 4px 0 0; padding-left: 18px; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.flash { outline: 2px solid var(--accent); outline-offset: 1px; }
 details.alts summary { cursor: pointer; color: var(--accent); font-size: 11.5px; list-style: none; }
 details.alts summary::-webkit-details-marker { display: none; }
 .alt { font-size: 11.5px; display: flex; gap: 6px; padding: 1px 0; }
@@ -226,7 +235,16 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
         <select id="m-section"></select></div>
       <div class="body">
         <div class="note" data-t="measured_note" style="margin-bottom:10px"></div>
+        <div class="note warn" id="m-nozzle" hidden style="margin-bottom:10px"></div>
         <div class="grid2" id="m-fields"></div>
+        <div class="calib">
+          <div class="row" style="justify-content:flex-start;gap:10px"><b data-t="calib_title"></b>
+            <select id="c-test" class="fit"></select></div>
+          <div class="note" id="c-how"></div>
+          <div class="grid4" id="c-inputs"></div>
+          <div class="row" style="justify-content:flex-start;gap:12px"><span id="c-result" class="mono"></span>
+            <button class="secondary fit" id="btn-c-use" data-t="calib_use"></button></div>
+        </div>
         <div class="actions" style="margin-top:12px"><button id="btn-save-measured" data-t="save_measured"></button>
           <span class="note" id="m-note"></span></div>
       </div>
@@ -284,6 +302,18 @@ const T = {
     setting: 'Ustawienie', value: 'Wartość', origin: 'Pochodzenie', sources: 'Źródła', preset_name: 'Nazwa presetu w Orce',
     make_preset: 'Utwórz preset w Orce', to_spoolman: 'Zapisz w Spoolmanie…', measured_title: 'Twoje pomiary',
     measured_note: 'Wartości z Twojej kalibracji mają pierwszeństwo przed wszystkimi źródłami. Puste pole = brak pomiaru.',
+    calib_title: 'Kalibracja w Orce:', calib_use: 'Wstaw do pomiarów', calib_put: 'Wstawione do „{field}”. Kliknij „Zapisz pomiary i przelicz”.',
+    calib_need: 'Uzupełnij pola kalibracji.', per_nozzle: '⌀{n}',
+    nozzle_other: 'Dysza {n} mm: pressure advance i maks. przepływ zapisują się osobno dla tej dyszy. Wartości producenta dotyczą zwykle dyszy 0.4 mm, więc maks. przepływ warto zmierzyć.',
+    c_flow_yolo: 'Flow ratio – YOLO', c_flow_pass: 'Flow ratio – Pass 1 / Pass 2', c_max_flow: 'Maks. przepływ', c_pa: 'Pressure advance', c_temp: 'Temperatura (wieża)', c_retraction: 'Retrakcja',
+    h_flow_yolo: 'Orca → Kalibracja → Flow rate → YOLO. Wybierz blok z najgładszą górą i wpisz jego modyfikator (np. +0.01). Nowy = stary + modyfikator.',
+    h_flow_pass: 'Orca → Kalibracja → Flow rate → Pass 1, potem Pass 2. Wpisz modyfikator najlepszego bloku w % (np. 5 albo -3). Nowy = stary × (100 + modyfikator) / 100.',
+    h_max_flow: 'Orca → Kalibracja → Max flowrate. Zmierz wysokość, na której druk zaczyna się psuć. Przepływ = start + wysokość × krok, minus zapas (Orca radzi 10–20%).',
+    h_pa: 'Orca → Kalibracja → Pressure advance. Wpisz wartość najlepszej linii lub segmentu.',
+    h_temp: 'Orca → Kalibracja → Temperature. Wpisz temperaturę najlepszego segmentu wieży.',
+    h_retraction: 'Orca → Kalibracja → Retraction test. Długość dla wysokości z najmniejszym nitkowaniem odczytasz w podglądzie G-code.',
+    i_old_flow: 'Flow ratio z testu', i_mod: 'Modyfikator', i_mod_pct: 'Modyfikator (%)', i_start: 'Start (mm³/s)', i_step: 'Krok (mm³/s na mm)', i_height: 'Wysokość (mm)',
+    i_margin: 'Zapas (%)', i_value: 'Wynik',
     save_measured: 'Zapisz pomiary i przelicz', process_title: 'Proces druku dla tego filamentu',
     process_note: 'Kopia wybranego procesu drukarki z prędkościami obniżonymi do przepływu filamentu i do zwyczajów materiału (np. wolniejsze ściany zewnętrzne dla PETG i Silk). Orca i tak ogranicza prędkość do maks. przepływu przy cięciu; tu widzisz to wprost.',
     calculate: 'Przelicz', now: 'Teraz', new: 'Nowa', why: 'Dlaczego', process_name: 'Nazwa procesu', save_process: 'Zapisz proces w Orce',
@@ -298,7 +328,8 @@ const T = {
     spools_none: 'Brak filamentów.', pick_first: 'Wybierz szpulę albo wpisz producenta.', made_preset: 'Preset „{name}” jest w Orce (Filament → Presety użytkownika).',
     made_process: 'Proces „{name}” jest w Orce.', removed: 'Usunięto „{name}”.', measured_saved: 'Pomiary zapisane.',
     sp_plan: 'Do pola orca_settings filamentu #{id}, sekcja „{section}”:', sp_add: 'Dopiszę ({n}):', sp_keep: 'Zostawię, bo już tam są ({n}):',
-    sp_nothing: 'Nic do dopisania: wszystkie te ustawienia już są w Spoolmanie.', sp_confirm: 'Zapisz w Spoolmanie', sp_section_all: 'Wszystkie drukarki (*)',
+    sp_differs: 'Już są, ale z inną wartością ({n}) – zaznacz, które nadpisać:', sp_ow_all: 'zaznacz wszystkie', sp_same: 'Już są z tą samą wartością ({n})',
+    sp_nothing: 'Nic do zapisania: Spoolman ma już te same wartości.', sp_confirm: 'Zapisz w Spoolmanie', sp_section_all: 'Wszystkie drukarki (*)',
     sp_written: 'Zapisano w Spoolmanie: {n} ustawień. Spooler zrobi z nich preset przy następnej synchronizacji.', sp_need: 'Ta funkcja wymaga szpuli wybranej ze Spoolmana.',
     sec_all: 'Wszystkie drukarki', sec_printer: 'Tylko {name}', no_changes: 'Proces już mieści się w przepływie filamentu: nic do zmiany.',
     legend: 'Kolor = skąd wartość, kreski = pewność', confidence: 'pewność: {c}', c_high: 'wysoka', c_medium: 'średnia', c_low: 'niska',
@@ -320,6 +351,18 @@ const T = {
     setting: 'Setting', value: 'Value', origin: 'Origin', sources: 'Sources', preset_name: 'Preset name in OrcaSlicer',
     make_preset: 'Create preset in OrcaSlicer', to_spoolman: 'Save to Spoolman…', measured_title: 'Your measurements',
     measured_note: 'Values from your own calibration win over every source. An empty field means not measured.',
+    calib_title: 'OrcaSlicer calibration:', calib_use: 'Put into measurements', calib_put: 'Put into “{field}”. Click “Save and recalculate”.',
+    calib_need: 'Fill in the calibration fields.', per_nozzle: '⌀{n}',
+    nozzle_other: '{n} mm nozzle: pressure advance and max flow are kept for this nozzle on their own. Makers’ values are usually for a 0.4 mm nozzle, so max flow is worth measuring.',
+    c_flow_yolo: 'Flow ratio – YOLO', c_flow_pass: 'Flow ratio – Pass 1 / Pass 2', c_max_flow: 'Max flow', c_pa: 'Pressure advance', c_temp: 'Temperature (tower)', c_retraction: 'Retraction',
+    h_flow_yolo: 'OrcaSlicer → Calibration → Flow rate → YOLO. Pick the block with the smoothest top and enter its modifier (e.g. +0.01). New = old + modifier.',
+    h_flow_pass: 'OrcaSlicer → Calibration → Flow rate → Pass 1, then Pass 2. Enter the best block’s modifier in % (e.g. 5 or -3). New = old × (100 + modifier) / 100.',
+    h_max_flow: 'OrcaSlicer → Calibration → Max flowrate. Measure the height where the print starts to fail. Flow = start + height × step, less a margin (OrcaSlicer suggests 10–20%).',
+    h_pa: 'OrcaSlicer → Calibration → Pressure advance. Enter the value of the best line or band.',
+    h_temp: 'OrcaSlicer → Calibration → Temperature. Enter the temperature of the tower’s best band.',
+    h_retraction: 'OrcaSlicer → Calibration → Retraction test. Read the length for the least-stringing height in the G-code preview.',
+    i_old_flow: 'Flow ratio of the test', i_mod: 'Modifier', i_mod_pct: 'Modifier (%)', i_start: 'Start (mm³/s)', i_step: 'Step (mm³/s per mm)', i_height: 'Height (mm)',
+    i_margin: 'Margin (%)', i_value: 'Result',
     save_measured: 'Save and recalculate', process_title: 'Print process for this filament',
     process_note: 'A copy of the printer’s process with speeds lowered to the filament’s flow and to the material’s habits (e.g. slower outer walls for PETG and silk). OrcaSlicer caps speeds to the max flow while slicing anyway; here you see it plainly.',
     calculate: 'Calculate', now: 'Now', new: 'New', why: 'Why', process_name: 'Process name', save_process: 'Save process in OrcaSlicer',
@@ -334,7 +377,8 @@ const T = {
     spools_none: 'No filaments.', pick_first: 'Pick a spool or type a brand.', made_preset: 'Preset “{name}” is in OrcaSlicer (Filament → User presets).',
     made_process: 'Process “{name}” is in OrcaSlicer.', removed: 'Removed “{name}”.', measured_saved: 'Measurements saved.',
     sp_plan: 'Into filament #{id}’s orca_settings field, section “{section}”:', sp_add: 'Will add ({n}):', sp_keep: 'Will keep, already there ({n}):',
-    sp_nothing: 'Nothing to add: Spoolman already has all of these settings.', sp_confirm: 'Save to Spoolman', sp_section_all: 'Every printer (*)',
+    sp_differs: 'Already there with another value ({n}) – tick the ones to overwrite:', sp_ow_all: 'tick all', sp_same: 'Already there with the same value ({n})',
+    sp_nothing: 'Nothing to save: Spoolman already has the same values.', sp_confirm: 'Save to Spoolman', sp_section_all: 'Every printer (*)',
     sp_written: 'Saved to Spoolman: {n} settings. Spooler turns them into a preset on its next sync.', sp_need: 'This needs a spool picked from Spoolman.',
     sec_all: 'Every printer', sec_printer: 'Only {name}', no_changes: 'The process already fits the filament’s flow: nothing to change.',
     legend: 'Colour = where a value comes from, bars = confidence', confidence: 'confidence: {c}', c_high: 'high', c_medium: 'medium', c_low: 'low',
@@ -559,11 +603,68 @@ function renderMeasured(sections) {
   sel.innerHTML = sectionNames().map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('');
   sel.value = sectionNames().some(([v]) => v === current) ? current : '*';
   fillMeasured();
+  renderCalib();
+}
+const NOZZLE_KEYS = ['pressure_advance', 'max_volumetric_speed'];
+function nozzleTag() {
+  const n = parseFloat(S.printer && S.printer.nozzle);
+  return n > 0 ? String(Math.round(n * 100) / 100) : '0.4';
+}
+function sectionValues(section) {
+  // the values for every nozzle, then this nozzle's own (PA, max flow); old ones at the top count for 0.4 mm
+  const tag = nozzleTag(), out = {};
+  Object.entries(section || {}).forEach(([k, v]) => {
+    if (k.startsWith('_') || (NOZZLE_KEYS.includes(k) && tag !== '0.4')) return;
+    out[k] = v;
+  });
+  return Object.assign(out, ((section || {})._nozzle || {})[tag] || {});
 }
 function fillMeasured() {
-  const values = S.measured[$('m-section').value] || {};
-  $('m-fields').innerHTML = MEASURE.map(([k, orcaKey, step]) => `<div class="field"><label>${esc(label(orcaKey))}${UNITS[orcaKey] ? ' (' + UNITS[orcaKey] + ')' : ''}</label>
+  const values = sectionValues(S.measured[$('m-section').value]);
+  const tag = nozzleTag();
+  $('m-fields').innerHTML = MEASURE.map(([k, orcaKey, step]) => `<div class="field"><label>${esc(label(orcaKey))}${UNITS[orcaKey] ? ' (' + UNITS[orcaKey] + ')' : ''}${NOZZLE_KEYS.includes(k) ? ' · ' + esc(t('per_nozzle', {n: tag})) : ''}</label>
     <input type="number" step="${step}" data-m="${k}" value="${values[k] != null ? esc(values[k]) : ''}"></div>`).join('');
+  $('m-nozzle').hidden = tag === '0.4';
+  $('m-nozzle').textContent = t('nozzle_other', {n: tag});
+}
+
+// ---------- calibration helper: an OrcaSlicer test's result to a measured value
+const CALIB = {
+  flow_yolo: {to: 'flow_ratio', digits: 3, inputs: [['old', 'i_old_flow', 0.01], ['mod', 'i_mod', 0.005]], calc: v => v.old + v.mod},
+  flow_pass: {to: 'flow_ratio', digits: 3, inputs: [['old', 'i_old_flow', 0.01], ['mod', 'i_mod_pct', 1]], calc: v => v.old * (100 + v.mod) / 100},
+  max_flow: {to: 'max_volumetric_speed', digits: 1, inputs: [['start', 'i_start', 0.5, 5], ['step', 'i_step', 0.1, 0.5], ['height', 'i_height', 1], ['margin', 'i_margin', 1, 10]],
+             calc: v => (v.start + v.height * v.step) * (1 - v.margin / 100)},
+  pa: {to: 'pressure_advance', digits: 3, inputs: [['value', 'i_value', 0.001]], calc: v => v.value},
+  temp: {to: 'nozzle_temp', digits: 0, inputs: [['value', 'i_value', 1]], calc: v => v.value},
+  retraction: {to: 'retraction_length', digits: 2, inputs: [['value', 'i_value', 0.05]], calc: v => v.value},
+};
+function currentFlow() {
+  const field = document.querySelector('[data-m="flow_ratio"]');
+  if (field && field.value) return parseFloat(field.value);
+  const row = S.result && S.result.settings.find(s => s.orca_key === 'filament_flow_ratio');
+  if (row) return parseFloat(row.value);
+  const pick = S.result && S.result.picks.flow_ratio;
+  return pick ? parseFloat(pick.value) : 0.98;
+}
+function renderCalib() {
+  const sel = $('c-test'), cur = sel.value || 'flow_yolo';
+  sel.innerHTML = Object.keys(CALIB).map(k => `<option value="${k}">${esc(t('c_' + k))}</option>`).join('');
+  sel.value = cur;
+  const c = CALIB[cur];
+  $('c-how').textContent = t('h_' + cur);
+  $('c-inputs').innerHTML = c.inputs.map(([k, lbl, step, def]) => `<div><label>${esc(t(lbl))}</label>
+    <input type="number" step="${step}" data-c="${k}" value="${k === 'old' ? esc(currentFlow()) : def != null ? def : ''}"></div>`).join('');
+  calcCalib();
+}
+function calcCalib() {
+  const c = CALIB[$('c-test').value], v = {};
+  let ok = true;
+  document.querySelectorAll('[data-c]').forEach(el => { const n = parseFloat(String(el.value).replace(',', '.')); if (isNaN(n)) ok = false; v[el.dataset.c] = n; });
+  const value = ok ? Number(c.calc(v).toFixed(c.digits)) : null;
+  S.calib = value;
+  const orcaKey = MEASURE.find(m => m[0] === c.to)[1];
+  $('c-result').textContent = value != null ? `${label(orcaKey)} = ${value}${UNITS[orcaKey] ? ' ' + UNITS[orcaKey] : ''}` : '';
+  $('btn-c-use').disabled = value == null;
 }
 
 // ---------- process
@@ -667,6 +768,17 @@ $('btn-save-measured').addEventListener('click', () => {
   send({cmd: 'save_measured', identity: S.result.identity, section: $('m-section').value, values});
 });
 $('m-section').addEventListener('change', fillMeasured);
+$('c-test').addEventListener('change', renderCalib);
+$('c-inputs').addEventListener('input', calcCalib);
+$('btn-c-use').addEventListener('click', () => {
+  const c = CALIB[$('c-test').value];
+  if (S.calib == null) { toast(t('calib_need'), true); return; }
+  const field = document.querySelector(`[data-m="${c.to}"]`);
+  field.value = S.calib;
+  field.classList.add('flash');
+  setTimeout(() => field.classList.remove('flash'), 1500);
+  toast(t('calib_put', {field: label(MEASURE.find(m => m[0] === c.to)[1])}));
+});
 $('btn-process-plan').addEventListener('click', () => {
   send({cmd: 'process_plan', process: $('p-base').value, max_volumetric_speed: currentMvs(), identity: S.result.identity,
         variant: $('p-variant').value});
@@ -765,23 +877,35 @@ function onMessage(m) {
       break;
     case 'spoolman_plan': {
       const box = $('spoolman-plan');
-      const keep = (m.kept || []).map(k => `<li>${esc(label(k))} <span class="mono muted">${esc(m.existing && m.existing[k] != null ? m.existing[k] : '')}</span></li>`).join('');
-      const add = (m.added || []).map(k => `<li>${esc(label(k))} = <span class="mono">${esc(m.values[k])}</span></li>`).join('');
+      const v = k => m.values[k], old = k => (m.existing || {})[k];
+      const add = (m.added || []).map(k => `<li>${esc(label(k))} = <span class="mono">${esc(v(k))}</span></li>`).join('');
+      const diff = (m.differs || []).map(k => `<li><label class="inline"><input type="checkbox" data-ow="${esc(k)}"> ${esc(label(k))}:
+          <span class="mono muted">${esc(old(k))}</span> → <span class="mono">${esc(v(k))}</span></label></li>`).join('');
+      const same = (m.same || []).map(k => `<li>${esc(label(k))} <span class="mono muted">${esc(old(k))}</span></li>`).join('');
       box.querySelector('.muted.small') && box.querySelector('.muted.small').remove();
       box.querySelectorAll('.planbody').forEach(el => el.remove());
       const div = document.createElement('div');
       div.className = 'planbody';
       div.innerHTML = `<div style="margin-top:8px">${esc(t('sp_plan', {id: m.id, section: m.section}))}</div>` +
-        (m.added.length ? `<div style="margin-top:6px"><b>${esc(t('sp_add', {n: m.added.length}))}</b><ul>${add}</ul></div>` : `<div style="margin-top:6px">${esc(t('sp_nothing'))}</div>`) +
-        (m.kept.length ? `<div style="margin-top:6px"><b>${esc(t('sp_keep', {n: m.kept.length}))}</b><ul>${keep}</ul></div>` : '') +
-        (m.added.length ? `<div class="actions" style="margin-top:8px"><button id="btn-sp-write">${esc(t('sp_confirm'))}</button></div>` : '');
+        (m.added.length ? `<div style="margin-top:6px"><b>${esc(t('sp_add', {n: m.added.length}))}</b><ul>${add}</ul></div>` : '') +
+        (m.differs.length ? `<div style="margin-top:6px"><b>${esc(t('sp_differs', {n: m.differs.length}))}</b>
+            <label class="inline small" style="margin-left:8px"><input type="checkbox" id="sp-ow-all"> ${esc(t('sp_ow_all'))}</label><ul class="ow">${diff}</ul></div>` : '') +
+        (m.same.length ? `<details style="margin-top:6px"><summary>${esc(t('sp_same', {n: m.same.length}))}</summary><ul>${same}</ul></details>` : '') +
+        (!m.added.length && !m.differs.length ? `<div style="margin-top:6px">${esc(t('sp_nothing'))}</div>` : '') +
+        (m.added.length || m.differs.length ? `<div class="actions" style="margin-top:8px"><button id="btn-sp-write">${esc(t('sp_confirm'))}</button></div>` : '');
       box.appendChild(div);
       const w = $('btn-sp-write');
-      if (w) w.addEventListener('click', () => { w.disabled = true; send({cmd: 'spoolman_write', spoolman_id: m.id, section: m.section, settings: chosenSettings()}); });
+      const chosen = () => Array.from(div.querySelectorAll('[data-ow]:checked')).map(el => el.dataset.ow);
+      const sync = () => { if (w) w.disabled = !m.added.length && !chosen().length; };
+      const all = $('sp-ow-all');
+      if (all) all.addEventListener('change', () => { div.querySelectorAll('[data-ow]').forEach(el => el.checked = all.checked); sync(); });
+      div.querySelectorAll('[data-ow]').forEach(el => el.addEventListener('change', sync));
+      sync();
+      if (w) w.addEventListener('click', () => { w.disabled = true; send({cmd: 'spoolman_write', spoolman_id: m.id, section: m.section, settings: chosenSettings(), overwrite: chosen()}); });
       break; }
     case 'spoolman_written':
       $('spoolman-plan').hidden = true;
-      toast(t('sp_written', {n: (m.added || []).length}));
+      toast(t('sp_written', {n: (m.added || []).length + (m.replaced || []).length}));
       send({cmd: 'spoolman_list'});
       break;
     case 'process_plan':

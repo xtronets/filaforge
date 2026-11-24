@@ -49,10 +49,15 @@ measurements. Every value shows where it came from and how sure it is.
   `filament_id`, so *Sync from AMS* and printer agents (such as U1 Control) can match it. The name carries the
   **FF** mark (e.g. `Sunlu PLA+ FF`), and the preset is limited to the selected printer.
 - **Saves settings to Spoolman**, in the filament's `orca_settings` field, for every printer or only this
-  printer model. Only missing settings are added, and before writing you see what will be added and what is
-  kept. [Spooler](https://github.com/bloodf/spooler) turns them into presets.
+  printer model. Missing settings are added; settings already there with another value (such as an old
+  flow ratio) are overwritten only when you tick them. Before writing you see what will be added, overwritten
+  and kept. [Spooler](https://github.com/bloodf/spooler) turns them into presets.
 - **Keeps your measurements**: nozzle and bed temperature, flow ratio, pressure advance, max flow and
-  retraction. They are stored per filament, for every printer or one, and always win.
+  retraction. They are stored per filament, for every printer or one, and always win. Pressure advance and
+  max flow are kept per nozzle diameter (0.4, 0.6…), since a value measured on 0.4 is wrong for 0.6.
+- **Helps with OrcaSlicer's calibration**: for the flow ratio (YOLO, Pass 1/2), max flow, pressure advance,
+  temperature and retraction tests it says how to read the result, works it out with the formulas from the
+  OrcaSlicer wiki and puts it into your measurements.
 - **Calculates a print process for the filament**: speeds lowered to its max flow, material habits, bridges,
   accelerations, printer limits and a variant for small parts.
 - **Polish and English interface**, in OrcaSlicer's light and dark themes.
@@ -142,7 +147,9 @@ window or in OrcaSlicer. You can then delete the `<OrcaSlicer data>/filaforge/` 
 5. Click **Create preset in OrcaSlicer**. The preset appears under Filament → User presets.
 6. Optionally click **Save to Spoolman…**: choose the section (every printer or only this model), check the
    plan and confirm.
-7. After calibrating, enter the results in **Your measurements** and click **Save and recalculate**.
+7. After calibrating, enter the results in **Your measurements**. Or use **OrcaSlicer calibration**: pick the
+   test, enter what you read from the print (such as the block's modifier or a height) and click **Put into
+   measurements**. Then click **Save and recalculate**.
 8. In **Print process for this filament** pick a process and a variant, click **Calculate**, then
    **Save process in OrcaSlicer**.
 

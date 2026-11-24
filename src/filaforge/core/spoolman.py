@@ -86,22 +86,22 @@ class Client:
         if FIELD not in fields:
             self.call("POST", "field/filament/%s" % FIELD, {"name": "Orca settings", "field_type": "text"})
 
-    def write_settings(self, fid, section, values):
-        """Add values ({OrcaSlicer key: text}) to the filament's section, keeping every key already there.
-        Returns (added keys, kept keys)."""
+    def write_settings(self, fid, section, values, overwrite=()):
+        """Add values ({OrcaSlicer key: text}) to the filament's section, keeping every key already there
+        except those in overwrite whose value differs. Returns merge_settings' result (without "data")."""
         self.ensure_field()
         fresh = self.filament(fid)               # read just before writing: keep what changed meanwhile
         data = settings_of(fresh)
         if data is None:
             raise SpoolmanError("the filament's %s field is not a JSON object; fix it in Spoolman first" % FIELD)
-        merged, added, kept = add_missing(data, section, values)
-        if not added:
-            return added, kept
-        extra = dict(fresh.get("extra") or {})
-        extra[FIELD] = json.dumps(json.dumps(merged))
-        # the whole extra map: an older Spoolman replaces it, a newer one merges it; both keep every field
-        self.call("PATCH", "filament/%d" % int(fid), {"extra": extra})
-        return added, kept
+        result = merge_settings(data, section, values, overwrite)
+        merged = result.pop("data")
+        if result["added"] or result["replaced"]:
+            extra = dict(fresh.get("extra") or {})
+            extra[FIELD] = json.dumps(json.dumps(merged))
+            # the whole extra map: an older Spoolman replaces it, a newer one merges it; both keep every field
+            self.call("PATCH", "filament/%d" % int(fid), {"extra": extra})
+        return result
 
 
 def extra_text(filament, key):
@@ -155,20 +155,54 @@ def tested(filament, printer_name):
             for k, (v, where) in out.items()]
 
 
+def _text(value):
+    return str(value[0] if isinstance(value, list) and value else value if value is not None else "").strip()
+
+
+def same_value(a, b):
+    """True when two OrcaSlicer values say the same ("0.95" and ["0.950"])."""
+    x, y = _text(a), _text(b)
+    nx, ny = number(x), number(y)
+    if nx is not None and ny is not None:
+        return abs(nx - ny) < 1e-9
+    return x == y
+
+
+def merge_settings(data, section, values, overwrite=()):
+    """{"data": new object, "added": [], "replaced": [], "same": [], "differs": [], "existing": {key: value}}.
+    A key no applying section has is added to section. A key already there is left alone, unless it says
+    something else and is in overwrite: then section gets the new value (a model section wins over "*")."""
+    data = json.loads(json.dumps(data or {}))
+    values = {k: v for k, v in values.items() if k not in NATIVE_KEYS}
+    overwrite = set(overwrite or ())
+    target = data.setdefault(section or "*", {})
+    applies = [data.get("*") or {}] + ([target] if section and section != "*" else [])
+    out = {"added": [], "replaced": [], "same": [], "differs": [], "existing": {}}
+    for key, value in values.items():
+        now = None
+        for s in applies:            # the one that wins on these printers
+            if key in s:
+                now = s[key]
+        if now is None:
+            target[key] = value
+            out["added"].append(key)
+            continue
+        out["existing"][key] = _text(now)
+        if same_value(now, value):
+            out["same"].append(key)
+        elif key in overwrite:
+            target[key] = value
+            out["replaced"].append(key)
+        else:
+            out["differs"].append(key)
+    if not target:
+        data.pop(section or "*", None)
+    out["data"] = data
+    return out
+
+
 def add_missing(data, section, values):
     """(new object, added keys, kept keys): values added to section where no section that applies to the
     same printers already has the key."""
-    data = json.loads(json.dumps(data or {}))
-    values = {k: v for k, v in values.items() if k not in NATIVE_KEYS}
-    target = data.setdefault(section or "*", {})
-    applies = [data.get("*") or {}] + ([target] if section and section != "*" else [])
-    added, kept = [], []
-    for key, value in values.items():
-        if any(key in s for s in applies):
-            kept.append(key)
-            continue
-        target[key] = value
-        added.append(key)
-    if not target:
-        data.pop(section or "*", None)
-    return data, added, kept
+    r = merge_settings(data, section, values)
+    return r["data"], r["added"], r["same"] + r["differs"]

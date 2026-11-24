@@ -22,7 +22,7 @@ from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -435,7 +435,7 @@ class Tab:
         except ValueError:
             pass
         settings = read_settings()
-        tested_store = store().get(identity, printer["name"])
+        tested_store = store().get(identity, printer["name"], printer["nozzle"])
         spool_id = data.get("spoolman_id")
         urls = [u for u in (data.get("sheet_urls") or []) if isinstance(u, str) and u.startswith(("https://",
                                                                                                     "http://"))]
@@ -471,8 +471,9 @@ class Tab:
     def on_save_measured(self, data):
         identity = _identity(data.get("identity"))
         section = str(data.get("section") or "*").strip() or "*"
-        sections = store().set(identity, section, data.get("values") or {})
-        self.reply("measured", sections=sections)
+        nozzle = printer_info(orca.host.preset_bundle())["nozzle"]
+        sections = store().set(identity, section, data.get("values") or {}, nozzle)
+        self.reply("measured", sections=sections, nozzle=measured.nozzle_tag(nozzle))
 
     # -- OrcaSlicer filament preset
     def on_make_preset(self, data):
@@ -521,22 +522,21 @@ class Tab:
         values = {str(r["orca_key"]): str(r["value"]) for r in data.get("settings") or []
                   if r.get("orca_key") and str(r.get("value", "")).strip()}
 
+        overwrite = [str(k) for k in data.get("overwrite") or []]
+
         def work():
             try:
                 client = spoolman.Client(url)
                 if write:
-                    added, kept = client.write_settings(fid, section, values)
-                    self.reply("spoolman_written", added=added, kept=kept, section=section, id=fid)
+                    result = client.write_settings(fid, section, values, overwrite)
+                    self.reply("spoolman_written", section=section, id=fid, **result)
                 else:
                     current = spoolman.settings_of(client.filament(fid))
                     if current is None:
                         raise spoolman.SpoolmanError("orca_settings_invalid")
-                    _, added, kept = spoolman.add_missing(current, section, values)
-                    existing = {}
-                    for _, sec in spoolman.sections_for(current, section if section != "*" else ""):
-                        existing.update(sec)
-                    self.reply("spoolman_plan", added=added, kept=kept, section=section, id=fid,
-                               existing={k: existing.get(k) for k in kept}, values=values)
+                    result = spoolman.merge_settings(current, section, values)
+                    result.pop("data")
+                    self.reply("spoolman_plan", section=section, id=fid, values=values, **result)
             except Exception as error:
                 self.fail("spoolman_write" if write else "spoolman_plan", error)
         spawn(work)
