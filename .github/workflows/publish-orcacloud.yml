@@ -1,0 +1,75 @@
+# A published GitHub release becomes a new FilaForge version on Orca Cloud (the tag is the version, the release
+# notes the changelog). The repository must be connected in Orca Cloud: Edit plugin > GitHub publishing.
+name: Publish to Orca Cloud
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Publish this existing release (e.g. v0.4.0)"
+        required: true
+
+permissions:
+  id-token: write      # GitHub OIDC token: Orca Cloud needs no secret
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      PLUGIN_FILES: dist/filaforge_any.whl
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests
+        run: python -m unittest discover -s tests
+
+      - name: Build the wheel
+        run: python scripts/build.py
+
+      - name: Release tag matches VERSION
+        run: |
+          version=$(python -c "import re,pathlib;print(re.search(r'^VERSION = \"([^\"]+)\"', pathlib.Path('src/filaforge/plugin.py').read_text(), re.M).group(1))")
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::Release tag $TAG does not match VERSION $version in src/filaforge/plugin.py"
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          RELEASE_BODY: ${{ github.event.release.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=orcacloud" | jq -r .value)
+          version="${TAG#v}"
+          body="${RELEASE_BODY:-}"
+          if [ -z "$body" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            body=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body || true)
+          fi
+          metadata=$(jq -n --arg v "$version" --arg c "${body:0:4000}" \
+            '{version: $v} + (if $c == "" then {} else {changelog: $c} end)')
+          args=()
+          for f in $PLUGIN_FILES; do
+            [ -f "$f" ] || { echo "::error::no file $f"; exit 1; }
+            args+=(-F "files=@$f")
+          done
+          status=$(curl -sS -o response.txt -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $token" \
+            --form-string "metadata=$metadata" "${args[@]}" \
+            https://api.orcaslicer.com/api/v1/plugin-publish/releases)
+          cat response.txt; echo
+          if [ "$status" != "201" ]; then
+            echo "::error::Orca Cloud answered HTTP $status (401: the repository is not connected to the plugin; a version error: the tag is not above the current version)"
+            exit 1
+          fi

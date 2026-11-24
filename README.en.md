@@ -221,7 +221,8 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # refresh the vendored PDF reader
 - `src/filaforge/_vendor/pypdf/`: vendored [pypdf](https://github.com/py-pdf/pypdf) 5.4.0 (BSD).
 
 **Releasing**: raise `VERSION` in `src/filaforge/plugin.py`, push, then publish a release tagged `v<VERSION>` on
-GitHub. The *Build* workflow runs the tests, builds `filaforge_any.whl` and attaches it to the release.
+GitHub. The *Build* workflow runs the tests, builds `filaforge_any.whl` and attaches it to the release. The *Publish to Orca Cloud* workflow sends the same version to Orca Cloud
+(the repository has to be connected in Orca Cloud: *Edit plugin → GitHub publishing*).
 
 ## License
 

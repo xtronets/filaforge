@@ -222,7 +222,8 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # odświeżenie dołączonego czy
 
 **Wydanie nowej wersji**: podnieś `VERSION` w `src/filaforge/plugin.py`, wypchnij zmiany i opublikuj na
 GitHubie wydanie z tagiem `v<VERSION>`. Workflow *Build* uruchomi testy, zbuduje `filaforge_any.whl`
-i dołączy go do wydania.
+i dołączy go do wydania. Workflow *Publish to Orca Cloud* wyśle tę samą wersję do Orca Cloud
+(repozytorium musi być połączone w Orca Cloud: *Edit plugin → GitHub publishing*).
 
 ## Licencja
 
