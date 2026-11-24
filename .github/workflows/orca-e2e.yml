@@ -42,7 +42,7 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update -qq
-          sudo -E apt-get install -y -qq --no-install-recommends xvfb imagemagick libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
+          sudo -E apt-get install -y -qq --no-install-recommends xvfb imagemagick xdotool libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
             libglu1-mesa libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good libsecret-1-0 >/dev/null
 
       - name: Download OrcaSlicer
@@ -71,12 +71,15 @@ jobs:
           export DISPLAY=:99
           Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 &
           sleep 2
+          export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt     # else OrcaSlicer asks on start
           FILAFORGE_SELFTEST="$REPORT" ./squashfs-root/AppRun --datadir "$DATA" --debug 3 > orca-stdout.log 2>&1 &
           pid=$!
           for i in $(seq 1 60); do                       # up to 5 minutes
             [ -f "$REPORT" ] && break
             if ! kill -0 $pid 2>/dev/null; then echo "OrcaSlicer exited"; break; fi
             [ $((i % 12)) -eq 0 ] && import -display :99 -window root "screen-$i.png" || true
+            # an unexpected question on start (no one to click it here): take its default answer
+            [ $((i % 6)) -eq 5 ] && xdotool key --clearmodifiers Return 2>/dev/null || true
             sleep 5
           done
           import -display :99 -window root screen-final.png || true
