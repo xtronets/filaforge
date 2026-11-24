@@ -94,8 +94,9 @@ jobs:
             [ -f "$REPORT" ] && break
             if ! kill -0 $pid 2>/dev/null; then echo "OrcaSlicer exited"; break; fi
             [ $((i % 12)) -eq 0 ] && import -display :99 -window root "screen-$i.png" || true
-            # an unexpected question on start (no one to click it here): take its default answer
-            [ $((i % 6)) -eq 5 ] && xdotool key --clearmodifiers Return 2>/dev/null || true
+            # an unexpected question while starting (no one to click it here): its default answer. Not later:
+            # a plugin permission question during the self-test must stop it and fail the job.
+            [ $i -le 4 ] && [ $((i % 2)) -eq 0 ] && xdotool key --clearmodifiers Return 2>/dev/null || true
             sleep 5
           done
           import -display :99 -window root screen-final.png || true

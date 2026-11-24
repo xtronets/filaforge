@@ -56,8 +56,9 @@ class PluginTests(unittest.TestCase):
         perms = self.orca.permissions[-1]
         self.assertTrue(perms["threading"])
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
+        self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.4.3"', html)
+        self.assertIn('"version": "0.4.4"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -208,6 +209,19 @@ class PluginTests(unittest.TestCase):
         with open(saved["path"], encoding="utf-8") as f:
             new = json.load(f)
         self.assertEqual((new["inherits"], new["layer_height"], new["outer_wall_speed"]), ("", "0.2", "120"))
+
+    def test_no_descriptor_opens(self):
+        # OrcaSlicer's sandbox can't name a file opened by descriptor and asks the user: open by path only
+        import ast, glob
+        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "filaforge")
+        for path in glob.glob(os.path.join(src, "**", "*.py"), recursive=True):
+            if "_vendor" in path:
+                continue
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+            calls = [n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                     and n.func.attr in ("mkstemp", "fdopen", "NamedTemporaryFile", "TemporaryFile")]
+            self.assertFalse(calls, "%s: %s" % (path, calls))
 
     def test_products(self):
         reply = self.last("products", self.send(cmd="products", brand="Sunlu"))

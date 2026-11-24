@@ -8,21 +8,20 @@ import json
 import logging
 import os
 import re
-import tempfile
 import threading
 import traceback
 import webbrowser
 
 import orca
 
-from .core import measured, merge, process, research, spoolman, writer
+from .core import files, measured, merge, process, research, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -74,11 +73,7 @@ def read_settings():
 def write_settings(changes):
     current = read_settings()
     current.update({k: v for k, v in changes.items() if k in DEFAULTS})
-    os.makedirs(own_dir(), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=own_dir(), suffix=".tmp")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(current, f, indent=1)
-    os.replace(tmp, os.path.join(own_dir(), "settings.json"))
+    files.write_json(os.path.join(own_dir(), "settings.json"), current, indent=1)
     return current
 
 
@@ -122,10 +117,16 @@ def request_permissions():
             o = origin(url if "://" in str(url) else "http://%s" % url) if url else ""
             if o and o not in network:
                 network.append(o)
+        # its own folder; the user preset folders its bundle lives in; Spooler's settings (the Spoolman address)
+        files = dict(fs_readwrite=[own_dir(), os.path.join(data_dir(), "user")],
+                     fs_read=[os.path.join(data_dir(), "orca_plugins", "config.json")])
         try:
-            request(threading=True, fs_readwrite=[own_dir()], network_http=network)
-        except TypeError:
-            request(threading=True, fs_readwrite=[own_dir()])
+            request(threading=True, network_http=network, **files)
+        except TypeError:       # an OrcaSlicer without some of these
+            try:
+                request(threading=True, fs_readwrite=files["fs_readwrite"], network_http=network)
+            except TypeError:
+                request(threading=True, fs_readwrite=files["fs_readwrite"])
     except Exception:
         log.exception("permission request failed")
 

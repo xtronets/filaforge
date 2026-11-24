@@ -8,9 +8,9 @@ under "_nozzle"; such a value saved before 0.3.1 at the top of a section counts 
 
 import json
 import os
-import tempfile
 import time
 
+from . import files
 from .text import brand_key, fold, split_material, tokens
 
 FILE = "measured.json"
@@ -92,19 +92,7 @@ class Store:
         return data
 
     def _write(self, data):
-        folder = os.path.dirname(self.path)
-        os.makedirs(folder, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(prefix=".measured.", suffix=".tmp", dir=folder)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=1, sort_keys=True)
-            os.replace(tmp, self.path)
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        files.write_json(self.path, data, ensure_ascii=False, indent=1, sort_keys=True)
 
     def get(self, identity, printer_model="", nozzle=None):
         """{key: value} that apply on this printer and nozzle: the "*" values under the printer's own."""

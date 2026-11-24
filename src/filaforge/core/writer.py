@@ -12,7 +12,8 @@ import json
 import math
 import os
 import re
-import tempfile
+
+from . import files
 
 BUNDLE = "filaforge"
 BUNDLE_NAME = "FilaForge"
@@ -105,19 +106,7 @@ def _numberish(text):
 
 
 def _write_json(path, value):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(value, f, ensure_ascii=False, indent=4)
-            f.write("\n")
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    files.write_json(path, value, ensure_ascii=False, indent=4)
 
 
 class Bundle:

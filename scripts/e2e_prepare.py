@@ -36,8 +36,14 @@ def main(data_dir, wheel, orca_version):
     version = _version(wheel)
     state = {"capabilities": [{"FilaForge": True}], "enabled": True, "installed_from": "local",
              "installed_version": version, "plugin_name": "FilaForge",
-             "permissions": {"events": [], "fs_read": [], "fs_readwrite": [], "full_access": True,
-                             "network_http": [], "network_socket": [], "process": [], "threading": True}}
+             # only what FilaForge asks for: anything more (an unexpected file or audit event) makes OrcaSlicer ask,
+             # the self-test stops there and the job fails
+             "permissions": {"events": [], "fs_read": [os.path.join(data_dir, "orca_plugins", "config.json")],
+                             "fs_readwrite": [os.path.join(data_dir, "filaforge"), os.path.join(data_dir, "user")],
+                             "full_access": False,
+                             "network_http": ["https://api.openfilamentdatabase.org", "https://api.github.com",
+                                              "https://raw.githubusercontent.com"],
+                             "network_socket": [], "process": [], "threading": True}}
     with open(os.path.join(plugin, ".install_state.json"), "w", encoding="utf-8") as f:
         json.dump(state, f, indent=1)
     print("prepared %s: FilaForge %s, OrcaSlicer %s" % (data_dir, version, orca_version))
