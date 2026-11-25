@@ -20,6 +20,19 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
+## Nowość w 0.7.0: defekty wydruku
+
+Coś wyszło źle na wydruku? Kliknij **Defekty**, wybierz problem i odpowiedz na jedno–dwa pytania. FilaForge
+sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Bierze pod
+uwagę materiał, Twoje ustawienia, pomiary i to, co już próbowałeś. Zamiast zgadywać, liczy poprawki z danych,
+a gdy problemu nie rozwiąże ustawienie (suszenie, mycie płyty, Z-offset), mówi to wprost.
+
+Zmieniasz jedną rzecz naraz, a po wydruku mówisz, czy pomogło. Pomocne zmiany zostają i trafiają do Twoich
+pomiarów, a nieudane są cofane. Twoje presety zostają nietknięte: poprawki idą do presetów FF.
+Szczegóły w sekcji [Defekty wydruku](#defekty-wydruku).
+
+<p align="center"><img src="docs/defekty.png" alt="Okno Defekty wydruku" width="760"></p>
+
 ## Spis treści
 
 - [Co potrafi](#co-potrafi)
@@ -64,6 +77,15 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
   i wstawia do Twoich pomiarów.
 - **Liczy proces druku dopasowany do filamentu**: prędkości obniżone do maks. przepływu, zwyczaje materiału,
   mosty, przyspieszenia, limity drukarki i warianty dla małych detali.
+- **Diagnozuje defekty wydruku**: nitkowanie, pierwszą warstwę, rozwarstwianie, wymiary, nad- i
+  niedoekstruzję, nawisy i mosty oraz podnoszące się rogi. Ustawia przyczyny według materiału, ustawień i
+  pomiarów, poprawia jedną rzecz naraz i uczy się z wyniku wydruku.
+- **Zna zwyczaje materiałów**: wolniejsze mosty PETG, nawiew na mostach, komorę i pierwsze warstwy bez nawiewu
+  dla ABS/ASA/PC/PA, ostrzeżenie o otwartej drukarce. Wszystkie współczynniki zmienisz w oknie **Materiały**.
+- **Pilnuje porządku w presetach**: **Przegląd** wyłapuje brakujące i sprzeczne wartości oraz presety
+  nieaktualne po aktualizacji Orki. Ręczne zmiany zrobione w Orce przenosi do Twoich pomiarów.
+- **Ma historię zmian**: przed każdym nadpisaniem albo usunięciem presetu FF zachowuje poprzednią wersję,
+  którą możesz porównać i przywrócić.
 - **Ma interfejs po polsku i po angielsku**, w jasnym i ciemnym motywie Orki.
 - **Działa też bez internetu**: korzysta wtedy z presetów Orki, Twoich pomiarów i zapisanych wcześniej odpowiedzi.
 

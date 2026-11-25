@@ -20,6 +20,19 @@ measurements. Every value shows where it came from and how sure it is.
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
+## New in 0.7.0: print defects
+
+Something went wrong in a print? Click **Defects**, pick the problem and answer a question or two. FilaForge
+looks at the filament and process you printed with and lists the causes, likeliest first, from the material,
+your settings, your measurements and what you already tried. Fixes are calculated from data, not guessed, and
+when no setting fixes it (drying, washing the plate, Z offset) it says so.
+
+You change one thing at a time and say after the print whether it helped. Changes that help stay and go into
+your measurements; the others are undone. Your own presets stay untouched: fixes go into FF presets.
+Details in [Print defects](#print-defects).
+
+<p align="center"><img src="docs/defects.png" alt="The Print defects window" width="760"></p>
+
 ## Contents
 
 - [What it does](#what-it-does)
@@ -61,6 +74,15 @@ measurements. Every value shows where it came from and how sure it is.
 - **Helps with OrcaSlicer's calibration**: for the flow ratio (YOLO, Pass 1/2), max flow, pressure advance,
   temperature and retraction tests it says how to read the result, works it out with the formulas from the
   OrcaSlicer wiki and puts it into your measurements.
+- **Diagnoses print defects**: stringing, the first layer, layers splitting, dimensions, over- and
+  under-extrusion, overhangs and bridges, and lifting corners. It orders the causes by material, settings and
+  measurements, fixes one thing at a time and learns from how the print came out.
+- **Knows material habits**: slower PETG bridges, the bridge fan, the chamber and fan-free first layers for
+  ABS/ASA/PC/PA, a warning for an open printer. Every factor can be changed in the **Materials** window.
+- **Keeps presets in order**: **Review** finds missing and conflicting values and presets left behind by an
+  OrcaSlicer update, and brings changes you made by hand in OrcaSlicer into your measurements.
+- **Keeps a history**: before an FF preset is replaced or removed, the earlier version is kept to compare
+  and restore.
 - **Calculates a print process for the filament**: speeds lowered to its max flow, material habits, bridges,
   accelerations, printer limits and a variant for small parts.
 - **Polish and English interface**, in OrcaSlicer's light and dark themes.
