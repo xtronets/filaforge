@@ -12,8 +12,12 @@ new values, is offered when there is one); "no change" or "worse" undoes it and 
 Everything here is plain data: the plugin reads OrcaSlicer and writes the presets.
 """
 
+import json
+import os
 import re
+import time
 
+from . import files
 from .review import number
 
 DEFECTS = ("stringing", "first_layer", "layer_split", "dimensions", "over_extrusion", "under_extrusion",
@@ -580,11 +584,9 @@ class Attempts:
     KEEP = 300
 
     def __init__(self, folder):
-        import os
         self.path = os.path.join(folder, self.FILE)
 
     def all(self):
-        import json
         try:
             with open(self.path, encoding="utf-8") as f:
                 data = json.load(f)
@@ -594,11 +596,9 @@ class Attempts:
         return [a for a in items if isinstance(a, dict) and a.get("id")] if isinstance(items, list) else []
 
     def _write(self, items):
-        from . import files
         files.write_json(self.path, {"version": 1, "attempts": items[-self.KEEP:]}, ensure_ascii=False, indent=1)
 
     def add(self, record):
-        import time
         items = self.all()
         record = dict(record, id="%d-%d" % (int(time.time() * 1000), len(items)), at=int(time.time()), outcome=None)
         items.append(record)

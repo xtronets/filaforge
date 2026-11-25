@@ -6,6 +6,7 @@ The core (filaforge.core) needs no OrcaSlicer and is tested on its own; this fil
 
 import json
 import os
+import sys
 
 try:
     import orca
@@ -14,7 +15,14 @@ except (ImportError, AttributeError):   # outside OrcaSlicer (tests, tools): onl
     orca = None
 
 if orca is not None:
-    from . import plugin as _plugin
+    # no __pycache__ writes while FilaForge's modules load: Python writes a .pyc through a file descriptor and
+    # OrcaSlicer, unable to name that file, would ask the user about an "open" audit event (core/files.py)
+    _bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        from . import plugin as _plugin
+    finally:
+        sys.dont_write_bytecode = _bytecode
 
     def _page_html():
         with open(os.path.join(_plugin.HERE, "ui", "page.html"), encoding="utf-8") as f:

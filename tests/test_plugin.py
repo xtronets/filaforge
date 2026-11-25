@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.7.0"', html)
+        self.assertIn('"version": "0.7.1"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -420,6 +420,43 @@ class PluginTests(unittest.TestCase):
         parsed = self.last("defect_parsed", self.send(cmd="defect_parse", text="otwory wychodzą 2,8 zamiast 3,2"))
         self.assertEqual(parsed, {"cmd": "defect_parsed", "defect": "dimensions",
                                   "rows": [{"kind": "hole", "expected": 3.2, "measured": 2.8}]})
+
+    def test_no_nameless_open(self):
+        """OrcaSlicer asks the user about an "open" audit event it can't name (a file opened by descriptor).
+        Python writes .pyc files that way, so loading FilaForge and reading a PDF data sheet must not write them."""
+        import subprocess
+        import textwrap
+        here = os.path.dirname(os.path.abspath(__file__))
+        fresh = os.path.join(self.data, "fresh")
+        shutil.copytree(os.path.join(here, "..", "src", "filaforge"), os.path.join(fresh, "filaforge"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        script = textwrap.dedent("""
+            import sys
+            sys.path[:0] = [%r, %r]
+            import fake_orca
+            nameless = []
+
+            def hook(ev, args):
+                if ev == "open" and not isinstance(args[0], str):
+                    f = sys._getframe(1)
+                    while f is not None and "path" not in f.f_locals:
+                        f = f.f_back
+                    path = str(f.f_locals.get("path")) if f is not None else "?"
+                    # the package's own __init__ is compiled by OrcaSlicer's loader before any FilaForge code runs
+                    tag = "".join(str(n) for n in sys.version_info[:2])
+                    if not path.replace(chr(92), "/").endswith("/filaforge/__pycache__/__init__.cpython-" + tag + ".pyc"):
+                        nameless.append(path)
+            sys.addaudithook(hook)
+            fake_orca.install([])
+            import filaforge
+            from filaforge.core.sources import tds
+            from test_core import make_pdf
+            assert "Nozzle" in tds.pdf_text(make_pdf(["Nozzle temperature 200-220"]))
+            print(len(nameless), nameless)
+        """) % (fresh, here)
+        out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 0, out.stderr[-2000:])
+        self.assertEqual(out.stdout.strip().splitlines()[-1], "0 []")
 
     def test_habits_reach_the_process(self):
         init = self.last("init", self.send(cmd="init"))

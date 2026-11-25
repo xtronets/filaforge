@@ -44,7 +44,9 @@ _ANY_LABEL = re.compile("|".join("(?:%s)" % v for v in LABELS.values()), re.I)
 def pdf_text(data):
     """The text of a PDF's pages, or "" when it can't be read."""
     import logging
-    from ..._vendor.pypdf import PdfReader   # vendored; imported here so the rest works without it
+    from ..files import no_bytecode
+    with no_bytecode():
+        from ..._vendor.pypdf import PdfReader   # vendored; imported here so the rest works without it
     logging.getLogger("filaforge._vendor.pypdf").setLevel(logging.ERROR)   # its warnings about odd PDFs
     try:
         reader = PdfReader(io.BytesIO(data))
