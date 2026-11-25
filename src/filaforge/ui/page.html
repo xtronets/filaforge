@@ -193,9 +193,20 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 #dlg-defects { width: min(1060px, 96vw); }
 #dlg-defects .body { max-height: 74vh; overflow: auto; }
 .df-top { display: grid; grid-template-columns: minmax(220px, 340px); gap: 8px; align-items: center; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chips button { background: transparent; color: var(--fg); border-color: var(--border); }
-.chips button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.chips button { display: grid; grid-template-columns: 26px 1fr; gap: 2px 10px; align-items: center; text-align: left; padding: 9px 11px;
+                background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: 10px; font-weight: 600; }
+.chips button:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
+.chips .ico { grid-row: 1 / span 2; width: 24px; height: 24px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.chips small { grid-column: 2; font-weight: 400; color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+@media (max-width: 860px) { .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.df-empty { border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.kind { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; letter-spacing: .02em; }
+.kind.change { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.kind.advice { background: color-mix(in srgb, var(--estimated) 18%, transparent); color: var(--estimated); }
+.kind.calibration { background: color-mix(in srgb, var(--baseline) 22%, transparent); color: var(--fg); }
+.kind.redirect { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--fg); }
 .df-q { display: flex; flex-wrap: wrap; gap: 8px 22px; }
 .df-q .q { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
@@ -408,7 +419,11 @@ const T = {
     df: 'Defekty', df_title: 'Defekty wydruku',
     df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
     df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
-    df_slot: 'Głowica {n}: {name}', df_process: 'Proces: {name}', df_from_printer: 'z drukarki', df_best: 'Najbardziej prawdopodobne', df_more: 'Inne możliwe przyczyny', df_pick: 'Wybierz defekt.',
+    df_slot: 'Głowica {n}: {name}', df_process: 'Proces: {name}', df_from_printer: 'z drukarki', df_best: 'Najbardziej prawdopodobne', df_more: 'Inne możliwe przyczyny', df_pick: 'Wybierz defekt powyżej, a pojawią się jego możliwe przyczyny, od najbardziej prawdopodobnej.',
+    dk_kind_change: 'zmiana ustawień', dk_kind_advice: 'porada', dk_kind_calibration: 'test kalibracyjny', dk_kind_redirect: 'inny defekt',
+    dh_stringing: 'Włoski i nitki między elementami', dh_first_layer: 'Wydruk odkleja się od stołu', dh_layer_split: 'Warstwy się rozchodzą, część pęka',
+    dh_dimensions: 'Za małe otwory, za duże wymiary', dh_over_extrusion: 'Za dużo materiału, grudki', dh_under_extrusion: 'Przerwy, cienkie ściany',
+    dh_overhangs: 'Nawisy i mosty się uginają', dh_warping: 'Rogi odginają się od stołu',
     df_apply: 'Zastosuj', df_did: 'Zrobione, sprawdzę', df_test: 'Zrobię test', df_go: 'Przejdź', tg_filament: 'filament', tg_process: 'proces',
     tr_same: 'próbowane: bez zmian', tr_worse: 'próbowane: gorzej', tr_better: 'pomogło', tr_fixed: 'naprawiło',
     df_applied: 'Zapisane w „{name}”. Wydrukuj ponownie i powiedz, czy pomogło.', df_created: 'Utworzyłem „{name}”. Wybierz go w Przygotuj przed wydrukiem.',
@@ -583,7 +598,11 @@ const T = {
     df: 'Defects', df_title: 'Print defects',
     df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
     df_rule: 'One change at a time: reprint and say whether it helped.',
-    df_slot: 'Tool {n}: {name}', df_process: 'Process: {name}', df_from_printer: 'printer’s', df_best: 'Most likely', df_more: 'Other possible causes', df_pick: 'Pick a defect.',
+    df_slot: 'Tool {n}: {name}', df_process: 'Process: {name}', df_from_printer: 'printer’s', df_best: 'Most likely', df_more: 'Other possible causes', df_pick: 'Pick a defect above to see its possible causes, likeliest first.',
+    dk_kind_change: 'settings change', dk_kind_advice: 'advice', dk_kind_calibration: 'calibration test', dk_kind_redirect: 'another defect',
+    dh_stringing: 'Hairs and strings between parts', dh_first_layer: 'The print comes off the bed', dh_layer_split: 'Layers separate, the part cracks',
+    dh_dimensions: 'Holes too small, sizes too big', dh_over_extrusion: 'Too much material, blobs', dh_under_extrusion: 'Gaps, thin walls',
+    dh_overhangs: 'Overhangs and bridges sag', dh_warping: 'Corners lift off the bed',
     df_apply: 'Apply', df_did: 'Done, will check', df_test: 'I’ll run the test', df_go: 'Go', tg_filament: 'filament', tg_process: 'process',
     tr_same: 'tried: no change', tr_worse: 'tried: worse', tr_better: 'helped', tr_fixed: 'fixed it',
     df_applied: 'Saved in “{name}”. Reprint and say whether it helped.', df_created: 'Created “{name}”. Select it in Prepare before printing.',
@@ -1159,6 +1178,17 @@ const DF_LABELS = {
 };
 function dfLabel(key) { return (DF_LABELS[L] || {})[key] || label(key); }
 const DF = { meta: null, defect: '', answers: {}, rows: [{kind: 'outer', expected: '', measured: ''}], wall: '', slot: null, info: null, causes: [], pending: [] };
+const DF_ICONS = {
+  stringing: '<path d="M5 4v16M19 4v16"/><path d="M5 8c4 2 10 2 14 0M5 13c3-1 6 2 9 0s4-1 5 0"/>',
+  first_layer: '<path d="M3 20h18"/><path d="M5 16h7"/><path d="M12 16c3 0 5-1 7-4"/><path d="m16 8 2-2 2 2"/>',
+  layer_split: '<rect x="5" y="4" width="14" height="16" rx="1.5"/><path d="M5 12h4l2-2 2 3 2-1h4"/>',
+  dimensions: '<path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/>',
+  over_extrusion: '<path d="M3 9h18"/><path d="M3 15c2 0 3-2 5-2s3 3 5 3 3-3 5-3 2 2 3 2"/><circle cx="8" cy="5" r="1"/>',
+  under_extrusion: '<path d="M3 9h4M10 9h3M17 9h4M3 15h2M8 15h6M17 15h4"/>',
+  overhangs: '<path d="M4 20V7h11"/><path d="M15 7c3 0 4 2 4 5"/><path d="M4 20h4"/>',
+  warping: '<path d="M3 20h18"/><path d="M4 12c1 3 2 4 4 4h8c2 0 3-1 4-4"/>',
+};
+function dfIcon(d) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${DF_ICONS[d] || ''}</svg>`; }
 function dfAnswers() {
   const out = {};
   for (const [q, opts] of (DF.meta && DF.meta.questions[DF.defect]) || []) out[q] = DF.answers[q] || opts[0];
@@ -1199,7 +1229,7 @@ function renderDefects() {
   const info = DF.info || {};
   $('df-slot').innerHTML = (info.slots || []).map(sl => `<option value="${sl.slot}"${sl.slot === info.slot ? ' selected' : ''}>${esc(t('df_slot', {n: sl.slot, name: sl.label}))}</option>`).join('');
   $('df-slot').title = info.process ? t('df_process', {name: info.process}) : '';
-  $('df-list').innerHTML = meta.list.map(d => `<button class="${d === DF.defect ? 'on' : ''}" data-defect="${d}">${esc(t('dn_' + d))}</button>`).join('');
+  $('df-list').innerHTML = meta.list.map(d => `<button class="${d === DF.defect ? 'on' : ''}" data-defect="${d}">${dfIcon(d)}<span>${esc(t('dn_' + d))}</span><small>${esc(t('dh_' + d))}</small></button>`).join('');
   const answers = dfAnswers();
   $('df-q').innerHTML = ((meta.questions[DF.defect]) || []).map(([q, opts]) => `<div class="q"><span>${esc(t('q_' + DF.defect + '_' + q))}</span>
       <div class="seg">${opts.map(o => `<button class="${answers[q] === o ? 'on' : ''}" data-q="${q}" data-a="${o}">${esc(t('a_' + DF.defect + '_' + q + '_' + o))}</button>`).join('')}</div></div>`).join('');
@@ -1217,7 +1247,7 @@ function renderDefects() {
       <div class="note">${esc(t('wall_note'))}</div>`;
   }
   $('df-inputs').innerHTML = inputs;
-  if (!DF.defect) { $('df-plan').innerHTML = `<div class="muted">${esc(t('df_pick'))}</div>`; return; }
+  if (!DF.defect) { $('df-plan').innerHTML = `<div class="df-empty">${esc(t('df_pick'))}</div>`; return; }
   const causes = DF.causes || [];
   const card = (c, i, best) => {
     const tried = (c.tried || []).slice(-1)[0];
@@ -1227,7 +1257,7 @@ function renderDefects() {
       : c.kind === 'redirect' ? `<button class="secondary" data-redirect="${esc(c.vars.defect)}">${esc(t('df_go'))}: ${esc(t('dn_' + c.vars.defect))}</button>` : '';
     const rows = (c.changes || []).length ? `<table>${c.changes.map(ch => `<tr><td>${esc(dfLabel(ch.key))} <span class="tag">${esc(t('tg_' + ch.target))}</span></td>
         <td class="n">${esc(dfValue(ch.before))}</td><td>→</td><td class="n"><b>${esc(dfValue(ch.after))}</b></td></tr>`).join('')}</table>` : '';
-    const name = c.kind === 'need' ? '' : `<div class="name">${esc(t('cn_' + c.cause))}${tried ? ` <span class="tag">${esc(t('tr_' + tried))}</span>` : ''}</div>`;
+    const name = c.kind === 'need' ? '' : `<div class="name">${esc(t('cn_' + c.cause))} <span class="kind ${c.kind}">${esc(t('dk_kind_' + c.kind))}</span>${tried ? ` <span class="tag">${esc(t('tr_' + tried))}</span>` : ''}</div>`;
     return `<div class="cause${best ? ' best' : ''}${tried === 'same' || tried === 'worse' ? ' tried' : ''}">${name}
       <div class="why">${esc(t(c.why, dfVars(c.vars)))}${rows}</div><div class="go">${btn}</div></div>`;
   };
