@@ -92,7 +92,9 @@ def install(filament_presets, user_file=""):
                 if f.endswith(".json"):
                     with open(os.path.join(folder, f), encoding="utf-8") as fh:
                         data = json.load(fh)
-                    col.presets.append(Preset(prefix + data.get("name", f[:-5]), {}, system=False))
+                    config = {k: ",".join(v) if isinstance(v, list) else str(v) for k, v in data.items()}
+                    col.presets.append(Preset(prefix + data.get("name", f[:-5]), config, system=False,
+                                              file=os.path.join(folder, f)))
     filaments = Collection([Preset(p["name"], dict(p["config"], filament_vendor='"%s"' % p["vendor"],
                                                       filament_type='"%s"' % p["type"]),
                                    compatible=p["compatible"]) for p in filament_presets])

@@ -3,11 +3,12 @@ Run: python3 -m unittest discover -s tests"""
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
 
 import helpers
-from filaforge.core import habits, measured, merge, process, research, spoolman, writer
+from filaforge.core import habits, history, measured, merge, process, research, review, spoolman, writer
 from filaforge.core.model import BASELINE, DECLARED, ESTIMATED, PRESET, TESTED, Identity, Observation
 from filaforge.core.net import CannedFetcher, FetchError
 from filaforge.core.sources import ofd, orca_presets, spoolmandb, tds
@@ -491,6 +492,60 @@ class HabitTests(unittest.TestCase):
         self.assertEqual(rows["overhang_fan_speed"]["value"], "80")
         self.assertIsNone(writer.problem(writer.filament_preset("X", {"overhang_fan_speed": "100"},
                                                                  {"overhang_fan_speed": "50"}, "K1C", ident, "k")) or None)
+
+
+class ReviewTests(unittest.TestCase):
+    def test_numbers_and_changes(self):
+        self.assertEqual(review.number("0.04,0.04"), 0.04)
+        self.assertEqual(review.number(["95%"]), 95.0)
+        self.assertIsNone(review.number("nil"))
+        before = review.tuned({"pressure_advance": "0.04", "nozzle_temperature": "220"})
+        now = review.tuned({"pressure_advance": "0.040", "nozzle_temperature": "225"})
+        self.assertEqual(review.changed(before, now), [{"orca_key": "nozzle_temperature", "key": "nozzle_temp",
+                                                        "was": 220.0, "now": 225.0}])
+
+    def test_basic_and_duplicates(self):
+        cfg = {"filament_max_volumetric_speed": "12", "enable_pressure_advance": "1", "pressure_advance": "0",
+               "nozzle_temperature": "215", "nozzle_temperature_range_low": "190",
+               "nozzle_temperature_range_high": "230", "fan_min_speed": "50", "fan_max_speed": "100"}
+        own = [{"name": "A", "config": cfg}, {"name": "B", "config": dict(cfg, name="B")},
+               {"name": "C", "config": dict(cfg, pressure_advance="0.03")}]
+        issues = review.run([], own)
+        self.assertEqual(sorted((i["preset"], i["code"]) for i in issues),
+                         [("A", "duplicate"), ("A", "pa_zero"), ("B", "duplicate"), ("B", "pa_zero")])
+        self.assertEqual(next(i for i in issues if i["preset"] == "A" and i["code"] == "duplicate")["details"],
+                         {"others": ["B"]})
+
+    def test_measured_waits_for_orca_changes(self):
+        cfg = {"pressure_advance": "0.035", "filament_flow_ratio": "1", "filament_max_volumetric_speed": "12"}
+        item = {"name": "X FF", "kind": "filament", "config": cfg, "derived": [],
+                "meta": {"written": {"pressure_advance": 0.04, "filament_flow_ratio": 1.0}},
+                "measured": {"pressure_advance": 0.05, "filament_flow_ratio": 0.95}}
+        codes = {i["code"]: i for i in review.run([item], [])}
+        self.assertEqual([c["orca_key"] for c in codes["orca_changed"]["details"]["changes"]], ["pressure_advance"])
+        # the measurement differs too, but the user's change in OrcaSlicer is asked about first
+        self.assertEqual([c["orca_key"] for c in codes["measured_newer"]["details"]["changes"]], ["filament_flow_ratio"])
+
+    def test_apply_values(self):
+        out = review.apply_values({"pressure_advance": ["0.02", "0.02"], "enable_pressure_advance": ["0", "0"]},
+                                  {"pressure_advance": 0.045})
+        self.assertEqual(out, {"pressure_advance": ["0.045", "0.045"], "enable_pressure_advance": ["1", "1"]})
+
+
+class HistoryTests(unittest.TestCase):
+    def test_keep_get_trim(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        h = history.History(folder, keep=3)
+        ids = [h.add("filament", "X FF", {"name": "X FF", "v": [str(i)]}, {"printer": "K1C"}, "replaced", at=100 + i)
+               for i in range(5)]
+        self.assertEqual([e["id"] for e in h.entries()], ids[:1:-1])
+        self.assertEqual(h.get(ids[-1])["preset"]["v"], ["4"])
+        self.assertIsNone(h.get(ids[0]))                     # trimmed
+        self.assertIsNone(h.get("../x.json"))
+        self.assertEqual(h.add("filament", "X FF", b"not json"), "")
+        self.assertEqual(history.differences({"a": ["1"], "name": "x"}, {"a": ["2"], "b": "3", "name": "y"}),
+                         [{"key": "a", "old": "1", "new": "2"}, {"key": "b", "old": "", "new": "3"}])
 
 
 class WriterTests(unittest.TestCase):

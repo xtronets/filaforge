@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.5.0"', html)
+        self.assertIn('"version": "0.6.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -243,6 +243,117 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(reply["settings"]["enclosed_printers"], ["Creality K1C 0.4 nozzle"])
         reply = self.last("settings", self.send(cmd="settings", enclosed={"printer": "Creality K1C 0.4 nozzle", "on": False}))
         self.assertEqual(reply["settings"]["enclosed_printers"], [])
+
+    # -- review, sync, history ---------------------------------------------------------------------------------------
+    def make_sunlu(self):
+        self.send(cmd="init")
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        settings = [x for x in result["settings"] if x["apply"]]
+        saved = self.last("saved", self.send(cmd="make_preset", identity=result["identity"], settings=settings,
+                                             base=result["base"]["name"], name=result["preset_name"],
+                                             spoolman_id=7))
+        return result, saved
+
+    def loaded(self, name):
+        return self.orca.host.preset_bundle().filaments.find_preset("_local/filaforge/" + name)
+
+    def issues(self, **filters):
+        found = self.last("review", self.send(cmd="review"))["issues"]
+        return [i for i in found if all(i.get(k) == v for k, v in filters.items())]
+
+    def test_review_sync_from_orca(self):
+        result, saved = self.make_sunlu()
+        name = saved["name"]
+        self.assertEqual(self.issues(preset=name, code="orca_changed"), [])
+        info = next(x for x in saved["saved"] if x["name"] == name)
+        self.assertEqual((info["base"], info["spoolman_id"]), ("SUNLU PLA+ @System", 7))
+        self.assertEqual(info["written"]["filament_max_volumetric_speed"], 12.0)
+        # the user tunes max flow in OrcaSlicer, in FilaForge's preset itself
+        self.loaded(name)._config["filament_max_volumetric_speed"] = "14,14"
+        issue = self.issues(preset=name, code="orca_changed")[0]
+        self.assertEqual([(c["orca_key"], c["now"]) for c in issue["details"]["changes"]], [("filament_max_volumetric_speed", 14.0)])
+        self.assertEqual(issue["identity"]["brand"], "Sunlu")
+        done = self.last("review", self.send(cmd="review_fix", fix="to_measured", code="orca_changed", preset=name,
+                                             source=name))
+        self.assertEqual(done["note"], "measured")
+        self.assertFalse([i for i in done["issues"] if i["code"] == "orca_changed"])
+        shelf = self.plugin.store()
+        ident = self.plugin.research.identity_from(result["identity"])
+        self.assertEqual(shelf.get(ident, "Creality K1C", 0.4)["max_volumetric_speed"], 14.0)
+        self.assertNotIn("max_volumetric_speed", shelf.get(ident, "Creality K1C", 0.6))     # kept for the 0.4 mm nozzle
+        # ...or in a preset they saved from it (same filament_id): "leave it" stops asking
+        fid = self.loaded(name).config_value("filament_id")
+        child = fake_orca.Preset("Sunlu PLA+ mine", dict(self.loaded(name)._config, nozzle_temperature="225",
+                                                         filament_id=fid), system=False)
+        self.orca.host.preset_bundle().filaments.presets.append(child)
+        issue = self.issues(code="orca_changed", preset=name)[0]
+        self.assertEqual(issue["details"]["source"], "Sunlu PLA+ mine")
+        self.send(cmd="review_fix", fix="keep", code="orca_changed", preset=name, source="Sunlu PLA+ mine")
+        self.assertEqual(self.issues(code="orca_changed"), [])
+
+    def test_review_measured_and_history(self):
+        result, saved = self.make_sunlu()
+        name = saved["name"]
+        self.send(cmd="save_measured", identity=result["identity"], section="Creality K1C",
+                  values={"flow_ratio": "0.93"})
+        issue = self.issues(preset=name, code="measured_newer")[0]
+        self.assertEqual(issue["details"]["changes"][0]["orca_key"], "filament_flow_ratio")
+        self.send(cmd="review_fix", fix="apply_measured", code="measured_newer", preset=name, source=name)
+        with open(saved["path"], encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["filament_flow_ratio"], ["0.93"])
+        self.assertEqual(self.issues(preset=name, code="measured_newer"), [])
+        # the version before is in the history: see what differs, restore it, and the restore is undoable
+        entries = self.last("history", self.send(cmd="history"))["entries"]
+        self.assertEqual([(e["name"], e["reason"], e["current"]) for e in entries], [(name, "measured", True)])
+        diff = self.last("history_diff", self.send(cmd="history_diff", id=entries[0]["id"]))
+        self.assertIn("filament_flow_ratio", [c["key"] for c in diff["changes"]])
+        back = self.last("saved", self.send(cmd="history_restore", id=entries[0]["id"]))
+        self.assertEqual(back["kind"], "restored")
+        with open(saved["path"], encoding="utf-8") as f:
+            self.assertNotEqual(json.load(f)["filament_flow_ratio"], ["0.93"])
+        reasons = [e["reason"] for e in self.last("history", self.send(cmd="history"))["entries"]]
+        self.assertEqual(reasons, ["restored", "measured"])
+        # a removed preset comes back from the history
+        self.send(cmd="remove_preset", name=name)
+        entries = self.last("history", self.send(cmd="history"))["entries"]
+        self.assertEqual((entries[0]["reason"], entries[0]["current"]), ("removed", False))
+        again = self.last("saved", self.send(cmd="history_restore", id=entries[0]["id"]))
+        self.assertIn(name, [x["name"] for x in again["saved"]])
+        self.assertEqual(next(x for x in again["saved"] if x["name"] == name)["spoolman_id"], 7)
+        self.assertIsNotNone(self.loaded(name))
+        self.assertEqual(self.last("error", self.send(cmd="history_restore", id="../../etc"))["message"], "history_gone")
+
+    def test_review_base_and_own_presets(self):
+        result, saved = self.make_sunlu()
+        name = saved["name"]
+        base = self.orca.host.preset_bundle().filaments.find_preset("SUNLU PLA+ @System")
+        base._config["fan_min_speed"] = "35"          # OrcaSlicer updated the maker's preset
+        issue = self.issues(preset=name, code="base_updated")[0]
+        self.assertEqual(issue["fixes"], ["rebase"])
+        self.send(cmd="review_fix", fix="rebase", code="base_updated", preset=name, source=name)
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertEqual(preset["fan_min_speed"], "35")
+        self.assertEqual(preset["filament_density"], ["1.21"])          # FilaForge's value kept
+        self.assertEqual(self.issues(preset=name, code="base_updated"), [])
+        # the user's own presets: checked, never changed
+        own = fake_orca.Preset("My PETG", {"filament_type": "PETG", "filament_vendor": "Generic",
+                                           "filament_max_volumetric_speed": "0", "fan_min_speed": "60",
+                                           "fan_max_speed": "40", "nozzle_temperature": "260",
+                                           "nozzle_temperature_range_low": "220", "nozzle_temperature_range_high": "250",
+                                           "inherits": "Gone PETG"}, system=False)
+        self.orca.host.preset_bundle().filaments.presets.append(own)
+        codes = {i["code"]: i for i in self.issues(preset="My PETG")}
+        self.assertEqual(set(codes), {"no_mvs", "fan_order", "temp_range", "parent_missing"})
+        self.assertEqual(codes["no_mvs"]["fixes"], ["research"])
+        self.assertFalse(codes["no_mvs"]["ff"])
+        self.assertEqual(self.last("error", self.send(cmd="review_fix", fix="remove", code="no_mvs", preset="My PETG",
+                                                      source="My PETG"))["message"], "review_gone")
+        # FilaForge's preset whose file was deleted by hand
+        os.unlink(saved["path"])
+        issue = self.issues(preset=name, code="file_missing")[0]
+        self.send(cmd="review_fix", fix="forget", code="file_missing", preset=name, source=name)
+        self.assertEqual(self.issues(preset=name), [])
 
     def test_habits_reach_the_process(self):
         init = self.last("init", self.send(cmd="init"))

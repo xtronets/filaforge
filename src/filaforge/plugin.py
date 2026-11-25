@@ -14,14 +14,14 @@ import webbrowser
 
 import orca
 
-from .core import files, habits, measured, merge, process, research, spoolman, writer
+from .core import files, habits, history, measured, merge, process, research, review, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -270,7 +270,9 @@ def repair_processes(bundle):
                 changes = [{"key": k, "new": v} for k, v in data.items() if k in process.SPEEDS or k in process.ACCELERATIONS]
                 new = process.preset(parent, data["name"], data.get("compatible_printers") or [], [], base)
                 new.update({c["key"]: c["new"] for c in changes})
-                writer.Bundle(folder).save(new, orca.host.preset.bundles.reload_local, {"printer": item.get("printer", "")})
+                ff_bundle(folder).save(new, orca.host.preset.bundles.reload_local,
+                                       {k: v for k, v in item.items() if k not in ("name", "exists", "file", "kind")},
+                                       "repaired")
                 fixed.append(data["name"])
             except Exception:
                 log.exception("repairing %s", item.get("name"))
@@ -336,14 +338,27 @@ def unique_name(name, printer, bundle):
     return name, False
 
 
-def install(preset, bundle, printer=""):
-    """Write the preset into FilaForge's bundle in the signed-in account's folder and reload it."""
+def ff_bundle(folder):
+    return writer.Bundle(folder, history.History(os.path.join(own_dir(), "history")))
+
+
+def bundle_folders(bundle):
+    """[(account, folder)] of FilaForge's bundle, the signed-in account's first."""
+    return [(a, os.path.join(data_dir(), "user", a, "_local", writer.BUNDLE))
+            for a in writer.account_folders(data_dir(), preset_files(bundle))]
+
+
+def install(preset, bundle, printer="", meta=None, reason="replaced"):
+    """Write the preset into FilaForge's bundle in the signed-in account's folder and reload it. A preset of that
+    name already in another account's folder is replaced there."""
     reload_fn = orca.host.preset.bundles.reload_local
+    meta = dict(meta or {}, printer=printer)
+    folders = bundle_folders(bundle)
+    have = [f for _, f in folders if os.path.isdir(f) and ff_bundle(f).info(preset["name"])]
     last = None
-    for account in writer.account_folders(data_dir(), preset_files(bundle)):
-        folder = os.path.join(data_dir(), "user", account, "_local", writer.BUNDLE)
+    for folder in have[:1] or [f for _, f in folders]:
         try:
-            return writer.Bundle(folder).save(preset, reload_fn, {"printer": printer})
+            return ff_bundle(folder).save(preset, reload_fn, meta, reason)
         except RuntimeError as error:
             last = error
             if "does not exist" not in str(error) and "not found" not in str(error):
@@ -356,8 +371,123 @@ def saved_presets(bundle):
     for account in writer.account_folders(data_dir(), preset_files(bundle)):
         folder = os.path.join(data_dir(), "user", account, "_local", writer.BUNDLE)
         if os.path.isdir(folder):
-            out += [dict(item, account=account) for item in writer.Bundle(folder).listing()]
+            out += [dict(item, account=account) for item in ff_bundle(folder).listing()]
     return out
+
+
+def find_saved(bundle, name):
+    """(bundle object, state entry) of one of FilaForge's presets, or (None, None)."""
+    for _, folder in bundle_folders(bundle):
+        if os.path.isdir(folder):
+            b = ff_bundle(folder)
+            info = b.info(name)
+            if info is not None:
+                return b, info
+    return None, None
+
+
+def read_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def loaded_preset(collection, name):
+    """OrcaSlicer's loaded preset for one of FilaForge's ("_local/filaforge/<name>"), or None."""
+    preset = collection.find_preset("_local/%s/%s" % (writer.BUNDLE, name))
+    if preset is not None:
+        return preset
+    for i in range(collection.size()):
+        p = collection.preset(i)
+        if str(p.name).endswith("/" + name) and str(p.name).startswith("_local/" + writer.BUNDLE + "/"):
+            return p
+    return None
+
+
+def printer_facts(bundle, name):
+    """(printer model, nozzle) of a printer preset by name; ("", None) when it isn't there."""
+    p = bundle.printers.find_preset(name) if name else None
+    if p is None:
+        return "", None
+    try:
+        nozzle = float(_clean(p.config_value("nozzle_diameter")) or 0) or None
+    except ValueError:
+        nozzle = None
+    return _clean(p.config_value("printer_model")) or name, nozzle
+
+
+def saved_identity(info, config):
+    ident = info.get("identity")
+    if isinstance(ident, dict) and ident.get("brand"):
+        return research.identity_from(ident)
+    item = {"name": config.get("name") or "", "vendor": _clean(config.get("filament_vendor")),
+            "type": _clean(config.get("filament_type"))}
+    return research.identity_from(orca_presets.identity_of(dict(item, config=config)))
+
+
+def review_inputs(bundle):
+    """(FilaForge's presets, the user's other filament presets) as review.run takes them."""
+    col = bundle.filaments
+    users = []
+    for i in range(col.size()):
+        p = col.preset(i)
+        name = str(p.name)
+        if getattr(p, "is_system", True) or getattr(p, "is_default", False) or \
+                name.startswith("_local/" + writer.BUNDLE + "/"):
+            continue
+        cfg = _config(p)
+        parent = _clean(cfg.get("inherits"))
+        users.append({"name": name, "label": orca_presets.bare_name(name) or name, "config": cfg, "parent": parent,
+                      "parent_missing": bool(parent) and col.find_preset(parent) is None})
+    shelf = store()
+    items = []
+    for entry in saved_presets(bundle):
+        kind = entry.get("kind", "filament")
+        p = loaded_preset(col if kind == "filament" else bundle.prints, entry["name"])
+        cfg = _config(p) if p is not None else {}
+        item = {"name": entry["name"], "label": entry["name"], "kind": kind, "exists": entry.get("exists", True),
+                "loaded": p is not None, "config": cfg, "meta": entry, "derived": [], "measured": {},
+                "base_hash_now": ""}
+        if kind == "filament" and p is not None:
+            base = entry.get("base")
+            if base:
+                bp = col.find_preset(base)
+                item["base_hash_now"] = review.config_hash(_config(bp)) if bp is not None else None
+            model, nozzle = printer_facts(bundle, entry.get("printer", ""))
+            ident = saved_identity(entry, cfg)
+            item["measured"] = review.measured_updates(shelf.get(ident, model, nozzle))
+            fid = _clean(cfg.get("filament_id"))
+            item["derived"] = [{"name": u["name"], "config": u["config"]} for u in users
+                               if (fid and _clean(u["config"].get("filament_id")) == fid) or
+                               (u["parent"] and u["parent"].endswith(entry["name"]))]
+        items.append(item)
+    return items, users
+
+
+def review_issues(bundle):
+    """review.run with what the page needs to act: the filament's identity, whether Spoolman can take a value."""
+    items, users = review_inputs(bundle)
+    by_name = {i["name"]: i for i in items}
+    spoolman_on = bool(read_settings()["spoolman_url"])
+    issues = review.run(items, users)
+    for issue in issues:
+        item = by_name.get(issue["preset"]) if issue["ff"] else None
+        if item is not None and item.get("config"):
+            ident = saved_identity(item["meta"], item["config"])
+            issue["identity"] = {"brand": ident.brand, "material": ident.material, "product": ident.product,
+                                 "colour": ident.colour}
+            issue["spoolman"] = spoolman_on and bool(item["meta"].get("spoolman_id"))
+    return issues
+
+
+def preset_meta(preset, base_name, base_config, values, identity, spoolman_id=None):
+    """What FilaForge keeps about a filament preset it wrote, for the review and the sync."""
+    meta = {"base": base_name, "base_hash": review.config_hash(base_config) if base_name else "",
+            "set_keys": sorted(values), "written": review.tuned(preset), "ack": {},
+            "identity": {"brand": identity.brand, "material": identity.material, "product": identity.product,
+                         "colour": identity.colour}}
+    if spoolman_id:
+        meta["spoolman_id"] = int(spoolman_id)
+    return meta
 
 
 def habits_info():
@@ -430,6 +560,10 @@ class Tab:
         settings = read_settings()
         self.reply("init", version=VERSION, settings=settings, printer=printer_info(bundle),
                    processes=process_list(bundle), saved=saved_presets(bundle), habits=habits_info())
+        try:
+            self.on_review({"quiet": True})
+        except Exception:
+            log.exception("review on start")
 
     def on_orca_filaments(self, data):
         self.reply("orca_filaments", items=user_filaments(orca.host.preset_bundle()))
@@ -552,16 +686,18 @@ class Tab:
         preset = writer.filament_preset(name, base_config, values, printer["name"], identity,
                                         measured.identity_key(identity),
                                         "FilaForge %s from %s" % (VERSION, base_name or "defaults"))
-        path = install(preset, bundle, printer["name"])
+        spool = data.get("spoolman_id")
+        meta = preset_meta(preset, base_name, base_config, values, identity,
+                           spool if isinstance(spool, int) and not isinstance(spool, bool) else None)
+        path = install(preset, bundle, printer["name"], meta)
         self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
 
     def on_remove_preset(self, data):
         bundle = orca.host.preset_bundle()
         name = str(data.get("name") or "")
-        for account in writer.account_folders(data_dir(), preset_files(bundle)):
-            folder = os.path.join(data_dir(), "user", account, "_local", writer.BUNDLE)
-            if os.path.isdir(folder) and writer.Bundle(folder).remove(name, orca.host.preset.bundles.reload_local):
-                break
+        target, _ = find_saved(bundle, name)
+        if target is not None:
+            target.remove(name, orca.host.preset.bundles.reload_local)
         self.reply("saved", kind="removed", name=name, saved=saved_presets(bundle))
 
     # -- Spoolman write
@@ -654,3 +790,124 @@ class Tab:
 
     def on_saved(self, data):
         self.reply("saved", kind="list", saved=saved_presets(orca.host.preset_bundle()))
+
+    # -- the preset review, and what changed in OrcaSlicer
+    def on_review(self, data):
+        self.reply("review", issues=review_issues(orca.host.preset_bundle()), quiet=bool(data.get("quiet")))
+
+    def _issue(self, bundle, data):
+        items, users = review_inputs(bundle)
+        for issue in review.run(items, users):
+            if issue["code"] == data.get("code") and issue["preset"] == data.get("preset") and \
+                    issue["details"].get("source", issue["preset"]) == data.get("source", issue["preset"]):
+                item = next((i for i in items if i["name"] == issue["preset"]), None)
+                return issue, item
+        raise ValueError("review_gone")
+
+    def on_review_fix(self, data):
+        bundle = orca.host.preset_bundle()
+        fix = str(data.get("fix") or "")
+        issue, item = self._issue(bundle, data)
+        if fix not in issue["fixes"]:
+            raise ValueError("review_gone")
+        name = issue["preset"]
+        target, info = find_saved(bundle, name) if issue["ff"] else (None, None)
+        reload_fn = orca.host.preset.bundles.reload_local
+        note = ""
+        if fix == "forget":
+            target.forget(name)
+        elif fix == "remove":
+            target.remove(name, reload_fn)
+        elif fix == "repair":
+            repair_processes(bundle)
+        elif fix in ("to_measured", "keep"):
+            changes = issue["details"]["changes"]
+            source = issue["details"]["source"]
+            if fix == "to_measured":
+                note = self._to_measured(bundle, info, item, changes, bool(data.get("spoolman")))
+            now = {c["orca_key"]: c["now"] for c in changes}
+            if source == name:
+                target.update_meta(name, {"written": dict(info.get("written") or {}, **now)})
+            else:
+                ack = dict(info.get("ack") or {})
+                ack[source] = dict(ack.get(source) or info.get("written") or {}, **now)
+                target.update_meta(name, {"ack": ack})
+        elif fix == "apply_measured":
+            preset = read_json(info["file"])
+            updates = {c["orca_key"]: c["now"] for c in issue["details"]["changes"]}
+            updates.update({k: v for k, v in review.measured_updates({c["key"]: c["now"] for c in
+                                                                      issue["details"]["changes"]}).items()
+                            if k not in review.SYNC_KEYS})
+            new = review.apply_values(preset, updates)
+            target.save(new, reload_fn, dict(self._meta(info), written=review.tuned(new)), "measured")
+        elif fix == "rebase":
+            preset = read_json(info["file"])
+            base_config = preset_config(bundle.filaments, info["base"])
+            values = {}
+            for key in info.get("set_keys") or []:
+                value = preset.get(key)
+                values[key] = value[0] if isinstance(value, list) and value else str(value or "")
+            ident = saved_identity(info, item["config"])
+            new = writer.filament_preset(name, base_config, values, info.get("printer", ""), ident,
+                                         measured.identity_key(ident), preset.get("description", ""))
+            new["filament_id"] = preset.get("filament_id", new["filament_id"])
+            target.save(new, reload_fn, dict(self._meta(info), base_hash=review.config_hash(base_config),
+                                             written=review.tuned(new)), "rebased")
+        else:
+            raise ValueError("review_gone")
+        self.reply("review", issues=review_issues(bundle), fixed=fix, preset=name, note=note,
+                   saved=saved_presets(bundle))
+
+    @staticmethod
+    def _meta(info):
+        return {k: v for k, v in (info or {}).items() if k not in ("file", "kind")}
+
+    def _to_measured(self, bundle, info, item, changes, to_spoolman):
+        """Keep the changed values as the user's measurement (and in Spoolman); returns a note for the page."""
+        model, nozzle = printer_facts(bundle, info.get("printer", ""))
+        ident = saved_identity(info, item["config"])
+        section = model or "*"
+        shelf = store()
+        values = measured.section_values(shelf.sections(ident).get(section), nozzle)
+        values.update({c["key"]: c["now"] for c in changes})
+        shelf.set(ident, section, values, nozzle)
+        if not (to_spoolman and info.get("spoolman_id")):
+            return "measured"
+        url = read_settings()["spoolman_url"]
+        if not url:
+            return "measured"
+        orca_values = {c["orca_key"]: "%g" % c["now"] for c in changes}
+        try:
+            spoolman.Client(url).write_settings(int(info["spoolman_id"]), section, orca_values, list(orca_values))
+        except spoolman.SpoolmanError as error:
+            log.warning("spoolman sync: %s", error)
+            return "measured_no_spoolman"
+        return "measured_spoolman"
+
+    # -- earlier versions
+    def on_history(self, data):
+        bundle = orca.host.preset_bundle()
+        names = {s["name"] for s in saved_presets(bundle)}
+        entries = history.History(os.path.join(own_dir(), "history")).entries()
+        self.reply("history", entries=[dict(e, current=e["name"] in names) for e in entries])
+
+    def on_history_diff(self, data):
+        entry = history.History(os.path.join(own_dir(), "history")).get(data.get("id"))
+        if entry is None:
+            raise ValueError("history_gone")
+        _, info = find_saved(orca.host.preset_bundle(), entry["name"])
+        current = {}
+        if info and os.path.exists(info.get("file", "")):
+            current = read_json(info["file"])
+        self.reply("history_diff", id=data.get("id"), current=bool(current),
+                   changes=history.differences(entry["preset"], current))
+
+    def on_history_restore(self, data):
+        bundle = orca.host.preset_bundle()
+        entry = history.History(os.path.join(own_dir(), "history")).get(data.get("id"))
+        if entry is None:
+            raise ValueError("history_gone")
+        meta = dict(entry.get("meta") or {})
+        printer = meta.pop("printer", "")
+        path = install(entry["preset"], bundle, printer, meta, "restored")
+        self.reply("saved", kind="restored", name=entry["name"], path=path, saved=saved_presets(bundle))

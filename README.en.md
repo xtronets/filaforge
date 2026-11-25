@@ -27,6 +27,7 @@ measurements. Every value shows where it came from and how sure it is.
 - [How a value is chosen](#how-a-value-is-chosen)
 - [A print process for the filament](#a-print-process-for-the-filament)
 - [Material habits](#material-habits)
+- [Preset review and history](#preset-review-and-history)
 - [Requirements](#requirements)
 - [Install, update, uninstall](#install-update-uninstall)
 - [How to use it](#how-to-use-it)
@@ -137,6 +138,28 @@ you can change them. Changes are kept in `settings.json`; **Restore defaults** g
 The filament preset values show as **Estimate** in the results table. A maker's preset, a data sheet and your
 own measurement win over them; they only replace the value of the material's generic preset.
 
+## Preset review and history
+
+The **Review** button in the header checks the filament presets FilaForge made and your own; the number on it
+says how many things are worth a look. Presets not made by FilaForge are never changed: they can only be opened
+in FilaForge to make a new preset from them.
+
+| What it finds | What you can do |
+|---|---|
+| **You changed a value by hand in OrcaSlicer**: PA, flow, max flow, temperatures, retraction or fan, in an FF preset or a preset saved from one | **Keep as my measurement**: the value goes into your measurements (for that printer and nozzle), so the next preset gets it too; when the preset was made from a spool, into Spoolman as well. Or **Leave it, don't ask**. |
+| **Your measurement differs from an FF preset** | **Put measurement in preset** |
+| **OrcaSlicer updated the base preset** (e.g. after an OrcaSlicer update) | **Refresh on the new base**: the base's new values, while what FilaForge set and what you changed stays |
+| Base preset gone, preset file deleted by hand, OrcaSlicer didn't load a preset | Remove from list, Repair (processes), Remove |
+| No max flow, PA on but 0, nozzle temperature outside the preset's range, min fan above max, missing parent preset | **Open in FilaForge** |
+| Presets with identical settings | information; an FF duplicate can be removed |
+
+The review also runs on its own when the tab opens, and tells you when it notices a change made in OrcaSlicer.
+
+**History** (**Saved** → **History…**): before FilaForge replaces or removes one of its presets, it keeps the
+earlier version, up to 20 per preset. Compare any of them with the current one (**Show changes**) and restore it.
+Restoring keeps the current version too, so a restore can be undone. A removed preset comes back with the printer
+and spool it was made for.
+
 ## Requirements
 
 - OrcaSlicer **2.5** or newer, with plugin support.
@@ -203,6 +226,7 @@ already exists for another printer, the printer model is added in brackets, e.g.
 | Filament and process presets | a separate **FilaForge** bundle in your user presets: `<OrcaSlicer data>/user/<account>/_local/filaforge/` |
 | Settings | `<OrcaSlicer data>/filaforge/settings.json` |
 | Your measurements | `<OrcaSlicer data>/filaforge/measured.json` |
+| Preset history | `<OrcaSlicer data>/filaforge/history/` |
 | Cached internet answers | `<OrcaSlicer data>/filaforge/cache/`. Database answers are kept for a week, others for a day. Without a network an older copy is used. |
 | Log | `<OrcaSlicer data>/filaforge/filaforge.log` |
 | Settings in Spoolman | the filament's `orca_settings` extra field. Density, diameter and price stay in Spoolman's own fields. |

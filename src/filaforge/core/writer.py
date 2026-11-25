@@ -106,15 +106,24 @@ def _numberish(text):
         return False
 
 
+def _parsed(data):
+    try:
+        return json.loads(data.decode("utf-8"))
+    except ValueError:
+        return None
+
+
 def _write_json(path, value):
     files.write_json(path, value, ensure_ascii=False, indent=4)
 
 
 class Bundle:
-    """The files of FilaForge's bundle in one account folder."""
+    """The files of FilaForge's bundle in one account folder. history (history.History): where a replaced or
+    removed preset is kept first."""
 
-    def __init__(self, folder):
+    def __init__(self, folder, history=None):
         self.folder = folder
+        self.history = history
 
     def path(self, kind, name):
         return os.path.join(self.folder, "filament" if kind == "filament" else "process", safe_name(name) + ".json")
@@ -134,9 +143,29 @@ class Bundle:
             out.append(dict(info, name=name, exists=os.path.exists(info.get("file", ""))))
         return out
 
-    def save(self, preset, reload_fn, meta=None):
+    def info(self, name):
+        return self.state()["presets"].get(name)
+
+    def update_meta(self, name, changes):
+        """Merge changes into a preset's entry (no file is written but the bundle's state)."""
+        state = self.state()
+        if name not in state["presets"]:
+            return False
+        state["presets"][name].update(changes)
+        _write_json(os.path.join(self.folder, STATE), state)
+        return True
+
+    def forget(self, name):
+        """Drop a preset from the state only (its file is gone)."""
+        state = self.state()
+        if state["presets"].pop(name, None) is None:
+            return False
+        _write_json(os.path.join(self.folder, STATE), state)
+        return True
+
+    def save(self, preset, reload_fn, meta=None, reason="replaced"):
         """Write one preset (replacing one of the same name) and reload the bundle; on a refused reload the
-        previous file is put back and the error raised."""
+        previous file is put back and the error raised. The replaced file goes into the history first."""
         issue = problem(preset)
         if issue:
             raise ValueError("preset %s: %s" % (preset.get("name"), issue))
@@ -146,6 +175,7 @@ class Bundle:
         if os.path.exists(path):
             with open(path, "rb") as f:
                 old = f.read()
+        old_meta = self.state()["presets"].get(preset["name"])
         _write_json(path, preset)
         _write_json(os.path.join(self.folder, "bundle_metadata.json"),
                     {"id": BUNDLE, "name": BUNDLE_NAME, "version": "1.0.0"})
@@ -162,15 +192,22 @@ class Bundle:
             except Exception:
                 pass
             raise
+        if old is not None and self.history is not None and _parsed(old) != preset:
+            self.history.add(kind, preset["name"], old, {k: v for k, v in (old_meta or {}).items() if k != "file"},
+                             reason)
         state = self.state()
         state["presets"][preset["name"]] = dict(meta or {}, kind=kind, file=path)
         _write_json(os.path.join(self.folder, STATE), state)
         return path
 
-    def remove(self, name, reload_fn):
+    def remove(self, name, reload_fn, reason="removed"):
         state = self.state()
         info = state["presets"].pop(name, None)
         if info and os.path.exists(info.get("file", "")):
+            if self.history is not None:
+                with open(info["file"], "rb") as f:
+                    self.history.add(info.get("kind", "filament"), name, f.read(),
+                                     {k: v for k, v in info.items() if k != "file"}, reason)
             os.unlink(info["file"])
         _write_json(os.path.join(self.folder, STATE), state)
         reload_fn(BUNDLE)

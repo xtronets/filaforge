@@ -27,6 +27,7 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 - [Jak wybiera wartość](#jak-wybiera-wartość)
 - [Proces druku dla filamentu](#proces-druku-dla-filamentu)
 - [Zwyczaje materiałów](#zwyczaje-materiałów)
+- [Przegląd presetów i historia zmian](#przegląd-presetów-i-historia-zmian)
 - [Wymagania](#wymagania)
 - [Instalacja, aktualizacja, odinstalowanie](#instalacja-aktualizacja-odinstalowanie)
 - [Jak używać](#jak-używać)
@@ -141,6 +142,28 @@ wartości FilaForge.
 Wartości dla presetu filamentu mają w tabeli wyników znaczek **Szacunek**. Wygrywa z nimi preset producenta,
 karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu materiału.
 
+## Przegląd presetów i historia zmian
+
+Przycisk **Przegląd** w nagłówku sprawdza presety filamentów zrobione przez FilaForge i Twoje własne.
+Liczba przy przycisku pokazuje, ile rzeczy warto sprawdzić. Presetów spoza FilaForge wtyczka nigdy nie zmienia.
+Może je tylko otworzyć w FilaForge, żeby zrobić z nich nowy preset.
+
+| Co sprawdza | Co możesz zrobić |
+|---|---|
+| **Zmieniłeś wartość ręcznie w Orce**: PA, flow, maks. przepływ, temperatury, retrakcję albo nawiew w presecie FF albo w presecie zapisanym na jego podstawie | **Zapisz jako mój pomiar**: wartość trafia do Twoich pomiarów (dla tej drukarki i średnicy dyszy), więc następny preset też ją dostanie. Gdy preset był zrobiony ze szpuli, także do Spoolmana. Albo **Zostaw, nie pytaj**. |
+| **Twój pomiar różni się od presetu FF** | **Wpisz pomiar do presetu** |
+| **Orka zaktualizowała preset bazowy** (np. po aktualizacji Orki) | **Odśwież na nowej bazie**: nowe wartości bazy, a to, co ustawiło FilaForge i co zmieniłeś, zostaje |
+| Preset bazowy zniknął, plik presetu usunięty ręcznie, Orka nie wczytała presetu | Usuń z listy, Napraw (procesy), Usuń |
+| Brak maks. przepływu, PA włączone, ale równe 0, temperatura poza zakresem presetu, min. nawiew większy od maks., brak presetu nadrzędnego | **Otwórz w FilaForge** |
+| Presety o identycznych ustawieniach | informacja, duplikat FF możesz usunąć |
+
+Przegląd uruchamia się też sam przy otwarciu zakładki. Gdy zauważy ręczną zmianę w Orce, pokaże o tym komunikat.
+
+**Historia zmian** (okno **Zapisane** → **Historia zmian…**): zanim FilaForge nadpisze albo usunie swój preset,
+zachowuje poprzednią wersję, do 20 na preset. Każdą możesz porównać z obecną (**Pokaż zmiany**) i przywrócić.
+Przywrócenie też zachowuje bieżącą wersję, więc da się je cofnąć. Usunięty preset wraca razem z
+informacją, dla której drukarki i szpuli był zrobiony.
+
 ## Wymagania
 
 - OrcaSlicer **2.5** lub nowszy, z obsługą wtyczek.
@@ -206,6 +229,7 @@ nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np.
 | Presety filamentów i procesów | osobny pakiet **FilaForge** w Twoich presetach użytkownika: `<dane Orki>/user/<konto>/_local/filaforge/` |
 | Ustawienia | `<dane Orki>/filaforge/settings.json` |
 | Twoje pomiary | `<dane Orki>/filaforge/measured.json` |
+| Historia zmian presetów | `<dane Orki>/filaforge/history/` |
 | Pamięć podręczna odpowiedzi z internetu | `<dane Orki>/filaforge/cache/`. Odpowiedzi baz są ważne tydzień, pozostałe dzień. Gdy sieci nie ma, użyta jest starsza kopia. |
 | Dziennik | `<dane Orki>/filaforge/filaforge.log` |
 | Ustawienia w Spoolmanie | pole dodatkowe `orca_settings` filamentu. Gęstość, średnica i cena zostają w zwykłych polach Spoolmana. |

@@ -179,7 +179,9 @@ def _flow(report, orca, plugin):
         name = "FilaForge selftest PLA"
         saved = report.step("make_preset", lambda: _make(orca, page, tab, result, name))
         if saved:
+            report.step("review of a fresh preset", lambda: _review(page, tab, saved))
             report.step("remove_preset", lambda: _remove(orca, page, tab, saved))
+            report.step("history restore", lambda: _restore(orca, page, tab, saved))
     if init and init.get("processes"):
         report.step("process plan/save/remove", lambda: _process(orca, page, tab, init, result))
     report.step("get_ui / get_icon", lambda: _page(orca))
@@ -227,6 +229,25 @@ def _remove(orca, page, tab, name):
     page.ask(tab, "remove_preset", "saved", name=name)
     _check(not _find(orca.host.preset_bundle().filaments, name, present=False), "%s still loaded" % name)
     return name
+
+
+def _review(page, tab, name):
+    """A preset FilaForge just wrote, as OrcaSlicer loaded it: nothing changed, nothing to fix (OrcaSlicer must
+    read back the values FilaForge wrote, however it formats them)."""
+    m = page.ask(tab, "review", "review")
+    mine = [i for i in m["issues"] if i["preset"] == name and i["code"] in ("orca_changed", "not_loaded",
+                                                                           "measured_newer", "file_missing")]
+    _check(not mine, "review of a fresh preset: %s" % mine)
+    return {"issues": len(m["issues"])}
+
+
+def _restore(orca, page, tab, name):
+    entries = [e for e in page.ask(tab, "history", "history")["entries"] if e["name"] == name]
+    _check(entries and entries[0]["reason"] == "removed", "no history entry for the removed preset")
+    page.ask(tab, "history_restore", "saved", id=entries[0]["id"])
+    _check(_find(orca.host.preset_bundle().filaments, name), "OrcaSlicer did not load the restored %s" % name)
+    _remove(orca, page, tab, name)
+    return {"versions": len(entries)}
 
 
 def _process(orca, page, tab, init, result):
