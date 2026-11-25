@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.7.1"', html)
+        self.assertIn('"version": "0.7.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -417,9 +417,6 @@ class PluginTests(unittest.TestCase):
         self.assertEqual((proc["xy_hole_compensation"], proc["inherits"]), ("0.1", "0.20mm Standard @Creality K1C"))
         missing = self.last("defect_plan", self.send(cmd="defect_plan", defect="dimensions", inputs={"rows": []}))
         self.assertEqual((missing["causes"][0]["kind"], missing["causes"][0]["why"]), ("need", "d_missing"))
-        parsed = self.last("defect_parsed", self.send(cmd="defect_parse", text="otwory wychodzą 2,8 zamiast 3,2"))
-        self.assertEqual(parsed, {"cmd": "defect_parsed", "defect": "dimensions",
-                                  "rows": [{"kind": "hole", "expected": 3.2, "measured": 2.8}]})
 
     def test_no_nameless_open(self):
         """OrcaSlicer asks the user about an "open" audit event it can't name (a file opened by descriptor).

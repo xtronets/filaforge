@@ -14,7 +14,6 @@ Everything here is plain data: the plugin reads OrcaSlicer and writes the preset
 
 import json
 import os
-import re
 import time
 
 from . import files
@@ -530,49 +529,6 @@ def plan(defect, ctx, answers=None, inputs=None):
         c["score"] = round(c["score"], 1)
     causes.sort(key=lambda c: (c["kind"] == "need", -c["score"]))
     return causes
-
-
-# --- free text -------------------------------------------------------------------------------------------------
-WORDS = {
-    "stringing": ("nitk", "nitec", "włos", "wlos", "pajęczyn", "pajeczyn", "glut", "string", "hair", "ooz", "cobweb"),
-    "first_layer": ("pierwsz", "nie trzyma", "nie klei", "odkleja", "nie przykle", "przyczep", "first layer",
-                    "not stick", "doesn't stick", "doesnt stick", "adhesion", "adhesi"),
-    "layer_split": ("rozwarstw", "rozkleja", "pęka", "peka", "łamie", "lamie", "pękni", "delamin", "layer split",
-                    "split", "crack", "layers separat", "weak layer"),
-    "dimensions": ("otw", "wymiar", "za mał", "za mal", "za duż", "za duz", "stopa", "słoni", "sloni", "hole",
-                   "dimension", "size", "elephant", "tolerance", "pasow", " mm"),
-    "over_extrusion": ("nadekstr", "za dużo materi", "za duzo materi", "nadmiar", "over-extru", "overextru",
-                       "over extru", "blob"),
-    "under_extrusion": ("niedoekstr", "dziur", "przerw", "brakuje", "cienk", "under-extru", "underextru",
-                        "under extru", "gaps", "missing"),
-    "overhangs": ("nawis", "most", "opada", "zwisa", "zwis", "overhang", "bridg", "droop", "sag"),
-    "warping": ("róg", "rog", "narożn", "narozn", "podnos", "odgina", "zawija", "warp", "corner", "lift"),
-}
-
-
-def parse(text):
-    """{"defect", "rows"} from words like "otwory wychodzą 2,8 zamiast 3,2"; defect None when unclear."""
-    low = " " + str(text or "").lower() + " "
-    scores = {}
-    for defect, words in WORDS.items():
-        hits = sum(1 for w in words if w in low)
-        if hits:
-            scores[defect] = hits
-    defect = max(scores, key=lambda d: (scores[d], -DEFECTS.index(d))) if scores else None
-    numbers = [float(n.replace(",", ".")) for n in re.findall(r"\d+(?:[.,]\d+)?", low)]
-    rows = []
-    if len(numbers) >= 2 and (defect == "dimensions" or defect is None):
-        measured, expected = numbers[0], numbers[1]
-        if not re.search(r"zamiast|instead|a powin|should be", low):
-            # "should be 3.2, is 2.8" or "3.2 -> 2.8": the first is the expected one
-            expected, measured = numbers[0], numbers[1]
-        kind = "hole" if re.search(r"otw|dziur|hole|bore", low) else ("foot" if re.search(r"stop|słoni|sloni|elephant", low)
-                                                                    else "outer")
-        if kind == "foot":
-            expected, measured = min(numbers[:2]), max(numbers[:2])
-        rows.append({"kind": kind, "expected": expected, "measured": measured})
-        defect = "dimensions"
-    return {"defect": defect, "rows": rows}
 
 
 # --- what was tried --------------------------------------------------------------------------------------------

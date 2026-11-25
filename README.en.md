@@ -141,8 +141,7 @@ own measurement win over them; they only replace the value of the material's gen
 
 ## Print defects
 
-The **Defects** button in the header helps fix what went wrong in a print. Describe it in your own words
-("strings between parts", "holes come out 2.8 instead of 3.2") or pick it from the list:
+The **Defects** button in the header helps fix what went wrong in a print. Pick the defect from the list:
 
 stringing · first layer not sticking · layers splitting and cracking · dimensions, holes, elephant foot ·
 over-extrusion · under-extrusion · drooping overhangs and bridges · corners lifting.

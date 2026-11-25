@@ -145,8 +145,7 @@ karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu
 
 ## Defekty wydruku
 
-Przycisk **Defekty** w nagłówku pomaga naprawić to, co wyszło źle na wydruku. Opisz problem słowami
-(„nitki między elementami”, „otwory wychodzą 2,8 zamiast 3,2”) albo wybierz go z listy:
+Przycisk **Defekty** w nagłówku pomaga naprawić to, co wyszło źle na wydruku. Wybierz defekt z listy:
 
 nitkowanie · pierwsza warstwa nie trzyma · rozwarstwianie i pękanie · wymiary, otwory, stopa słonia ·
 nadekstruzja · niedoekstruzja · opadające nawisy i mosty · podnoszące się rogi.

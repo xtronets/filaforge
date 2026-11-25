@@ -21,7 +21,7 @@ from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.7.1"
+VERSION = "0.7.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -1048,9 +1048,6 @@ class Tab:
         self._defect_reply(dict(data, defect=""), "defect_context",
                            questions={k: [[q, list(o)] for q, o in v] for k, v in defects.QUESTIONS.items()},
                            inputs={k: list(v) for k, v in defects.INPUTS.items()}, list=list(defects.DEFECTS))
-
-    def on_defect_parse(self, data):
-        self.reply("defect_parsed", **defects.parse(data.get("text")))
 
     def on_defect_plan(self, data):
         self._defect_reply(data)

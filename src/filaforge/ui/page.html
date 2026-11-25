@@ -187,7 +187,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .hist-diff td { padding: 1px 8px 1px 0; border: 0; } .hist-diff td.mono { font-family: var(--mono); }
 #dlg-defects { width: min(1060px, 96vw); }
 #dlg-defects .body { max-height: 74vh; overflow: auto; }
-.df-top { display: grid; grid-template-columns: minmax(220px, 300px) 1fr auto; gap: 8px; align-items: center; }
+.df-top { display: grid; grid-template-columns: minmax(220px, 340px); gap: 8px; align-items: center; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { background: transparent; color: var(--fg); border-color: var(--border); }
 .chips button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
@@ -378,7 +378,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <div class="body">
     <div id="df-pending" class="df-plan"></div>
     <div class="note" data-t="df_note"></div>
-    <div class="df-top"><select id="df-slot"></select><input id="df-text" data-tp="df_text_ph"><button id="btn-df-find" data-t="df_find"></button></div>
+    <div class="df-top"><select id="df-slot"></select></div>
     <div class="chips" id="df-list"></div>
     <div class="df-q" id="df-q"></div>
     <div id="df-inputs"></div>
@@ -400,9 +400,9 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 const BOOT = /*BOOT*/null || {version: 'dev', settings: {language: 'auto', spoolman_url: '', online: true}};
 const T = {
   pl: {
-    df: 'Defekty', df_title: 'Defekty wydruku', df_find: 'Rozpoznaj', df_text_ph: 'Np. nitki między elementami, otwory wychodzą 2,8 zamiast 3,2',
-    df_note: 'Opisz, co jest nie tak, albo wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
-    df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.', df_unknown: 'Nie rozpoznałem defektu. Wybierz go z listy.',
+    df: 'Defekty', df_title: 'Defekty wydruku',
+    df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
+    df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
     df_slot: 'Głowica {n}: {name}', df_process: 'Proces: {name}', df_from_printer: 'z drukarki', df_best: 'Najbardziej prawdopodobne', df_more: 'Inne możliwe przyczyny', df_pick: 'Wybierz defekt.',
     df_apply: 'Zastosuj', df_did: 'Zrobione, sprawdzę', df_test: 'Zrobię test', df_go: 'Przejdź', tg_filament: 'filament', tg_process: 'proces',
     tr_same: 'próbowane: bez zmian', tr_worse: 'próbowane: gorzej', tr_better: 'pomogło', tr_fixed: 'naprawiło',
@@ -575,9 +575,9 @@ const T = {
     products_found: 'Producent ma w bazie {n} produktów – podpowiadam je w polu „Produkt”.', renamed: 'Ta nazwa była już zajęta przez preset dla innej drukarki, więc dopisałem model drukarki.', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
   },
   en: {
-    df: 'Defects', df_title: 'Print defects', df_find: 'Recognise', df_text_ph: 'E.g. strings between parts, holes come out 2.8 instead of 3.2',
-    df_note: 'Describe what is wrong or pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
-    df_rule: 'One change at a time: reprint and say whether it helped.', df_unknown: 'Couldn’t recognise the defect. Pick it from the list.',
+    df: 'Defects', df_title: 'Print defects',
+    df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
+    df_rule: 'One change at a time: reprint and say whether it helped.',
     df_slot: 'Tool {n}: {name}', df_process: 'Process: {name}', df_from_printer: 'printer’s', df_best: 'Most likely', df_more: 'Other possible causes', df_pick: 'Pick a defect.',
     df_apply: 'Apply', df_did: 'Done, will check', df_test: 'I’ll run the test', df_go: 'Go', tg_filament: 'filament', tg_process: 'process',
     tr_same: 'tried: no change', tr_worse: 'tried: worse', tr_better: 'helped', tr_fixed: 'fixed it',
@@ -1488,11 +1488,6 @@ $('df-inputs').addEventListener('click', e => {
   if (e.target.id === 'btn-df-row') { DF.rows.push({kind: 'outer', expected: '', measured: ''}); renderDefects(); }
   if (e.target.id === 'btn-df-calc') dfAsk();
 });
-$('btn-df-find').addEventListener('click', () => {
-  const text = $('df-text').value.trim();
-  if (text) send({cmd: 'defect_parse', text});
-});
-$('df-text').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-df-find').click(); });
 $('df-plan').addEventListener('click', e => {
   const a = e.target.closest('[data-apply]'), go = e.target.closest('[data-redirect]');
   if (go) { DF.defect = go.dataset.redirect; DF.answers = {}; renderDefects(); dfAsk(); return; }
@@ -1661,12 +1656,6 @@ function onMessage(m) {
       }
       if (m.outcome) toast(m.note ? t('dn_' + m.note) : t('dn_kept'));
       if (m.applied || m.outcome) send({cmd: 'review', quiet: true});
-      break;
-    case 'defect_parsed':
-      if (!m.defect) { toast(t('df_unknown'), true); break; }
-      DF.defect = m.defect; DF.answers = {};
-      if (m.rows && m.rows.length) DF.rows = m.rows.map(r => ({kind: r.kind, expected: String(r.expected), measured: String(r.measured)}));
-      renderDefects(); dfAsk();
       break;
     case 'review': {
       const before = new Set((S.issues || []).filter(i => i.code === 'orca_changed').map(i => i.preset));

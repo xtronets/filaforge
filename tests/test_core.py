@@ -603,12 +603,6 @@ class DefectTests(unittest.TestCase):
         odd = self.causes("under_extrusion", {"when": "always"}, inputs={"wall": "0.46"})["flow_wall"]
         self.assertEqual(odd["kind"], "need")                                    # a thicker wall isn't under-extrusion
 
-    def test_parse(self):
-        self.assertEqual(defects.parse("nitki między elementami")["defect"], "stringing")
-        self.assertEqual(defects.parse("corners lift off the bed")["defect"], "warping")
-        self.assertEqual(defects.parse("otwór powinien mieć 5, ma 4,8")["rows"],
-                         [{"kind": "hole", "expected": 5.0, "measured": 4.8}])
-        self.assertIsNone(defects.parse("coś jest nie tak")["defect"])
 
 
 class WriterTests(unittest.TestCase):
