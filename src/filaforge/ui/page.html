@@ -185,6 +185,34 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .hist-row .when { flex: 1; color: var(--muted); }
 .hist-diff { width: 100%; font-size: 11.5px; }
 .hist-diff td { padding: 1px 8px 1px 0; border: 0; } .hist-diff td.mono { font-family: var(--mono); }
+#dlg-defects { width: min(1060px, 96vw); }
+#dlg-defects .body { max-height: 74vh; overflow: auto; }
+.df-top { display: grid; grid-template-columns: minmax(220px, 300px) 1fr auto; gap: 8px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { background: transparent; color: var(--fg); border-color: var(--border); }
+.chips button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.df-q { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.df-q .q { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; color: var(--fg); padding: 4px 10px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: color-mix(in srgb, var(--accent) 18%, var(--bg)); color: var(--fg); font-weight: 600; }
+.df-rows { display: grid; grid-template-columns: 170px 120px 120px auto; gap: 6px 8px; align-items: center; font-size: 12px; }
+.df-rows input { width: 100%; text-align: right; font-family: var(--mono); }
+.df-plan { display: flex; flex-direction: column; gap: 8px; }
+.cause { border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; font-size: 12px; }
+.cause.best { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.cause.tried { opacity: .62; }
+.cause .name { font-weight: 650; font-size: 12.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cause .why { grid-column: 1; color: var(--fg); font-size: 12px; }
+.cause .go { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: 6px; }
+.cause table { width: auto; margin-top: 4px; }
+.cause td { padding: 1px 10px 1px 0; border: 0; font-size: 11.5px; }
+.cause td.n { font-family: var(--mono); text-align: right; }
+.pend { border: 1px solid color-mix(in srgb, var(--estimated) 50%, transparent); background: color-mix(in srgb, var(--estimated) 9%, var(--bg));
+        border-radius: 9px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.pend span { flex: 1; min-width: 240px; }
+.sec { font-size: 11.5px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
 @media (max-width: 820px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--border); } }
 </style>
 </head>
@@ -196,6 +224,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   </div>
   <span class="chip" id="printer-chip" title=""></span>
   <span class="spacer"></span>
+  <button class="secondary" id="btn-defects"><span data-t="df"></span><span class="count" id="df-count" hidden></span></button>
   <button class="secondary" id="btn-review"><span data-t="review"></span><span class="count" id="review-count" hidden></span></button>
   <button class="secondary" id="btn-saved" data-t="saved"></button>
   <button class="secondary" id="btn-habits" data-t="habits"></button>
@@ -344,6 +373,20 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <div class="foot"><button class="secondary" id="btn-review-again" data-t="review_again" style="margin-right:auto"></button><button class="secondary" data-close data-t="close"></button></div>
 </dialog>
 
+<dialog id="dlg-defects">
+  <div class="head" data-t="df_title"></div>
+  <div class="body">
+    <div id="df-pending" class="df-plan"></div>
+    <div class="note" data-t="df_note"></div>
+    <div class="df-top"><select id="df-slot"></select><input id="df-text" data-tp="df_text_ph"><button id="btn-df-find" data-t="df_find"></button></div>
+    <div class="chips" id="df-list"></div>
+    <div class="df-q" id="df-q"></div>
+    <div id="df-inputs"></div>
+    <div class="df-plan" id="df-plan"></div>
+  </div>
+  <div class="foot"><span class="note" data-t="df_rule" style="margin-right:auto"></span><button class="secondary" data-close data-t="close"></button></div>
+</dialog>
+
 <dialog id="dlg-history">
   <div class="head" data-t="history_title"></div>
   <div class="body"><div class="note" data-t="history_note"></div><div class="issues" id="history-list"></div></div>
@@ -357,6 +400,90 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 const BOOT = /*BOOT*/null || {version: 'dev', settings: {language: 'auto', spoolman_url: '', online: true}};
 const T = {
   pl: {
+    df: 'Defekty', df_title: 'Defekty wydruku', df_find: 'Rozpoznaj', df_text_ph: 'Np. nitki między elementami, otwory wychodzą 2,8 zamiast 3,2',
+    df_note: 'Opisz, co jest nie tak, albo wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
+    df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.', df_unknown: 'Nie rozpoznałem defektu. Wybierz go z listy.',
+    df_slot: 'Głowica {n}: {name}', df_process: 'Proces: {name}', df_from_printer: 'z drukarki', df_best: 'Najbardziej prawdopodobne', df_more: 'Inne możliwe przyczyny', df_pick: 'Wybierz defekt.',
+    df_apply: 'Zastosuj', df_did: 'Zrobione, sprawdzę', df_test: 'Zrobię test', df_go: 'Przejdź', tg_filament: 'filament', tg_process: 'proces',
+    tr_same: 'próbowane: bez zmian', tr_worse: 'próbowane: gorzej', tr_better: 'pomogło', tr_fixed: 'naprawiło',
+    df_applied: 'Zapisane w „{name}”. Wydrukuj ponownie i powiedz, czy pomogło.', df_created: 'Utworzyłem „{name}”. Wybierz go w Przygotuj przed wydrukiem.',
+    df_noted: 'Zapisane. Po wydruku powiedz, czy pomogło.', dn_undone: 'Cofnięte. Spróbuj kolejnej przyczyny.', dn_kept_measured: 'Zostawione i zapisane w Twoich pomiarach.', dn_kept: 'Zostawione.',
+    po_title: 'Czeka na wynik wydruku', po_fixed: 'Naprawione', po_better: 'Lepiej', po_same: 'Bez zmian', po_worse: 'Gorzej',
+    po_tip: '„Bez zmian” i „Gorzej” cofają zmianę. „Lepiej” i „Naprawione” ją zostawiają i zapisują w Twoich pomiarach.',
+    defect_no_filament: 'Wybierz w Przygotuj filament, którym drukowałeś.', defect_no_process: 'Wybierz w Przygotuj proces, którym drukowałeś.',
+    defect_gone: 'To już nieaktualne. Odświeżyłem plan.', defect_unknown: 'Nieznany defekt.', defect_name: 'Brak wolnej nazwy presetu.',
+    dn_stringing: 'Nitkowanie', dn_first_layer: 'Pierwsza warstwa nie trzyma', dn_layer_split: 'Rozwarstwianie, pękanie', dn_dimensions: 'Wymiary, otwory, stopa słonia',
+    dn_over_extrusion: 'Nadekstruzja', dn_under_extrusion: 'Niedoekstruzja, dziury', dn_overhangs: 'Opadające nawisy i mosty', dn_warping: 'Podnoszące się rogi',
+    q_stringing_dried: 'Czy filament był niedawno suszony?', a_stringing_dried_unknown: 'nie wiem', a_stringing_dried_no: 'nie', a_stringing_dried_yes: 'tak',
+    q_stringing_kind: 'Jakie nitki?', a_stringing_kind_hairs: 'cienkie włoski', a_stringing_kind_strings: 'grube nitki, gluty',
+    q_first_layer_where: 'Gdzie nie trzyma?', a_first_layer_where_everywhere: 'cała warstwa', a_first_layer_where_area: 'w jednym miejscu stołu', a_first_layer_where_edges: 'tylko rogi i brzegi',
+    q_first_layer_cleaned: 'Czy płyta była niedawno myta?', a_first_layer_cleaned_unknown: 'nie wiem', a_first_layer_cleaned_no: 'nie', a_first_layer_cleaned_yes: 'tak',
+    q_layer_split_where: 'Gdzie pęka?', a_layer_split_where_everywhere: 'na całej wysokości', a_layer_split_where_higher: 'wyżej, w wysokich częściach',
+    q_over_extrusion_how: 'Jak to wygląda?', a_over_extrusion_how_all_big: 'wszystko trochę za duże', a_over_extrusion_how_top_rough: 'chropowata góra', a_over_extrusion_how_blobs: 'grudki, pogrubione rogi',
+    q_under_extrusion_when: 'Kiedy?', a_under_extrusion_when_always: 'zawsze', a_under_extrusion_when_fast: 'przy szybkich ruchach', a_under_extrusion_when_later: 'narasta w trakcie druku',
+    q_overhangs_which: 'Co opada?', a_overhangs_which_both: 'nawisy i mosty', a_overhangs_which_bridges: 'mosty', a_overhangs_which_overhangs: 'nawisy',
+    q_warping_big: 'Duża, płaska część?', a_warping_big_no: 'nie', a_warping_big_yes: 'tak',
+    q_warping_cleaned: 'Czy płyta była niedawno myta?', a_warping_cleaned_unknown: 'nie wiem', a_warping_cleaned_no: 'nie', a_warping_cleaned_yes: 'tak',
+    dk_outer: 'Wymiar zewnętrzny', dk_hole: 'Otwór', dk_foot: 'Stopa słonia', d_exp: 'Powinno być (mm)', d_meas: 'Jest (mm)', d_exp_foot: 'Szerokość wyżej', d_meas_foot: 'Szerokość u dołu',
+    d_rows_add: 'Dodaj pomiar', d_calc: 'Przelicz',
+    d_rows_note: 'Zmierz suwmiarką. Dwa różne wymiary zewnętrzne (np. 20 i 100 mm) pozwolą odróżnić skurcz materiału od przesunięcia ścian.',
+    wall_label: 'Grubość pojedynczej ściany (mm, opcjonalnie)', wall_note: 'Wydrukuj kostkę w trybie wazy (spiralnym) i zmierz ścianę suwmiarką w kilku miejscach. Z tego pomiaru przeliczę flow dokładnie.',
+    d_missing: 'Wpisz co najmniej jeden pomiar.', d_odd: 'Pomiary za bardzo się różnią. Sprawdź je.', d_right: 'Wymiary są w porządku, nie trzeba nic zmieniać.',
+    d_flow_right: 'Ściana ma właściwą grubość, flow jest dobry.', d_wall_odd: 'Ta grubość ściany nie pasuje do tego defektu albo do szerokości linii {width} mm. Sprawdź pomiar.', d_at_limit: 'Ta wartość jest już na granicy.',
+    cn_dry: 'Wilgotny filament', cn_temp_down: 'Za wysoka temperatura', cn_temp_up: 'Za niska temperatura', cn_retraction: 'Za krótka retrakcja', cn_retraction_speed: 'Za wolna retrakcja',
+    cn_see_warping: 'To raczej podnoszące się rogi', cn_clean_plate: 'Brudna płyta', cn_level: 'Poziomowanie, Z-offset', cn_first_fan: 'Nawiew na pierwszych warstwach',
+    cn_bed_first: 'Za zimny stół na pierwszej warstwie', cn_first_speed: 'Za szybka pierwsza warstwa', cn_nozzle_first: 'Za zimna dysza na pierwszej warstwie', cn_enclosure: 'Brak obudowy',
+    cn_fan_down: 'Za mocny nawiew', cn_flow_test: 'Nieskalibrowany flow', cn_mvs_down: 'Za duży przepływ', cn_draft: 'Przeciąg, zimne otoczenie', cn_measure: 'Pomiary',
+    cn_squish: 'Za mocno dociśnięta pierwsza warstwa', cn_compensate: 'Kompensacja wymiarów', cn_flow_wall: 'Flow z pomiaru ściany', cn_flow_measured: 'Twój zmierzony flow',
+    cn_pa_test: 'Pressure advance', cn_see_dimensions: 'Zmierz wymiary', cn_flow_step: 'Lekko za wysoki flow', cn_heat_creep: 'Przegrzany radiator (heat creep)',
+    cn_spool: 'Szpula albo podajnik', cn_clog: 'Częściowo zatkana dysza', cn_mvs_test: 'Nieznany maks. przepływ', cn_diameter: 'Zła średnica filamentu',
+    cn_overhang_fan: 'Za słaby nawiew na nawisach', cn_bridge_flow: 'Za dużo materiału na mostach', cn_bridge_speed: 'Za szybkie mosty', cn_curled: 'Zawijające się obrzeża',
+    cn_overhang_speed: 'Brak zwalniania na nawisach', cn_overhang_slower: 'Za szybkie strome nawisy', cn_geometry: 'Kształt modelu', cn_bed_up: 'Za zimny stół', cn_brim: 'Brak brimu',
+    w_dry: '{cls} chłonie wilgoć z powietrza, a wilgotny filament nitkuje i bulgocze niezależnie od ustawień. Wysusz szpulę: {temp} °C przez ok. {hours} h, potem trzymaj ją w szczelnym pojemniku z pochłaniaczem.',
+    w_temp_down: 'Dysza ma {from} °C przy zakresie {lo}–{hi} °C. Chłodniej ({to} °C) filament mniej wycieka podczas przejazdów.',
+    w_temp_up: 'Dysza ma {from} °C przy zakresie {lo}–{hi} °C. Cieplej ({to} °C) warstwy lepiej się ze sobą stapiają.',
+    w_temp_top: 'Przy {from} °C górna powierzchnia może się rozlewać. Spróbuj {to} °C.',
+    w_temp_flow: 'Przy szybkich ruchach hotend nie nadąża topić filamentu. {to} °C zamiast {from} °C podnosi jego wydajność.',
+    w_temp_overhang: 'Chłodniejszy filament ({to} °C) szybciej zastyga na nawisach.',
+    w_retraction: 'Retrakcja ma {from} mm. Dłuższa ({to} mm) mocniej cofa filament przed przejazdem.',
+    w_retraction_speed: 'Retrakcja ma tylko {from} mm/s, a filament zdąży wycieknąć. Przy direct drive szybsza ({to} mm/s) pomaga.',
+    w_see_warping: 'Jeśli odklejają się tylko rogi i brzegi, a środek trzyma, to podnoszenie rogów (warping), a nie słaba przyczepność.',
+    w_clean_plate: 'Tłuszcz z palców to najczęstsza przyczyna. Umyj płytę PEI ciepłą wodą z płynem do naczyń, opłucz i nie dotykaj jej powierzchni. Sam alkohol IPA nie zmywa wszystkiego.',
+    w_level_area: 'Gdy nie trzyma tylko w jednym miejscu, stół jest tam za nisko albo siatka poziomowania jest nieaktualna. Zrób poziomowanie (bed mesh) na nagrzanym stole.',
+    w_z_offset: 'Gdy linie pierwszej warstwy są okrągłe i się nie stykają, dysza jest za wysoko. Obniż Z-offset o 0,02–0,05 mm.',
+    w_first_fan: 'Nawiew działa już na pierwszej warstwie i chłodzi ją, zanim się przyklei. Wyłączam go na pierwszych {to} warstwach.',
+    w_bed_first: 'Stół ma {from} °C na pierwszej warstwie. Cieplej ({to} °C, maks. {max} °C dla tego materiału) poprawia przyczepność.',
+    w_first_speed: 'Pierwsza warstwa jedzie {from} mm/s. Wolniej ({to} mm/s) lepiej się dociska.',
+    w_nozzle_first: 'Cieplejsza dysza na pierwszej warstwie ({to} °C zamiast {from} °C) lepiej rozlewa filament na stole.',
+    w_enclosure: '{cls} kurczy się przy stygnięciu. W otwartej drukarce warstwy stygną za szybko i pękają. Żadne ustawienie tego nie zastąpi: drukuj w obudowie. Jeśli Twoja drukarka ją ma, zaznacz to przy wyniku filamentu.',
+    w_fan_down: 'Nawiew {from}% to dużo dla {cls}. Ten materiał woli łagodne chłodzenie, ok. {to}%.',
+    w_flow_test: 'Wydrukuj test „Flow rate” z menu Kalibracja w Orce i wpisz wynik w „Twoje pomiary”. Każdy następny preset go dostanie.',
+    w_mvs_layers: 'Przy {from} mm³/s filament może nie zdążyć się dobrze nagrzać i warstwy słabiej się łączą. Ograniczam do {to} mm³/s.',
+    w_draft: 'Przeciąg albo zimne pomieszczenie wychładza wysokie części. Osłoń drukarkę i trzymaj ją z dala od okna i klimatyzacji.',
+    w_squish: 'Stopa słonia ma {mm} mm. To dużo, więc pierwsza warstwa jest najpewniej za mocno dociśnięta albo stół jest za gorący. Podnieś trochę Z-offset.',
+    w_dim: 'Liczę poprawki z Twoich pomiarów. Różnica wymiaru dzieli się na dwie strony, więc każda kompensacja to połowa różnicy.',
+    w_dim_scale: 'Pomiary różnej wielkości pokazują skurcz materiału {scale}% i stałe przesunięcie ścian {offset} mm na stronę. Skurcz poprawiam w filamencie, przesunięcie kompensacją XY w procesie.',
+    w_dim_flow: 'Wymiary zewnętrzne są za duże, a otwory za małe o podobną wartość. To typowy objaw za dużego flow, a nie geometrii. Najpierw skalibruj flow, potem zmierz jeszcze raz.',
+    w_flow_wall: 'Ściana ma {wall} mm zamiast {width} mm. Przeliczam flow: {from} × {width} / {wall} = {to}.',
+    w_flow_measured: 'Preset ma flow {from}, a Twój pomiar to {to}.',
+    w_pa_test: 'Grudki i pogrubione rogi to zwykle pressure advance. Wydrukuj test PA z menu Kalibracja w Orce i wpisz wynik w „Twoje pomiary”.',
+    w_see_dimensions: 'Jeśli całe wymiary są za duże, zmierz część i użyj „Wymiary”. To dokładniejsze niż zgadywanie flow.',
+    w_flow_step: 'Bez pomiaru: małe obniżenie flow o {pct}% ({from} → {to}). Dokładniej wyjdzie z testu flow albo pomiaru ściany.',
+    w_heat_creep: 'PLA w zamkniętej drukarce: ciepło z komory przegrzewa radiator i filament mięknie za wcześnie. Przy PLA uchyl drzwi albo zdejmij pokrywę.',
+    w_spool: 'Sprawdź, czy filament nie zaplątał się na szpuli i czy szpula obraca się lekko. Opór szpuli daje niedoekstruzję, która narasta w trakcie druku.',
+    w_clog: 'Częściowo zatkana dysza daje coraz cieńsze linie. Zrób zimne przeciąganie (cold pull) albo wymień dyszę.',
+    w_mvs_down: 'Preset pozwala na {from} mm³/s, a przy szybkich ruchach hotend nie nadąża. Ograniczam do {to} mm³/s, a Orka sama zwolni, gdzie trzeba.',
+    w_mvs_test: 'Wydrukuj test „Max flowrate” z menu Kalibracja w Orce i wpisz wynik w „Twoje pomiary”. Wtedy limit będzie dokładny.',
+    w_diameter: 'Preset ma średnicę filamentu {from} mm. Dla filamentu 1,75 mm Orka podaje wtedy złą ilość materiału.',
+    w_overhang_fan: 'Nawiew na nawisach i mostach to {from}%. Mocniej ({to}%) nawis szybciej zastyga.',
+    w_bridge_flow: 'Mosty mają przepływ {from}. Mniej materiału ({to}) daje cieńszą, napiętą nitkę, która mniej opada.',
+    w_bridge_speed: 'Mosty jadą {from} mm/s. Wolniej ({to} mm/s) lepiej się chłodzą.',
+    w_curled: 'Włączam zwalnianie przy zawijających się obrzeżach. Orka sama znajdzie miejsca, gdzie ściana się podnosi.',
+    w_overhang_speed: 'Zwalnianie na nawisach jest wyłączone. Włączam je.',
+    w_overhang_slower: 'Strome nawisy jadą {from} mm/s. Wolniej ({to} mm/s) mają czas zastygnąć.',
+    w_geometry: 'Nawisy powyżej ok. 50–60° od pionu potrzebują podpór. Rozważ podpory albo obrót modelu.',
+    w_bed_up: 'Stół ma {from} °C. Cieplej ({to} °C, maks. {max} °C) dół części mniej się kurczy.',
+    w_brim: 'Brim {to} mm wokół części przytrzymuje rogi przy stole.', w_brim_wider: 'Brim ma {from} mm. Szerszy ({to} mm) mocniej trzyma rogi.',
     review: 'Przegląd', review_title: 'Przegląd presetów', review_again: 'Sprawdź ponownie',
     review_note: 'Sprawdzam presety filamentów zrobione przez FilaForge i Twoje własne. Presetów spoza FilaForge nigdy nie zmieniam, mogę je tylko otworzyć w FilaForge i zrobić z nich nowy preset.',
     review_ok: 'Wszystko w porządku. Nie znalazłem problemów.', review_badge: '{n} do sprawdzenia',
@@ -448,6 +575,90 @@ const T = {
     products_found: 'Producent ma w bazie {n} produktów – podpowiadam je w polu „Produkt”.', renamed: 'Ta nazwa była już zajęta przez preset dla innej drukarki, więc dopisałem model drukarki.', show_same: 'Pokaż też {n} ustawień takich jak w presecie bazowym', hide_same: 'Ukryj {n} ustawień takich jak w presecie bazowym', printer_none: 'Nie wybrano drukarki w Orce', layer: 'warstwa {h} mm'
   },
   en: {
+    df: 'Defects', df_title: 'Print defects', df_find: 'Recognise', df_text_ph: 'E.g. strings between parts, holes come out 2.8 instead of 3.2',
+    df_note: 'Describe what is wrong or pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
+    df_rule: 'One change at a time: reprint and say whether it helped.', df_unknown: 'Couldn’t recognise the defect. Pick it from the list.',
+    df_slot: 'Tool {n}: {name}', df_process: 'Process: {name}', df_from_printer: 'printer’s', df_best: 'Most likely', df_more: 'Other possible causes', df_pick: 'Pick a defect.',
+    df_apply: 'Apply', df_did: 'Done, will check', df_test: 'I’ll run the test', df_go: 'Go', tg_filament: 'filament', tg_process: 'process',
+    tr_same: 'tried: no change', tr_worse: 'tried: worse', tr_better: 'helped', tr_fixed: 'fixed it',
+    df_applied: 'Saved in “{name}”. Reprint and say whether it helped.', df_created: 'Created “{name}”. Select it in Prepare before printing.',
+    df_noted: 'Noted. After printing, say whether it helped.', dn_undone: 'Undone. Try the next cause.', dn_kept_measured: 'Kept and saved in your measurements.', dn_kept: 'Kept.',
+    po_title: 'Waiting for a print', po_fixed: 'Fixed', po_better: 'Better', po_same: 'No change', po_worse: 'Worse',
+    po_tip: '“No change” and “Worse” undo the change. “Better” and “Fixed” keep it and save it in your measurements.',
+    defect_no_filament: 'In Prepare, select the filament you printed with.', defect_no_process: 'In Prepare, select the process you printed with.',
+    defect_gone: 'That is out of date. The plan is refreshed.', defect_unknown: 'Unknown defect.', defect_name: 'No free preset name.',
+    dn_stringing: 'Stringing', dn_first_layer: 'First layer not sticking', dn_layer_split: 'Layers splitting, cracking', dn_dimensions: 'Dimensions, holes, elephant foot',
+    dn_over_extrusion: 'Over-extrusion', dn_under_extrusion: 'Under-extrusion, gaps', dn_overhangs: 'Drooping overhangs and bridges', dn_warping: 'Corners lifting',
+    q_stringing_dried: 'Was the filament dried recently?', a_stringing_dried_unknown: 'don’t know', a_stringing_dried_no: 'no', a_stringing_dried_yes: 'yes',
+    q_stringing_kind: 'What kind of strings?', a_stringing_kind_hairs: 'thin hairs', a_stringing_kind_strings: 'thick strings, blobs',
+    q_first_layer_where: 'Where doesn’t it stick?', a_first_layer_where_everywhere: 'the whole layer', a_first_layer_where_area: 'one area of the bed', a_first_layer_where_edges: 'only corners and edges',
+    q_first_layer_cleaned: 'Was the plate washed recently?', a_first_layer_cleaned_unknown: 'don’t know', a_first_layer_cleaned_no: 'no', a_first_layer_cleaned_yes: 'yes',
+    q_layer_split_where: 'Where does it split?', a_layer_split_where_everywhere: 'all the way up', a_layer_split_where_higher: 'higher up, in tall parts',
+    q_over_extrusion_how: 'What does it look like?', a_over_extrusion_how_all_big: 'everything a bit too big', a_over_extrusion_how_top_rough: 'rough top', a_over_extrusion_how_blobs: 'blobs, bulging corners',
+    q_under_extrusion_when: 'When?', a_under_extrusion_when_always: 'always', a_under_extrusion_when_fast: 'on fast moves', a_under_extrusion_when_later: 'gets worse during the print',
+    q_overhangs_which: 'What droops?', a_overhangs_which_both: 'overhangs and bridges', a_overhangs_which_bridges: 'bridges', a_overhangs_which_overhangs: 'overhangs',
+    q_warping_big: 'Large flat part?', a_warping_big_no: 'no', a_warping_big_yes: 'yes',
+    q_warping_cleaned: 'Was the plate washed recently?', a_warping_cleaned_unknown: 'don’t know', a_warping_cleaned_no: 'no', a_warping_cleaned_yes: 'yes',
+    dk_outer: 'Outside size', dk_hole: 'Hole', dk_foot: 'Elephant foot', d_exp: 'Should be (mm)', d_meas: 'Is (mm)', d_exp_foot: 'Width higher up', d_meas_foot: 'Width at the bottom',
+    d_rows_add: 'Add a measurement', d_calc: 'Calculate',
+    d_rows_note: 'Measure with calipers. Two different outside sizes (e.g. 20 and 100 mm) tell the material’s shrinkage from walls that are offset.',
+    wall_label: 'Single wall thickness (mm, optional)', wall_note: 'Print a cube in vase (spiral) mode and measure the wall in a few places with calipers. From that the flow ratio is calculated exactly.',
+    d_missing: 'Type at least one measurement.', d_odd: 'The measurements are too far apart. Check them.', d_right: 'The sizes are right, nothing to change.',
+    d_flow_right: 'The wall is the right thickness: the flow ratio is good.', d_wall_odd: 'That wall thickness doesn’t fit this defect or the line width of {width} mm. Check the measurement.', d_at_limit: 'That value is already at its limit.',
+    cn_dry: 'Damp filament', cn_temp_down: 'Too hot', cn_temp_up: 'Too cold', cn_retraction: 'Retraction too short', cn_retraction_speed: 'Retraction too slow',
+    cn_see_warping: 'This looks like lifting corners', cn_clean_plate: 'Dirty plate', cn_level: 'Levelling, Z offset', cn_first_fan: 'Fan on the first layers',
+    cn_bed_first: 'Bed too cold on the first layer', cn_first_speed: 'First layer too fast', cn_nozzle_first: 'Nozzle too cold on the first layer', cn_enclosure: 'No enclosure',
+    cn_fan_down: 'Fan too strong', cn_flow_test: 'Flow ratio not calibrated', cn_mvs_down: 'Flow too high', cn_draft: 'Draft, cold room', cn_measure: 'Measurements',
+    cn_squish: 'First layer squished too hard', cn_compensate: 'Size compensation', cn_flow_wall: 'Flow ratio from the wall', cn_flow_measured: 'Your measured flow ratio',
+    cn_pa_test: 'Pressure advance', cn_see_dimensions: 'Measure the sizes', cn_flow_step: 'Flow ratio a little high', cn_heat_creep: 'Hot heatsink (heat creep)',
+    cn_spool: 'Spool or feeder', cn_clog: 'Partly clogged nozzle', cn_mvs_test: 'Max flow unknown', cn_diameter: 'Wrong filament diameter',
+    cn_overhang_fan: 'Too little fan on overhangs', cn_bridge_flow: 'Too much material on bridges', cn_bridge_speed: 'Bridges too fast', cn_curled: 'Curling perimeters',
+    cn_overhang_speed: 'No slowdown on overhangs', cn_overhang_slower: 'Steep overhangs too fast', cn_geometry: 'The model’s shape', cn_bed_up: 'Bed too cold', cn_brim: 'No brim',
+    w_dry: '{cls} takes up moisture from the air, and damp filament strings and pops whatever the settings. Dry the spool: {temp} °C for about {hours} h, then keep it in a sealed box with desiccant.',
+    w_temp_down: 'The nozzle is at {from} °C in a range of {lo}–{hi} °C. Cooler ({to} °C) it oozes less on travel moves.',
+    w_temp_up: 'The nozzle is at {from} °C in a range of {lo}–{hi} °C. Hotter ({to} °C) layers fuse better.',
+    w_temp_top: 'At {from} °C the top surface can run. Try {to} °C.',
+    w_temp_flow: 'On fast moves the hotend can’t melt fast enough. {to} °C instead of {from} °C raises how much it can melt.',
+    w_temp_overhang: 'Cooler filament ({to} °C) sets faster on overhangs.',
+    w_retraction: 'Retraction is {from} mm. Longer ({to} mm) pulls the filament back further before a travel.',
+    w_retraction_speed: 'Retraction is only {from} mm/s, slow enough for filament to ooze. On direct drive a faster one ({to} mm/s) helps.',
+    w_see_warping: 'If only corners and edges come off while the middle holds, the corners are lifting (warping); adhesion is fine.',
+    w_clean_plate: 'Grease from fingers is the most common cause. Wash the PEI plate with warm water and dish soap, rinse it and don’t touch its surface. Alcohol alone doesn’t remove everything.',
+    w_level_area: 'When it doesn’t stick in one area, the bed is too low there or the bed mesh is out of date. Level (bed mesh) with the bed hot.',
+    w_z_offset: 'When first-layer lines are round and don’t touch, the nozzle is too high. Lower the Z offset by 0.02–0.05 mm.',
+    w_first_fan: 'The part fan is on from the first layer and cools it before it sticks. It is turned off for the first {to} layers.',
+    w_bed_first: 'The bed is {from} °C for the first layer. Warmer ({to} °C, at most {max} °C for this material) sticks better.',
+    w_first_speed: 'The first layer runs at {from} mm/s. Slower ({to} mm/s) presses it down better.',
+    w_nozzle_first: 'A hotter nozzle on the first layer ({to} °C instead of {from} °C) spreads the filament better on the plate.',
+    w_enclosure: '{cls} shrinks as it cools. In an open printer the layers cool too fast and crack. No setting replaces an enclosure. If your printer has one, mark it at the filament’s result.',
+    w_fan_down: 'A {from}% fan is a lot for {cls}. It prefers gentle cooling, about {to}%.',
+    w_flow_test: 'Print the “Flow rate” test from OrcaSlicer’s Calibration menu and enter the result in “Your measurements”. Every next preset gets it.',
+    w_mvs_layers: 'At {from} mm³/s the filament may not heat through, and layers bond less. It is limited to {to} mm³/s.',
+    w_draft: 'A draft or a cold room chills tall parts. Shield the printer and keep it away from windows and air conditioning.',
+    w_squish: 'The elephant foot is {mm} mm. That much usually means the first layer is squished too hard or the bed is too hot. Raise the Z offset a little.',
+    w_dim: 'The fixes come from your measurements. A size error is split over two sides, so each compensation is half of it.',
+    w_dim_scale: 'Measurements of different sizes show {scale}% material shrinkage and walls offset by {offset} mm per side. Shrinkage is fixed in the filament, the offset with the process’s XY compensation.',
+    w_dim_flow: 'The outside is too big and the holes too small by about the same: a typical sign of a high flow ratio, not of geometry. Calibrate the flow first, then measure again.',
+    w_flow_wall: 'The wall is {wall} mm instead of {width} mm. Flow ratio: {from} × {width} / {wall} = {to}.',
+    w_flow_measured: 'The preset has flow ratio {from}; your measurement is {to}.',
+    w_pa_test: 'Blobs and bulging corners are usually pressure advance. Print the PA test from OrcaSlicer’s Calibration menu and enter the result in “Your measurements”.',
+    w_see_dimensions: 'If all sizes are too big, measure the part and use “Dimensions”: more exact than guessing the flow.',
+    w_flow_step: 'Without a measurement: a small flow ratio drop of {pct}% ({from} → {to}). A flow test or a wall measurement is more exact.',
+    w_heat_creep: 'PLA in a closed printer: the warm chamber heats the heatsink and the filament softens too early. For PLA, open the door or take the lid off.',
+    w_spool: 'Check that the filament isn’t tangled on the spool and the spool turns freely. A spool that drags gives under-extrusion that grows during the print.',
+    w_clog: 'A partly clogged nozzle gives thinner and thinner lines. Do a cold pull or replace the nozzle.',
+    w_mvs_down: 'The preset allows {from} mm³/s and on fast moves the hotend can’t keep up. It is limited to {to} mm³/s; OrcaSlicer slows down where needed.',
+    w_mvs_test: 'Print the “Max flowrate” test from OrcaSlicer’s Calibration menu and enter the result in “Your measurements” for an exact limit.',
+    w_diameter: 'The preset says the filament is {from} mm. For 1.75 mm filament OrcaSlicer then feeds the wrong amount.',
+    w_overhang_fan: 'The overhang and bridge fan is {from}%. Stronger ({to}%) sets the overhang faster.',
+    w_bridge_flow: 'Bridge flow is {from}. Less material ({to}) gives a thinner, taut strand that droops less.',
+    w_bridge_speed: 'Bridges run at {from} mm/s. Slower ({to} mm/s) they cool better.',
+    w_curled: 'Turns on slowing down for curled perimeters: OrcaSlicer finds where the wall lifts by itself.',
+    w_overhang_speed: 'Slowing down on overhangs is off. It is turned on.',
+    w_overhang_slower: 'Steep overhangs run at {from} mm/s. Slower ({to} mm/s) they have time to set.',
+    w_geometry: 'Overhangs past about 50–60° from vertical need supports. Consider supports or turning the model.',
+    w_bed_up: 'The bed is {from} °C. Warmer ({to} °C, at most {max} °C) the bottom of the part shrinks less.',
+    w_brim: 'A {to} mm brim around the part holds the corners down.', w_brim_wider: 'The brim is {from} mm. Wider ({to} mm) holds the corners better.',
     review: 'Review', review_title: 'Preset review', review_again: 'Check again',
     review_note: 'Checks the filament presets FilaForge made and your own. Presets not made by FilaForge are never changed: they can only be opened in FilaForge to make a new preset from them.',
     review_ok: 'All good. No problems found.', review_badge: '{n} to check',
@@ -924,6 +1135,107 @@ function setEnclosed(on) {
   renderWarnings();
 }
 
+// ---------- print defects
+const DF_LABELS = {
+  pl: { xy_hole_compensation: 'Kompensacja otworów XY', xy_contour_compensation: 'Kompensacja obrysu XY', elefant_foot_compensation: 'Kompensacja stopy słonia',
+        filament_shrink: 'Skurcz filamentu (XY)', bridge_flow: 'Przepływ na mostach', slowdown_for_curled_perimeters: 'Zwalnianie przy zawijaniu',
+        enable_overhang_speed: 'Zwalnianie na nawisach', overhang_3_4_speed: 'Nawisy 50–75%', overhang_4_4_speed: 'Nawisy 75–100%', brim_type: 'Rodzaj brimu',
+        brim_width: 'Szerokość brimu', enable_overhang_bridge_fan: 'Nawiew na nawisach i mostach', filament_diameter: 'Średnica filamentu',
+        cool_plate_temp: 'Stół chłodny', cool_plate_temp_initial_layer: 'Stół chłodny – 1. warstwa', eng_plate_temp: 'Stół inżynieryjny',
+        eng_plate_temp_initial_layer: 'Stół inżynieryjny – 1. warstwa', supertack_plate_temp: 'Stół SuperTack', supertack_plate_temp_initial_layer: 'Stół SuperTack – 1. warstwa',
+        textured_cool_plate_temp: 'Stół chłodny teksturowany', textured_cool_plate_temp_initial_layer: 'Stół chłodny tekst. – 1. warstwa' },
+  en: { xy_hole_compensation: 'X-Y hole compensation', xy_contour_compensation: 'X-Y contour compensation', elefant_foot_compensation: 'Elephant foot compensation',
+        filament_shrink: 'Filament shrinkage (XY)', bridge_flow: 'Bridge flow ratio', slowdown_for_curled_perimeters: 'Slow down for curled perimeters',
+        enable_overhang_speed: 'Slow down on overhangs', overhang_3_4_speed: 'Overhangs 50–75%', overhang_4_4_speed: 'Overhangs 75–100%', brim_type: 'Brim type',
+        brim_width: 'Brim width', enable_overhang_bridge_fan: 'Overhang and bridge fan', filament_diameter: 'Filament diameter',
+        cool_plate_temp: 'Cool plate', cool_plate_temp_initial_layer: 'Cool plate – first layer', eng_plate_temp: 'Engineering plate',
+        eng_plate_temp_initial_layer: 'Engineering plate – first layer', supertack_plate_temp: 'SuperTack plate', supertack_plate_temp_initial_layer: 'SuperTack plate – first layer',
+        textured_cool_plate_temp: 'Textured cool plate', textured_cool_plate_temp_initial_layer: 'Textured cool plate – first layer' },
+};
+function dfLabel(key) { return (DF_LABELS[L] || {})[key] || label(key); }
+const DF = { meta: null, defect: '', answers: {}, rows: [{kind: 'outer', expected: '', measured: ''}], wall: '', slot: null, info: null, causes: [], pending: [] };
+function dfAnswers() {
+  const out = {};
+  for (const [q, opts] of (DF.meta && DF.meta.questions[DF.defect]) || []) out[q] = DF.answers[q] || opts[0];
+  return out;
+}
+function dfInputs() {
+  if (DF.defect === 'dimensions') return {rows: DF.rows.filter(r => r.expected !== '' && r.measured !== '')};
+  if (DF.defect === 'over_extrusion' || DF.defect === 'under_extrusion') return DF.wall ? {wall: DF.wall} : {};
+  return {};
+}
+function dfAsk() {
+  if (!DF.defect) { renderDefects(); return; }
+  send({cmd: 'defect_plan', defect: DF.defect, answers: dfAnswers(), inputs: dfInputs(), slot: DF.slot});
+}
+function dfVars(v) {
+  const out = {};
+  for (const k in v || {}) out[k] = typeof v[k] === 'number' ? fmtExact(v[k]) : (/^-?\d+(\.\d+)?%?$/.test(String(v[k])) ? String(v[k]).replace(/^(-?\d+)\.(\d+)/, L === 'pl' ? '$1,$2' : '$1.$2') : v[k]);
+  return out;
+}
+function dfValue(v) {
+  if (v === 'nil' || v === '') return t('df_from_printer');
+  return /^-?\d+(\.\d+)?%?$/.test(String(v)) && L === 'pl' ? String(v).replace('.', ',') : String(v);
+}
+function renderDefectPending() {
+  const box = $('df-pending');
+  const list = DF.pending || [];
+  box.innerHTML = list.length ? `<div class="sec">${esc(t('po_title'))}</div>` + list.map(p => `<div class="pend">
+      <span><b>${esc(t('dn_' + p.defect))}</b>: ${esc(t('cn_' + p.cause))} · ${esc(p.filament || p.process || p.label || '')}</span>
+      ${['fixed', 'better', 'same', 'worse'].map(o => `<button class="${o === 'fixed' || o === 'better' ? '' : 'secondary'}" data-outcome="${o}" data-id="${esc(p.id)}">${esc(t('po_' + o))}</button>`).join('')}
+    </div>`).join('') + `<div class="note">${esc(t('po_tip'))}</div>` : '';
+  const badge = $('df-count');
+  badge.hidden = !list.length;
+  badge.textContent = list.length;
+}
+function renderDefects() {
+  const meta = DF.meta;
+  if (!meta) return;
+  const info = DF.info || {};
+  $('df-slot').innerHTML = (info.slots || []).map(sl => `<option value="${sl.slot}"${sl.slot === info.slot ? ' selected' : ''}>${esc(t('df_slot', {n: sl.slot, name: sl.label}))}</option>`).join('');
+  $('df-slot').title = info.process ? t('df_process', {name: info.process}) : '';
+  $('df-list').innerHTML = meta.list.map(d => `<button class="${d === DF.defect ? 'on' : ''}" data-defect="${d}">${esc(t('dn_' + d))}</button>`).join('');
+  const answers = dfAnswers();
+  $('df-q').innerHTML = ((meta.questions[DF.defect]) || []).map(([q, opts]) => `<div class="q"><span>${esc(t('q_' + DF.defect + '_' + q))}</span>
+      <div class="seg">${opts.map(o => `<button class="${answers[q] === o ? 'on' : ''}" data-q="${q}" data-a="${o}">${esc(t('a_' + DF.defect + '_' + q + '_' + o))}</button>`).join('')}</div></div>`).join('');
+  let inputs = '';
+  if (DF.defect === 'dimensions') {
+    inputs = `<div class="note" style="margin-bottom:6px">${esc(t('d_rows_note'))}</div><div class="df-rows">` + DF.rows.map((row, i) => `
+      <select data-row="${i}" data-f="kind">${['outer', 'hole', 'foot'].map(k => `<option value="${k}"${row.kind === k ? ' selected' : ''}>${esc(t('dk_' + k))}</option>`).join('')}</select>
+      <input data-row="${i}" data-f="expected" inputmode="decimal" value="${esc(row.expected)}" placeholder="${esc(t(row.kind === 'foot' ? 'd_exp_foot' : 'd_exp'))}">
+      <input data-row="${i}" data-f="measured" inputmode="decimal" value="${esc(row.measured)}" placeholder="${esc(t(row.kind === 'foot' ? 'd_meas_foot' : 'd_meas'))}">
+      <span>${i === DF.rows.length - 1 && DF.rows.length < 5 ? `<button class="link small" id="btn-df-row">${esc(t('d_rows_add'))}</button>` : ''}</span>`).join('') +
+      `</div><div class="actions" style="margin-top:6px"><button class="secondary" id="btn-df-calc">${esc(t('d_calc'))}</button></div>`;
+  } else if (DF.defect === 'over_extrusion' || DF.defect === 'under_extrusion') {
+    inputs = `<div class="row" style="max-width:560px"><label class="small" style="flex:1">${esc(t('wall_label'))}</label>
+      <input id="df-wall" inputmode="decimal" value="${esc(DF.wall)}" style="max-width:100px;text-align:right;font-family:var(--mono)"><button class="secondary fit" id="btn-df-calc">${esc(t('d_calc'))}</button></div>
+      <div class="note">${esc(t('wall_note'))}</div>`;
+  }
+  $('df-inputs').innerHTML = inputs;
+  if (!DF.defect) { $('df-plan').innerHTML = `<div class="muted">${esc(t('df_pick'))}</div>`; return; }
+  const causes = DF.causes || [];
+  const card = (c, i, best) => {
+    const tried = (c.tried || []).slice(-1)[0];
+    const btn = c.kind === 'change' ? `<button data-apply="${i}">${esc(t('df_apply'))}</button>`
+      : c.kind === 'advice' ? `<button class="secondary" data-apply="${i}">${esc(t('df_did'))}</button>`
+      : c.kind === 'calibration' ? `<button class="secondary" data-apply="${i}">${esc(t('df_test'))}</button>`
+      : c.kind === 'redirect' ? `<button class="secondary" data-redirect="${esc(c.vars.defect)}">${esc(t('df_go'))}: ${esc(t('dn_' + c.vars.defect))}</button>` : '';
+    const rows = (c.changes || []).length ? `<table>${c.changes.map(ch => `<tr><td>${esc(dfLabel(ch.key))} <span class="tag">${esc(t('tg_' + ch.target))}</span></td>
+        <td class="n">${esc(dfValue(ch.before))}</td><td>→</td><td class="n"><b>${esc(dfValue(ch.after))}</b></td></tr>`).join('')}</table>` : '';
+    const name = c.kind === 'need' ? '' : `<div class="name">${esc(t('cn_' + c.cause))}${tried ? ` <span class="tag">${esc(t('tr_' + tried))}</span>` : ''}</div>`;
+    return `<div class="cause${best ? ' best' : ''}${tried === 'same' || tried === 'worse' ? ' tried' : ''}">${name}
+      <div class="why">${esc(t(c.why, dfVars(c.vars)))}${rows}</div><div class="go">${btn}</div></div>`;
+  };
+  const first = causes.findIndex(c => c.kind !== 'need');
+  $('df-plan').innerHTML = causes.map((c, i) => (i === first ? `<div class="sec">${esc(t('df_best'))}</div>` : i === first + 1 ? `<div class="sec">${esc(t('df_more'))}</div>` : '')
+    + card(c, i, i === first)).join('');
+}
+function dfOpen() {
+  if (!DF.meta) send({cmd: 'defect_context'}); else send({cmd: 'defect_plan', defect: DF.defect, answers: dfAnswers(), inputs: dfInputs(), slot: DF.slot});
+  renderDefects(); renderDefectPending();
+  $('dlg-defects').showModal();
+}
+
 // ---------- preset review
 function fmtTime(at) {
   try { return new Date(at * 1000).toLocaleString(L === 'pl' ? 'pl-PL' : 'en-GB', {dateStyle: 'medium', timeStyle: 'short'}); }
@@ -1153,6 +1465,48 @@ document.body.addEventListener('click', e => {
   const b = e.target.closest('[data-enclosed]');
   if (b) setEnclosed(b.dataset.enclosed === '1');
 });
+$('btn-defects').addEventListener('click', dfOpen);
+$('df-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-defect]');
+  if (!b) return;
+  DF.defect = b.dataset.defect; DF.answers = {}; DF.causes = [];
+  renderDefects(); dfAsk();
+});
+$('df-q').addEventListener('click', e => {
+  const b = e.target.closest('[data-q]');
+  if (!b) return;
+  DF.answers[b.dataset.q] = b.dataset.a; renderDefects(); dfAsk();
+});
+$('df-slot').addEventListener('change', e => { DF.slot = +e.target.value; dfAsk(); if (!DF.defect) send({cmd: 'defect_context', slot: DF.slot}); });
+$('df-inputs').addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'df-wall') DF.wall = el.value.trim().replace(',', '.');
+  if (el.dataset.row != null) DF.rows[+el.dataset.row][el.dataset.f] = el.dataset.f === 'kind' ? el.value : el.value.trim().replace(',', '.');
+});
+$('df-inputs').addEventListener('change', e => { if (e.target.dataset.f === 'kind') renderDefects(); });
+$('df-inputs').addEventListener('click', e => {
+  if (e.target.id === 'btn-df-row') { DF.rows.push({kind: 'outer', expected: '', measured: ''}); renderDefects(); }
+  if (e.target.id === 'btn-df-calc') dfAsk();
+});
+$('btn-df-find').addEventListener('click', () => {
+  const text = $('df-text').value.trim();
+  if (text) send({cmd: 'defect_parse', text});
+});
+$('df-text').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-df-find').click(); });
+$('df-plan').addEventListener('click', e => {
+  const a = e.target.closest('[data-apply]'), go = e.target.closest('[data-redirect]');
+  if (go) { DF.defect = go.dataset.redirect; DF.answers = {}; renderDefects(); dfAsk(); return; }
+  if (!a) return;
+  const c = DF.causes[+a.dataset.apply];
+  a.disabled = true;
+  send({cmd: 'defect_apply', defect: DF.defect, cause: c.cause, answers: dfAnswers(), inputs: dfInputs(), slot: DF.slot});
+});
+$('df-pending').addEventListener('click', e => {
+  const b = e.target.closest('[data-outcome]');
+  if (!b) return;
+  b.disabled = true;
+  send({cmd: 'defect_outcome', id: b.dataset.id, outcome: b.dataset.outcome});
+});
 $('btn-review').addEventListener('click', () => { renderReview(); $('dlg-review').showModal(); send({cmd: 'review'}); });
 $('btn-review-again').addEventListener('click', () => send({cmd: 'review'}));
 $('issues').addEventListener('click', e => {
@@ -1183,7 +1537,8 @@ function onMessage(m) {
   switch (m.cmd) {
     case 'init':
       S.settings = m.settings; S.printer = m.printer; S.processes = m.processes || []; S.saved = m.saved || []; S.habits = m.habits || null;
-      lang(); translate(); renderPrinter();
+      DF.pending = m.pending || [];
+      lang(); translate(); renderPrinter(); renderDefectPending();
       if (S.settings.spoolman_url) send({cmd: 'spoolman_list'}); else { setPick('manual'); renderSpools(); }
       send({cmd: 'orca_filaments'});
       break;
@@ -1289,6 +1644,30 @@ function onMessage(m) {
       $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
       renderWarnings();
       break;
+    case 'defect_context':
+      DF.meta = {list: m.list, questions: m.questions, inputs: m.inputs};
+    // falls through
+    case 'defect_plan':
+      if (m.cmd === 'defect_plan' && m.defect !== DF.defect && !m.applied && !m.outcome) break;
+      if (m.outcome) DF.defect = m.defect;
+      DF.info = m.info || DF.info; DF.causes = m.causes || []; DF.pending = m.pending || [];
+      if (m.info) DF.slot = m.info.slot;
+      if (m.saved) { S.saved = m.saved; renderSaved(); }
+      renderDefects(); renderDefectPending();
+      if (m.applied) {
+        const made = (m.applied.created || [])[0];
+        const into = m.applied.filament || m.applied.process;
+        toast(made ? t('df_created', {name: made.name}) : into ? t('df_applied', {name: into}) : t('df_noted'));
+      }
+      if (m.outcome) toast(m.note ? t('dn_' + m.note) : t('dn_kept'));
+      if (m.applied || m.outcome) send({cmd: 'review', quiet: true});
+      break;
+    case 'defect_parsed':
+      if (!m.defect) { toast(t('df_unknown'), true); break; }
+      DF.defect = m.defect; DF.answers = {};
+      if (m.rows && m.rows.length) DF.rows = m.rows.map(r => ({kind: r.kind, expected: String(r.expected), measured: String(r.measured)}));
+      renderDefects(); dfAsk();
+      break;
     case 'review': {
       const before = new Set((S.issues || []).filter(i => i.code === 'orca_changed').map(i => i.preset));
       S.issues = m.issues || [];
@@ -1311,6 +1690,7 @@ function onMessage(m) {
       else toast(t('err', {m: msg}), true);
       if (m.where === 'research') renderSources([]);
       if (m.where === 'review_fix') send({cmd: 'review'});
+      if (m.where && m.where.startsWith('defect_')) { if (DF.defect) dfAsk(); else renderDefects(); }
       if (m.where === 'history_restore' || m.where === 'history_diff') send({cmd: 'history'});
       break; }
   }

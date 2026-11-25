@@ -39,10 +39,12 @@ class History:
         reason = re.sub(r"[^a-z_]", "", str(reason or "replaced")) or "replaced"
         sub = _folder_name(kind, name)
         stamp = int(at * 1000)
+        try:                                  # always after the versions already kept, even in the same millisecond
+            stamps = [int(f.split("-")[0]) for f in os.listdir(os.path.join(self.folder, sub)) if f.endswith(".json")]
+        except (OSError, ValueError):
+            stamps = []
+        stamp = max([stamp] + [s + 1 for s in stamps])
         path = os.path.join(self.folder, sub, "%d-%s.json" % (stamp, reason))
-        while os.path.exists(path):           # two in the same millisecond
-            stamp += 1
-            path = os.path.join(self.folder, sub, "%d-%s.json" % (stamp, reason))
         files.write_json(path, {"at": int(at), "reason": reason, "kind": kind, "name": name,
                                 "meta": dict(meta or {}), "preset": preset}, ensure_ascii=False, indent=1)
         self._trim(sub)

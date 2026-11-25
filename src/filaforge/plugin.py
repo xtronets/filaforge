@@ -14,14 +14,14 @@ import webbrowser
 
 import orca
 
-from .core import files, habits, history, measured, merge, process, research, review, spoolman, writer
+from .core import defects, files, habits, history, measured, merge, process, research, review, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
 from .core.text import brand_key, fold, split_material, tokens
 
 NAME = "FilaForge"
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXED_ORIGINS = ["https://api.openfilamentdatabase.org", "https://api.github.com", "https://raw.githubusercontent.com"]
 MAX_ORIGINS = 40
@@ -479,6 +479,155 @@ def review_issues(bundle):
     return issues
 
 
+FF_PREFIX = "_local/%s/" % writer.BUNDLE
+
+
+def plate_filaments(bundle):
+    """[(slot from 1, preset)] of the filaments on the plate's slots (a tool changer has several); the selected
+    filament when OrcaSlicer doesn't list the slots."""
+    found = []
+    for name in ("current_filament_presets", "current_filament_preset_names"):
+        attr = getattr(bundle, name, None)
+        try:
+            items = list(attr() if callable(attr) else attr or [])
+        except Exception:
+            items = []
+        if items:
+            for item in items:
+                found.append(bundle.filaments.find_preset(str(item)) if isinstance(item, str) else item)
+            break
+    slots = [(i + 1, p) for i, p in enumerate(found) if p is not None and not getattr(p, "is_default", False)]
+    if not slots:
+        p = _selected(bundle.filaments)
+        if p is not None and not getattr(p, "is_default", False):
+            slots = [(1, p)]
+    return slots
+
+
+def preset_identity(bundle, name, config):
+    """The filament a preset is: FilaForge's own from what it kept, the others from their name and settings."""
+    if name.startswith(FF_PREFIX):
+        _, info = find_saved(bundle, name[len(FF_PREFIX):])
+        if info:
+            return saved_identity(info, config)
+    item = {"name": name, "vendor": _clean(config.get("filament_vendor")), "type": _clean(config.get("filament_type"))}
+    return research.identity_from(orca_presets.identity_of(dict(item, config=config)))
+
+
+def attempts():
+    return defects.Attempts(own_dir())
+
+
+def defect_context(bundle, slot=None):
+    """(ctx for defects.plan, info for the page and the writes) of the filament in a slot and the selected process."""
+    slots = plate_filaments(bundle)
+    if not slots:
+        raise ValueError("defect_no_filament")
+    chosen = next((p for n, p in slots if n == slot), slots[0][1])
+    fil_name = str(chosen.name)
+    fil = _config(chosen)
+    proc_preset = _selected(bundle.prints)
+    proc = _config(proc_preset) if proc_preset is not None else {}
+    printer_preset = _selected(bundle.printers)
+    prn = _config(printer_preset) if printer_preset is not None else {}
+    printer = printer_info(bundle)
+    ident = preset_identity(bundle, fil_name, fil)
+    cls = habits.material_class(ident.material, ident.product)
+    settings = read_settings()
+    enclosed = True if printer["chamber_control"] or printer["name"] in settings["enclosed_printers"] else None
+    key = "%s|%s" % (measured.identity_key(ident), printer["name"])
+    ctx = {"cls": cls, "filament": fil, "process": proc, "printer": prn, "enclosed": enclosed,
+           "chamber_control": printer["chamber_control"],
+           "measured": store().get(ident, printer["model"], printer["nozzle"])}
+    info = {"slots": [{"slot": n, "name": str(p.name), "label": orca_presets.bare_name(str(p.name))} for n, p in slots],
+            "slot": next((n for n, p in slots if p is chosen), 1), "filament": fil_name,
+            "filament_label": orca_presets.bare_name(fil_name), "filament_ff": fil_name.startswith(FF_PREFIX),
+            "process": getattr(proc_preset, "name", "") or "", "process_ff": str(getattr(proc_preset, "name", "")).startswith(FF_PREFIX),
+            "printer": printer["name"], "cls": cls, "key": key,
+            "identity": {"brand": ident.brand, "material": ident.material, "product": ident.product, "colour": ident.colour},
+            "model": printer["model"], "nozzle": printer["nozzle"], "enclosed": enclosed}
+    return ctx, info, chosen, proc_preset
+
+
+def free_name(bundle, name):
+    """name, or "name 2", "name 3"... when FilaForge already has a preset called so."""
+    taken = {s["name"] for s in saved_presets(bundle)}
+    if name not in taken:
+        return name
+    head, at, tail = name.partition(" @")
+    for n in range(2, 100):
+        candidate = "%s %d%s%s" % (head, n, at, tail)
+        if candidate not in taken:
+            return candidate
+    raise ValueError("defect_name")
+
+
+def write_fix(bundle, info, chosen, proc_preset, changes, reason="defect"):
+    """Write {target, key, after} changes: into FilaForge's own preset (its history keeps the old one), or into a
+    new FilaForge copy of the user's preset, which stays as it was. Returns {"filament", "process", "created"}."""
+    reload_fn = orca.host.preset.bundles.reload_local
+    out = {"filament": None, "process": None, "created": []}
+    for target in ("filament", "process"):
+        mine = {c["key"]: c["after"] for c in changes if c["target"] == target}
+        if not mine:
+            continue
+        preset = chosen if target == "filament" else proc_preset
+        if preset is None:
+            raise ValueError("defect_no_process")
+        name = str(preset.name)
+        if name.startswith(FF_PREFIX):
+            bare = name[len(FF_PREFIX):]
+            ff, meta = find_saved(bundle, bare)
+            data = read_json(meta["file"])
+            if target == "filament":
+                new = review.apply_values(data, mine)
+                ff.save(new, reload_fn, dict(Tab._meta(meta), written=review.tuned(new)), reason)
+            else:
+                new = dict(data)
+                for key, value in mine.items():
+                    new[key] = [value] if isinstance(data.get(key), list) else value
+                ff.save(new, reload_fn, Tab._meta(meta), reason)
+            out[target] = bare
+            continue
+        ident = research.identity_from(info["identity"])
+        config = _config(preset)
+        if target == "filament":
+            new_name = free_name(bundle, writer.safe_name(writer.with_marker(orca_presets.bare_name(name))))
+            new = writer.filament_preset(new_name, config, mine, info["printer"], ident, measured.identity_key(ident),
+                                         "FilaForge %s from %s" % (VERSION, name))
+            install(new, bundle, info["printer"], preset_meta(new, name, config, mine, ident))
+        else:
+            label = orca_presets.bare_name(info["filament"])
+            new_name = free_name(bundle, writer.safe_name(writer.with_marker(process.process_name(name, label))))
+            own = not is_system(bundle.prints, name)
+            new = process.preset(name, new_name, [info["printer"]] if info["printer"] else [],
+                                 [{"key": k, "new": v} for k, v in mine.items()], config if own else None)
+            install(new, bundle, info["printer"])
+        out[target] = new_name
+        out["created"].append({"kind": target, "name": new_name})
+    return out
+
+
+def undo_fix(bundle, record):
+    """Put back what an attempt changed, in the presets it wrote."""
+    reload_fn = orca.host.preset.bundles.reload_local
+    for target in ("filament", "process"):
+        name = record.get(target)
+        back = {c["key"]: c["before"] for c in record.get("changes") or [] if c["target"] == target}
+        if not name or not back:
+            continue
+        ff, meta = find_saved(bundle, name)
+        if ff is None:
+            continue
+        data = read_json(meta["file"])
+        new = dict(data)
+        for key, value in back.items():
+            new[key] = [value] * (len(data[key]) if isinstance(data.get(key), list) and data[key] else 1) \
+                if target == "filament" or isinstance(data.get(key), list) else value
+        extra = {"written": review.tuned(new)} if target == "filament" else {}
+        ff.save(new, reload_fn, dict(Tab._meta(meta), **extra), "undone")
+
+
 def preset_meta(preset, base_name, base_config, values, identity, spoolman_id=None):
     """What FilaForge keeps about a filament preset it wrote, for the review and the sync."""
     meta = {"base": base_name, "base_hash": review.config_hash(base_config) if base_name else "",
@@ -559,7 +708,8 @@ class Tab:
             repair_processes(bundle)
         settings = read_settings()
         self.reply("init", version=VERSION, settings=settings, printer=printer_info(bundle),
-                   processes=process_list(bundle), saved=saved_presets(bundle), habits=habits_info())
+                   processes=process_list(bundle), saved=saved_presets(bundle), habits=habits_info(),
+                   pending=attempts().pending())
         try:
             self.on_review({"quiet": True})
         except Exception:
@@ -883,6 +1033,80 @@ class Tab:
             log.warning("spoolman sync: %s", error)
             return "measured_no_spoolman"
         return "measured_spoolman"
+
+    # -- print defects
+    def _defect_reply(self, data, cmd="defect_plan", **extra):
+        bundle = orca.host.preset_bundle()
+        defect = str(data.get("defect") or "")
+        ctx, info, _, _ = defect_context(bundle, data.get("slot"))
+        shelf = attempts()
+        ctx["tried"] = shelf.tried(defect, info["key"]) if defect else {}
+        causes = defects.plan(defect, ctx, data.get("answers"), data.get("inputs")) if defect else []
+        self.reply(cmd, defect=defect, causes=causes, info=info, pending=shelf.pending(), **extra)
+
+    def on_defect_context(self, data):
+        self._defect_reply(dict(data, defect=""), "defect_context",
+                           questions={k: [[q, list(o)] for q, o in v] for k, v in defects.QUESTIONS.items()},
+                           inputs={k: list(v) for k, v in defects.INPUTS.items()}, list=list(defects.DEFECTS))
+
+    def on_defect_parse(self, data):
+        self.reply("defect_parsed", **defects.parse(data.get("text")))
+
+    def on_defect_plan(self, data):
+        self._defect_reply(data)
+
+    def on_defect_apply(self, data):
+        bundle = orca.host.preset_bundle()
+        defect, cause = str(data.get("defect") or ""), str(data.get("cause") or "")
+        ctx, info, chosen, proc_preset = defect_context(bundle, data.get("slot"))
+        shelf = attempts()
+        ctx["tried"] = shelf.tried(defect, info["key"])
+        found = next((c for c in defects.plan(defect, ctx, data.get("answers"), data.get("inputs"))
+                      if c["cause"] == cause), None)
+        if found is None or found["kind"] not in ("change", "advice", "calibration"):
+            raise ValueError("defect_gone")
+        written = {"filament": None, "process": None, "created": []}
+        if found["kind"] == "change":
+            written = write_fix(bundle, info, chosen, proc_preset, found["changes"])
+        record = shelf.add({"defect": defect, "cause": cause, "kind": found["kind"], "key": info["key"],
+                            "label": info["filament_label"], "identity": info["identity"], "model": info["model"],
+                            "nozzle": info["nozzle"], "filament": written["filament"], "process": written["process"],
+                            "created": written["created"], "changes": found["changes"], "why": found["why"],
+                            "vars": found["vars"], "answers": data.get("answers") or {},
+                            "inputs": data.get("inputs") or {}})
+        self._defect_reply(data, applied=record, saved=saved_presets(bundle))
+
+    def on_defect_outcome(self, data):
+        bundle = orca.host.preset_bundle()
+        outcome = str(data.get("outcome") or "")
+        if outcome not in ("fixed", "better", "same", "worse"):
+            raise ValueError("defect_gone")
+        shelf = attempts()
+        record = shelf.get(data.get("id"))
+        if record is None or record.get("outcome"):
+            raise ValueError("defect_gone")
+        note = ""
+        if outcome in ("same", "worse"):
+            undo_fix(bundle, record)
+            note = "undone" if record.get("changes") else ""
+        else:
+            keep = {review.SYNC_KEYS[c["key"]]: number for c in record.get("changes") or []
+                    if c["target"] == "filament" and c["key"] in review.SYNC_KEYS
+                    for number in [review.number(c["after"])] if number is not None}
+            if keep:
+                ident = research.identity_from(record["identity"])
+                section = record.get("model") or "*"
+                shelf_m = store()
+                values = measured.section_values(shelf_m.sections(ident).get(section), record.get("nozzle"))
+                values.update(keep)
+                try:
+                    shelf_m.set(ident, section, values, record.get("nozzle"))
+                    note = "kept_measured"
+                except ValueError as error:
+                    log.info("defect outcome not kept as a measurement: %s", error)
+        shelf.update(record["id"], outcome=outcome)
+        self._defect_reply(dict(data, defect=record["defect"]), outcome=outcome, note=note,
+                           saved=saved_presets(bundle))
 
     # -- earlier versions
     def on_history(self, data):

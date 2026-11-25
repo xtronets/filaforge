@@ -182,6 +182,7 @@ def _flow(report, orca, plugin):
             report.step("review of a fresh preset", lambda: _review(page, tab, saved))
             report.step("remove_preset", lambda: _remove(orca, page, tab, saved))
             report.step("history restore", lambda: _restore(orca, page, tab, saved))
+    report.step("defect plan (read only)", lambda: _defects(page, tab))
     if init and init.get("processes"):
         report.step("process plan/save/remove", lambda: _process(orca, page, tab, init, result))
     report.step("get_ui / get_icon", lambda: _page(orca))
@@ -248,6 +249,19 @@ def _restore(orca, page, tab, name):
     _check(_find(orca.host.preset_bundle().filaments, name), "OrcaSlicer did not load the restored %s" % name)
     _remove(orca, page, tab, name)
     return {"versions": len(entries)}
+
+
+def _defects(page, tab):
+    """The plate's filament and process read through OrcaSlicer's API, and a plan from them; nothing written."""
+    ctx = page.ask(tab, "defect_context", "defect_context")
+    _check(ctx["info"]["filament"], "defects: no filament on the plate")
+    _check(ctx["info"]["slots"], "defects: no slots")
+    plans = {}
+    for defect in ("stringing", "warping", "overhangs"):
+        plan = page.ask(tab, "defect_plan", "defect_plan", defect=defect)
+        _check(plan["causes"], "defects: no causes for %s" % defect)
+        plans[defect] = plan["causes"][0]["cause"]
+    return {"slots": len(ctx["info"]["slots"]), "cls": ctx["info"]["cls"], "first": plans}
 
 
 def _process(orca, page, tab, init, result):

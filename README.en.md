@@ -28,6 +28,7 @@ measurements. Every value shows where it came from and how sure it is.
 - [A print process for the filament](#a-print-process-for-the-filament)
 - [Material habits](#material-habits)
 - [Preset review and history](#preset-review-and-history)
+- [Print defects](#print-defects)
 - [Requirements](#requirements)
 - [Install, update, uninstall](#install-update-uninstall)
 - [How to use it](#how-to-use-it)
@@ -138,6 +139,47 @@ you can change them. Changes are kept in `settings.json`; **Restore defaults** g
 The filament preset values show as **Estimate** in the results table. A maker's preset, a data sheet and your
 own measurement win over them; they only replace the value of the material's generic preset.
 
+## Print defects
+
+The **Defects** button in the header helps fix what went wrong in a print. Describe it in your own words
+("strings between parts", "holes come out 2.8 instead of 3.2") or pick it from the list:
+
+stringing · first layer not sticking · layers splitting and cracking · dimensions, holes, elephant foot ·
+over-extrusion · under-extrusion · drooping overhangs and bridges · corners lifting.
+
+**A diagnosis, not one fixed tweak.** Every defect has several possible causes. FilaForge puts them in order,
+likeliest first, from:
+
+- **the material**: PETG and nylon get drying first; ABS/ASA/PC in an open printer get the enclosure first;
+  PLA in a closed printer can overheat the heatsink;
+- **the settings you printed with**: the temperature within the preset's range, direct drive or Bowden
+  retraction, fan, flow, brim; a fix never goes outside the preset's range or the material's limits (e.g. a PLA
+  bed stays at 65 °C or below);
+- **your answers** to one or two questions, e.g. whether the filament was dried or where the layer lets go;
+- **your measurements**: sizes from calipers, a single wall's thickness, a saved flow ratio;
+- **what you already tried** on this filament.
+
+How some fixes are calculated:
+
+- **Dimensions**: from two different outside sizes (e.g. 20 and 100 mm) FilaForge tells material shrinkage
+  (`filament_shrink`) from walls that are offset (`xy_contour_compensation`). Holes get their own compensation.
+  When the outside is too big and the holes too small by about the same, it asks for a flow calibration first.
+- **Flow ratio from a wall**: a cube in vase mode, the wall measured with calipers, new flow ratio =
+  flow ratio × line width / measured wall.
+
+Some causes aren't settings: drying, washing the plate, levelling, Z offset, a clogged nozzle, a draft.
+FilaForge says so instead of changing something blindly. Where a test is the better way, it points to
+OrcaSlicer's calibration tests.
+
+**One change at a time, and a loop after the print.** The change goes into the FF filament or process preset
+(with its history). When you printed with your own preset, FilaForge makes an FF copy of it and fixes that.
+After the print, answer in the same window:
+
+| Answer | What happens |
+|---|---|
+| Fixed, Better | The change stays. Filament values go into your measurements, so the next preset gets them too. After "Better" the plan can offer the next step of the same cause. |
+| No change, Worse | The change is undone and that cause drops to the bottom of the list. Go on to the next one. |
+
 ## Preset review and history
 
 The **Review** button in the header checks the filament presets FilaForge made and your own; the number on it
@@ -227,6 +269,7 @@ already exists for another printer, the printer model is added in brackets, e.g.
 | Settings | `<OrcaSlicer data>/filaforge/settings.json` |
 | Your measurements | `<OrcaSlicer data>/filaforge/measured.json` |
 | Preset history | `<OrcaSlicer data>/filaforge/history/` |
+| Defect fixes tried | `<OrcaSlicer data>/filaforge/defects.json` |
 | Cached internet answers | `<OrcaSlicer data>/filaforge/cache/`. Database answers are kept for a week, others for a day. Without a network an older copy is used. |
 | Log | `<OrcaSlicer data>/filaforge/filaforge.log` |
 | Settings in Spoolman | the filament's `orca_settings` extra field. Density, diameter and price stay in Spoolman's own fields. |

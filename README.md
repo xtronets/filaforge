@@ -28,6 +28,7 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 - [Proces druku dla filamentu](#proces-druku-dla-filamentu)
 - [Zwyczaje materiałów](#zwyczaje-materiałów)
 - [Przegląd presetów i historia zmian](#przegląd-presetów-i-historia-zmian)
+- [Defekty wydruku](#defekty-wydruku)
 - [Wymagania](#wymagania)
 - [Instalacja, aktualizacja, odinstalowanie](#instalacja-aktualizacja-odinstalowanie)
 - [Jak używać](#jak-używać)
@@ -142,6 +143,47 @@ wartości FilaForge.
 Wartości dla presetu filamentu mają w tabeli wyników znaczek **Szacunek**. Wygrywa z nimi preset producenta,
 karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu materiału.
 
+## Defekty wydruku
+
+Przycisk **Defekty** w nagłówku pomaga naprawić to, co wyszło źle na wydruku. Opisz problem słowami
+(„nitki między elementami”, „otwory wychodzą 2,8 zamiast 3,2”) albo wybierz go z listy:
+
+nitkowanie · pierwsza warstwa nie trzyma · rozwarstwianie i pękanie · wymiary, otwory, stopa słonia ·
+nadekstruzja · niedoekstruzja · opadające nawisy i mosty · podnoszące się rogi.
+
+**Diagnoza zamiast jednej stałej poprawki.** Każdy defekt ma kilka możliwych przyczyn. FilaForge ustawia je
+od najbardziej prawdopodobnej na podstawie:
+
+- **materiału**: PETG i nylon najpierw do suszenia, ABS/ASA/PC w otwartej drukarce najpierw obudowa,
+  PLA w zamkniętej drukarce może przegrzewać radiator;
+- **ustawień, którymi drukowałeś**: temperatura w zakresie presetu, retrakcja direct drive albo bowden,
+  nawiew, przepływ, brim; poprawka nigdy nie wychodzi poza zakres presetu ani granice materiału
+  (np. stół dla PLA najwyżej 65 °C);
+- **Twoich odpowiedzi** na 1–2 pytania, np. czy filament był suszony albo gdzie warstwa się nie trzyma;
+- **Twoich pomiarów**: wymiary z suwmiarki, grubość pojedynczej ściany, zapisany flow;
+- **tego, co już próbowałeś** dla tego filamentu.
+
+Przykłady obliczeń:
+
+- **Wymiary**: z dwóch różnych wymiarów zewnętrznych (np. 20 i 100 mm) FilaForge oddziela skurcz materiału
+  (`filament_shrink`) od przesunięcia ścian (`xy_contour_compensation`). Otwory dostają własną kompensację.
+  Gdy obrys jest za duży, a otwory za małe o podobną wartość, najpierw każe skalibrować flow.
+- **Flow z pomiaru ściany**: kostka w trybie wazy, ściana zmierzona suwmiarką, nowy flow =
+  flow × szerokość linii / zmierzona ściana.
+
+Część przyczyn to nie ustawienia: suszenie, mycie płyty, poziomowanie, Z-offset, zatkana dysza, przeciąg.
+FilaForge mówi to wprost zamiast zmieniać coś na ślepo. Tam, gdzie lepszy jest test, odsyła do testów
+kalibracyjnych Orki.
+
+**Jedna zmiana naraz i pętla po wydruku.** Zmiana trafia do presetu FF filamentu albo procesu (z historią
+zmian). Gdy drukowałeś na swoim presecie, FilaForge robi jego kopię FF i dopiero ją poprawia. Po wydruku
+odpowiadasz w tym samym oknie:
+
+| Odpowiedź | Co się dzieje |
+|---|---|
+| Naprawione, Lepiej | Zmiana zostaje. Wartości filamentu trafiają do Twoich pomiarów, więc następny preset też je dostanie. Przy „Lepiej” plan może zaproponować kolejny krok tej samej przyczyny. |
+| Bez zmian, Gorzej | Zmiana jest cofana, a ta przyczyna spada na dół listy. Przechodzisz do następnej. |
+
 ## Przegląd presetów i historia zmian
 
 Przycisk **Przegląd** w nagłówku sprawdza presety filamentów zrobione przez FilaForge i Twoje własne.
@@ -230,6 +272,7 @@ nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np.
 | Ustawienia | `<dane Orki>/filaforge/settings.json` |
 | Twoje pomiary | `<dane Orki>/filaforge/measured.json` |
 | Historia zmian presetów | `<dane Orki>/filaforge/history/` |
+| Próby naprawy defektów | `<dane Orki>/filaforge/defects.json` |
 | Pamięć podręczna odpowiedzi z internetu | `<dane Orki>/filaforge/cache/`. Odpowiedzi baz są ważne tydzień, pozostałe dzień. Gdy sieci nie ma, użyta jest starsza kopia. |
 | Dziennik | `<dane Orki>/filaforge/filaforge.log` |
 | Ustawienia w Spoolmanie | pole dodatkowe `orca_settings` filamentu. Gęstość, średnica i cena zostają w zwykłych polach Spoolmana. |

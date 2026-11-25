@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 import helpers
-from filaforge.core import habits, history, measured, merge, process, research, review, spoolman, writer
+from filaforge.core import defects, habits, history, measured, merge, process, research, review, spoolman, writer
 from filaforge.core.model import BASELINE, DECLARED, ESTIMATED, PRESET, TESTED, Identity, Observation
 from filaforge.core.net import CannedFetcher, FetchError
 from filaforge.core.sources import ofd, orca_presets, spoolmandb, tds
@@ -546,6 +546,69 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(h.add("filament", "X FF", b"not json"), "")
         self.assertEqual(history.differences({"a": ["1"], "name": "x"}, {"a": ["2"], "b": "3", "name": "y"}),
                          [{"key": "a", "old": "1", "new": "2"}, {"key": "b", "old": "", "new": "3"}])
+
+
+class DefectTests(unittest.TestCase):
+    PLA = {"nozzle_temperature": "220", "nozzle_temperature_initial_layer": "225",
+           "nozzle_temperature_range_low": "190", "nozzle_temperature_range_high": "230",
+           "filament_retraction_length": "nil", "filament_flow_ratio": "0.98", "fan_max_speed": "100",
+           "overhang_fan_speed": "100", "close_fan_the_first_x_layers": "1", "hot_plate_temp": "60",
+           "hot_plate_temp_initial_layer": "60", "filament_max_volumetric_speed": "18"}
+    PROC = {"initial_layer_speed": "50", "outer_wall_line_width": "0.42", "brim_type": "auto_brim", "brim_width": "5"}
+
+    def ctx(self, **kw):
+        base = {"cls": "PLA", "filament": self.PLA, "process": self.PROC,
+                "printer": {"retraction_length": "0.8", "nozzle_diameter": "0.4"}}
+        base.update(kw)
+        return base
+
+    def causes(self, defect, answers=None, inputs=None, **kw):
+        return {c["cause"]: c for c in defects.plan(defect, self.ctx(**kw), answers, inputs)}
+
+    def test_scale_and_offset(self):
+        # 0.5% shrinkage and 0.05 mm per side too big: told apart from two sizes
+        rows = [{"kind": "outer", "expected": e, "measured": e * 0.995 + 0.1} for e in (20, 60, 100)]
+        fit = defects.fit_dimensions(rows)
+        self.assertAlmostEqual(fit["scale"], -0.005, places=6)
+        self.assertAlmostEqual(fit["offset"], 0.05, places=6)
+        fix = self.causes("dimensions", inputs={"rows": rows})["compensate"]
+        self.assertEqual([(c["key"], c["after"]) for c in fix["changes"]],
+                         [("filament_shrink", "99.5%"), ("xy_contour_compensation", "-0.05")])
+        with self.assertRaises(ValueError):
+            defects.fit_dimensions([{"kind": "hole", "expected": 3, "measured": 9}])
+
+    def test_limits_and_material(self):
+        hot = dict(self.PLA, nozzle_temperature="190")
+        self.assertNotIn("temp_down", self.causes("stringing", filament=hot))       # already at the range's bottom
+        petg = self.causes("stringing", {"dried": "unknown"}, cls="PETG")
+        self.assertEqual(max(petg.values(), key=lambda c: c["score"])["cause"], "dry")
+        abs_ = self.causes("layer_split", cls="ABS", filament=dict(self.PLA, fan_max_speed="80"))
+        self.assertEqual(abs_["enclosure"]["score"], 95)
+        self.assertEqual(abs_["fan_down"]["changes"][0]["after"], "40")
+        closed = self.causes("layer_split", cls="ABS", enclosed=True)
+        self.assertNotIn("enclosure", closed)
+        bed = self.causes("warping")["bed_up"]
+        self.assertEqual(bed["changes"][0]["after"], "65")                          # PLA bed stops at 65 °C
+        self.assertEqual(self.causes("under_extrusion", {"when": "later"}, enclosed=True)["heat_creep"]["score"], 85)
+
+    def test_tried_goes_down_better_stays(self):
+        plan = defects.plan("stringing", self.ctx(tried={"temp_down": ["same"], "retraction": ["better"]}),
+                            {"dried": "yes", "kind": "hairs"})
+        self.assertEqual(plan[0]["cause"], "retraction")
+        self.assertEqual(plan[-1]["cause"], "temp_down")
+
+    def test_wall_flow(self):
+        fix = self.causes("over_extrusion", inputs={"wall": "0.46"})["flow_wall"]
+        self.assertEqual(fix["changes"][0]["after"], "0.895")                    # 0.98 x 0.42 / 0.46
+        odd = self.causes("under_extrusion", {"when": "always"}, inputs={"wall": "0.46"})["flow_wall"]
+        self.assertEqual(odd["kind"], "need")                                    # a thicker wall isn't under-extrusion
+
+    def test_parse(self):
+        self.assertEqual(defects.parse("nitki między elementami")["defect"], "stringing")
+        self.assertEqual(defects.parse("corners lift off the bed")["defect"], "warping")
+        self.assertEqual(defects.parse("otwór powinien mieć 5, ma 4,8")["rows"],
+                         [{"kind": "hole", "expected": 5.0, "measured": 4.8}])
+        self.assertIsNone(defects.parse("coś jest nie tak")["defect"])
 
 
 class WriterTests(unittest.TestCase):

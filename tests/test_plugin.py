@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.6.0"', html)
+        self.assertIn('"version": "0.7.0"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
@@ -354,6 +354,72 @@ class PluginTests(unittest.TestCase):
         issue = self.issues(preset=name, code="file_missing")[0]
         self.send(cmd="review_fix", fix="forget", code="file_missing", preset=name, source=name)
         self.assertEqual(self.issues(preset=name), [])
+
+    # -- print defects -----------------------------------------------------------------------------------------------
+    def test_defects_loop(self):
+        self.send(cmd="init")
+        ctx = self.last("defect_context", self.send(cmd="defect_context"))
+        self.assertIn("stringing", ctx["list"])
+        self.assertEqual(ctx["questions"]["stringing"][0][0], "dried")
+        fil = ctx["info"]["filament"]
+        self.assertFalse(ctx["info"]["filament_ff"])
+        plan = self.last("defect_plan", self.send(cmd="defect_plan", defect="stringing",
+                                                  answers={"dried": "yes", "kind": "hairs"}))
+        first = plan["causes"][0]
+        self.assertEqual(first["kind"], "change")
+        temp = first["changes"][0]          # PETG with fine hairs, dried: a longer retraction comes first
+        # the user's (system) preset stays; a FilaForge copy gets the fix
+        done = self.last("defect_plan", self.send(cmd="defect_apply", defect="stringing", cause=first["cause"],
+                                                  answers={"dried": "yes", "kind": "hairs"}))
+        made = done["applied"]["created"][0]
+        self.assertEqual(made["kind"], "filament")
+        self.assertTrue(made["name"].endswith("FF"))
+        path = next(x["file"] for x in done["saved"] if x["name"] == made["name"])
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)[temp["key"]][0], temp["after"])
+        self.assertEqual(len(done["pending"]), 1)
+        self.assertIsNotNone(self.orca.host.preset_bundle().filaments.find_preset(fil))
+        # no change: undone, and that cause goes to the bottom
+        after = self.last("defect_plan", self.send(cmd="defect_outcome", id=done["applied"]["id"], outcome="same"))
+        self.assertEqual(after["note"], "undone")
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)[temp["key"]][0], temp["before"])
+        self.assertEqual(after["pending"], [])
+        self.assertEqual(after["causes"][-1]["cause"], first["cause"])
+        self.assertEqual(after["causes"][-1]["tried"], ["same"])
+        self.assertEqual(self.last("error", self.send(cmd="defect_outcome", id=done["applied"]["id"],
+                                                      outcome="better"))["message"], "defect_gone")
+        # the next cause helps: kept, and kept as the user's measurement
+        nxt = next(c for c in after["causes"] if c["kind"] == "change")
+        done = self.last("defect_plan", self.send(cmd="defect_apply", defect="stringing", cause=nxt["cause"],
+                                                  answers={"dried": "yes", "kind": "hairs"}))
+        kept = self.last("defect_plan", self.send(cmd="defect_outcome", id=done["applied"]["id"], outcome="better"))
+        self.assertEqual(kept["note"], "kept_measured")
+        ident = self.plugin.research.identity_from(done["info"]["identity"])
+        key = self.plugin.review.SYNC_KEYS[nxt["changes"][0]["key"]]
+        self.assertEqual(self.plugin.store().get(ident, "Creality K1C", 0.4)[key],
+                         float(nxt["changes"][0]["after"]))
+
+    def test_defect_dimensions_to_process(self):
+        self.send(cmd="init")
+        rows = [{"kind": "hole", "expected": 5, "measured": 4.8}]
+        plan = self.last("defect_plan", self.send(cmd="defect_plan", defect="dimensions", inputs={"rows": rows}))
+        fix = next(c for c in plan["causes"] if c["cause"] == "compensate")
+        self.assertEqual([(c["target"], c["key"], c["after"]) for c in fix["changes"]],
+                         [("process", "xy_hole_compensation", "0.1")])
+        done = self.last("defect_plan", self.send(cmd="defect_apply", defect="dimensions", cause="compensate",
+                                                  inputs={"rows": rows}))
+        made = done["applied"]["created"][0]
+        self.assertEqual(made["kind"], "process")
+        path = next(x["file"] for x in done["saved"] if x["name"] == made["name"])
+        with open(path, encoding="utf-8") as f:
+            proc = json.load(f)
+        self.assertEqual((proc["xy_hole_compensation"], proc["inherits"]), ("0.1", "0.20mm Standard @Creality K1C"))
+        missing = self.last("defect_plan", self.send(cmd="defect_plan", defect="dimensions", inputs={"rows": []}))
+        self.assertEqual((missing["causes"][0]["kind"], missing["causes"][0]["why"]), ("need", "d_missing"))
+        parsed = self.last("defect_parsed", self.send(cmd="defect_parse", text="otwory wychodzą 2,8 zamiast 3,2"))
+        self.assertEqual(parsed, {"cmd": "defect_parsed", "defect": "dimensions",
+                                  "rows": [{"kind": "hole", "expected": 3.2, "measured": 2.8}]})
 
     def test_habits_reach_the_process(self):
         init = self.last("init", self.send(cmd="init"))
