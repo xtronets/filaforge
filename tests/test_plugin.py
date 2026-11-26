@@ -58,7 +58,7 @@ class PluginTests(unittest.TestCase):
         self.assertIn("https://api.openfilamentdatabase.org", perms["network_http"])
         self.assertIn(os.path.join(self.data, "user"), perms["fs_readwrite"])    # where the bundle is written
         html = self.page.get_ui()
-        self.assertIn('"version": "0.7.0"', html)
+        self.assertIn('"version": "0.7.1"', html)
         self.assertNotIn("/*BOOT*/null", html)
         self.assertNotIn("{{img:", html)
         self.assertIn('src="data:image/webp;base64,', html)
