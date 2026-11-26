@@ -533,7 +533,7 @@ const T = {
     history_none: 'Nie ma jeszcze starszych wersji.', hist_show: 'Pokaż zmiany', hist_restore: 'Przywróć', hist_removed: 'usunięty',
     hist_same: 'Taka sama jak obecna.', hist_now: 'obecnie', hist_then: 'w tej wersji', hist_absent: 'brak',
     why_replaced: 'przed nadpisaniem', why_removed: 'przy usunięciu', why_restored: 'przed przywróceniem', why_measured: 'przed wpisaniem pomiaru',
-    why_rebased: 'przed odświeżeniem bazy', why_repaired: 'przed naprawą', restored: 'Przywrócono „{name}”.',
+    why_rebased: 'przed odświeżeniem bazy', why_repaired: 'przed naprawą', why_invalid: 'odrzucony przez Orkę', restored: 'Przywrócono „{name}”.',
     saved: 'Zapisane', settings: 'Ustawienia', from_spoolman: 'Ze Spoolmana', manual: 'Ręcznie', filter_spools: 'Szukaj szpuli…',
     from_orca: 'Z Orki', filter_orca: 'Szukaj presetu…', orca_none: 'Brak Twoich presetów filamentów dla tej drukarki.', pick_preset: 'Wybierz preset z listy.',
     orca_note: 'Twoje presety filamentów dla wybranej drukarki. FilaForge uzupełni wybrany danymi i zapisze go jako nowy preset z dopiskiem FF, a Twój zostanie bez zmian.',
@@ -570,7 +570,7 @@ const T = {
     src_ofd: 'Open Filament Database', src_spoolmandb: 'SpoolmanDB', src_orca: 'Presety OrcaSlicer', src_tds: 'Karta techniczna',
     src_tested: 'Twoje pomiary', src_spoolman: 'Spoolman', working: 'Szukam…', no_spoolman: 'Ustaw adres Spoolmana w Ustawieniach.',
     spools_none: 'Brak filamentów.', pick_first: 'Wybierz szpulę albo wpisz producenta.', made_preset: 'Preset „{name}” jest w Orce (Filament → Presety użytkownika).',
-    made_process: 'Proces „{name}” jest w Orce.', removed: 'Usunięto „{name}”.', measured_saved: 'Pomiary zapisane.',
+    made_process: 'Proces „{name}” jest w Orce.', set_aside: 'Orca odrzucała wcześniejsze presety FF: {names} – stare wersje są w Historii.', aside_fixed: 'naprawiony', aside_removed: 'odłożony', left_out: 'Orca nie przyjęła wartości: {keys} – zostały z presetu bazowego.', removed: 'Usunięto „{name}”.', measured_saved: 'Pomiary zapisane.',
     sp_plan: 'Do pola orca_settings filamentu #{id}, sekcja „{section}”:', sp_add: 'Dopiszę ({n}):', sp_keep: 'Zostawię, bo już tam są ({n}):',
     sp_differs: 'Już są, ale z inną wartością ({n}) – zaznacz, które nadpisać:', sp_ow_all: 'zaznacz wszystkie', sp_same: 'Już są z tą samą wartością ({n})',
     sp_nothing: 'Nic do zapisania: Spoolman ma już te same wartości.', sp_confirm: 'Zapisz w Spoolmanie', sp_section_all: 'Wszystkie drukarki (*)',
@@ -712,7 +712,7 @@ const T = {
     history_none: 'No earlier versions yet.', hist_show: 'Show changes', hist_restore: 'Restore', hist_removed: 'removed',
     hist_same: 'Same as the current one.', hist_now: 'now', hist_then: 'in this version', hist_absent: 'none',
     why_replaced: 'before replacing', why_removed: 'on removal', why_restored: 'before a restore', why_measured: 'before a measurement went in',
-    why_rebased: 'before refreshing the base', why_repaired: 'before a repair', restored: 'Restored “{name}”.',
+    why_rebased: 'before refreshing the base', why_repaired: 'before a repair', why_invalid: 'refused by OrcaSlicer', restored: 'Restored “{name}”.',
     saved: 'Saved', settings: 'Settings', from_spoolman: 'From Spoolman', manual: 'Manual', filter_spools: 'Search spools…',
     from_orca: 'From OrcaSlicer', filter_orca: 'Search presets…', orca_none: 'No filament presets of yours for this printer.', pick_preset: 'Pick a preset from the list.',
     orca_note: 'Your filament presets for the selected printer. FilaForge fills the one you pick with data and saves it as a new preset marked FF; yours stays as it is.',
@@ -749,7 +749,7 @@ const T = {
     src_ofd: 'Open Filament Database', src_spoolmandb: 'SpoolmanDB', src_orca: 'OrcaSlicer presets', src_tds: 'Data sheet',
     src_tested: 'Your measurements', src_spoolman: 'Spoolman', working: 'Searching…', no_spoolman: 'Set the Spoolman address in Settings.',
     spools_none: 'No filaments.', pick_first: 'Pick a spool or type a brand.', made_preset: 'Preset “{name}” is in OrcaSlicer (Filament → User presets).',
-    made_process: 'Process “{name}” is in OrcaSlicer.', removed: 'Removed “{name}”.', measured_saved: 'Measurements saved.',
+    made_process: 'Process “{name}” is in OrcaSlicer.', set_aside: 'OrcaSlicer refused earlier FF presets: {names} – the old versions are in History.', aside_fixed: 'repaired', aside_removed: 'set aside', left_out: 'OrcaSlicer did not accept: {keys} – kept from the base preset.', removed: 'Removed “{name}”.', measured_saved: 'Measurements saved.',
     sp_plan: 'Into filament #{id}’s orca_settings field, section “{section}”:', sp_add: 'Will add ({n}):', sp_keep: 'Will keep, already there ({n}):',
     sp_differs: 'Already there with another value ({n}) – tick the ones to overwrite:', sp_ow_all: 'tick all', sp_same: 'Already there with the same value ({n})',
     sp_nothing: 'Nothing to save: Spoolman already has the same values.', sp_confirm: 'Save to Spoolman', sp_section_all: 'Every printer (*)',
@@ -1618,6 +1618,12 @@ function onMessage(m) {
       if (m.renamed) $('preset-name').value = m.name;
       if (m.kind === 'filament') toast(t('made_preset', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
       else if (m.kind === 'process') toast(t('made_process', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
+      if ((m.left_out || []).length || (m.set_aside || []).length) {
+        const parts = [];
+        if ((m.set_aside || []).length) parts.push(t('set_aside', {names: m.set_aside.map(x => '„' + x.name + '” (' + t('aside_' + x.how) + ')').join(', ')}));
+        if ((m.left_out || []).length) parts.push(t('left_out', {keys: m.left_out.join(', ')}));
+        toast(t(m.kind === 'process' ? 'made_process' : 'made_preset', {name: m.name}) + ' ' + parts.join(' '), true);
+      }
       else if (m.kind === 'removed') toast(t('removed', {name: m.name}));
       else if (m.kind === 'restored') { toast(t('restored', {name: m.name})); send({cmd: 'history'}); }
       if (m.kind !== 'list') send({cmd: 'review', quiet: true});

@@ -6,6 +6,9 @@ import os
 import types
 
 
+INT_KEYS = ("nozzle_temperature", "hot_plate_temp", "overhang_fan_speed", "chamber_temperature")
+
+
 class Preset:
     def __init__(self, name, config, system=True, compatible=True, file="", visible=True):
         self.name = name
@@ -77,6 +80,7 @@ def install(filament_presets, user_file=""):
     orca.permissions = []
     orca.request_permissions = lambda **kw: orca.permissions.append(kw)
     orca.reloads = []
+    orca.refuse = "\x00never"
 
     def reload_local(bundle_id):
         # like OrcaSlicer: the bundle's presets as "_local/<bundle>/<name>", read again from its folder
@@ -85,16 +89,27 @@ def install(filament_presets, user_file=""):
             return
         root = os.path.join(os.path.dirname(os.path.dirname(user_file)), "_local", bundle_id)
         prefix = "_local/%s/" % bundle_id
+        loaded = []
         for kind, col in (("filament", bundle.filaments), ("process", bundle.prints)):
-            col.presets = [p for p in col.presets if not p.name.startswith(prefix)]
             folder = os.path.join(root, kind)
             for f in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
                 if f.endswith(".json"):
                     with open(os.path.join(folder, f), encoding="utf-8") as fh:
                         data = json.load(fh)
                     config = {k: ",".join(v) if isinstance(v, list) else str(v) for k, v in data.items()}
-                    col.presets.append(Preset(prefix + data.get("name", f[:-5]), config, system=False,
-                                              file=os.path.join(folder, f)))
+                    parent = data.get("inherits") or ""
+                    # like OrcaSlicer: a whole number with a fraction, a refused value or a parent it does not
+                    # have makes it refuse the whole bundle (and keep the presets it had)
+                    if any("." in str(config.get(k, "")) for k in INT_KEYS) or \
+                            any(str(v) == orca.refuse for v in config.values()) or \
+                            (parent and col.find_preset(parent) is None):
+                        raise RuntimeError("Local bundle contains an invalid preset")
+                    loaded.append((col, Preset(prefix + data.get("name", f[:-5]), config, system=False,
+                                               file=os.path.join(folder, f))))
+        for col in (bundle.filaments, bundle.prints):
+            col.presets = [p for p in col.presets if not p.name.startswith(prefix)]
+        for col, preset in loaded:
+            col.presets.append(preset)
     filaments = Collection([Preset(p["name"], dict(p["config"], filament_vendor='"%s"' % p["vendor"],
                                                       filament_type='"%s"' % p["type"]),
                                    compatible=p["compatible"]) for p in filament_presets])

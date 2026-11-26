@@ -686,3 +686,26 @@ class NetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WriterRepairTests(unittest.TestCase):
+    def test_culprits(self):
+        from filaforge.core import writer
+        bad = {"c", "f"}
+        calls = []
+
+        def loads(left):
+            calls.append(list(left))
+            return bad <= set(left)
+        self.assertEqual(sorted(writer.culprits(list("abcdefgh"), loads)), ["c", "f"])
+        self.assertLess(len(calls), 16)
+        self.assertEqual(writer.culprits(list("ab"), lambda left: True), [])
+        self.assertIsNone(writer.culprits(list("ab"), lambda left: False))
+
+    def test_config_value(self):
+        from filaforge.core import writer
+        self.assertEqual(writer.config_value("nozzle_temperature", "212.5"), "213")
+        self.assertEqual(writer.config_value("hot_plate_temp", "60"), "60")
+        self.assertEqual(writer.config_value("enable_pressure_advance", "1.0"), "1")
+        self.assertEqual(writer.config_value("filament_flow_ratio", "0.985"), "0.985")
+        self.assertEqual(writer.config_value("nozzle_temperature", "nil"), "nil")

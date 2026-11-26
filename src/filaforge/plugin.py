@@ -348,22 +348,99 @@ def bundle_folders(bundle):
             for a in writer.account_folders(data_dir(), preset_files(bundle))]
 
 
-def install(preset, bundle, printer="", meta=None, reason="replaced"):
+def _refused(error):
+    return "invalid preset" in str(error)
+
+
+def keep_refused(preset):
+    """A copy of a preset OrcaSlicer refused, in FilaForge's folder (refused/), to look at or send in a report."""
+    try:
+        folder = os.path.join(own_dir(), "refused")
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, writer.safe_name(preset.get("name")) + ".json")
+        files.write_json(path, preset, ensure_ascii=False, indent=4)
+        log.warning("OrcaSlicer refused %s; a copy is in %s", preset.get("name"), path)
+    except Exception:
+        log.exception("keeping the refused preset")
+
+
+def standalone_process(data):
+    """A process whose parent OrcaSlicer no longer has, made standalone (it holds every setting), or None."""
+    if data.get("type") != "process" or not data.get("inherits"):
+        return None
+    return dict(data, inherits="")
+
+
+def install(preset, bundle, printer="", meta=None, reason="replaced", plain=None, report=None):
     """Write the preset into FilaForge's bundle in the signed-in account's folder and reload it. A preset of that
-    name already in another account's folder is replaced there."""
+    name already in another account's folder is replaced there.
+    When OrcaSlicer refuses the bundle: presets already in it that it refuses are set aside first (kept in the
+    history); then, with plain (the same preset without FilaForge's values), the values it refuses are left out.
+    report (list) gets {"set_aside": [(name, how)]} and {"left_out": [keys]} of what was done."""
     reload_fn = orca.host.preset.bundles.reload_local
     meta = dict(meta or {}, printer=printer)
+    report = report if report is not None else []
     folders = bundle_folders(bundle)
     have = [f for _, f in folders if os.path.isdir(f) and ff_bundle(f).info(preset["name"])]
     last = None
     for folder in have[:1] or [f for _, f in folders]:
+        target = ff_bundle(folder)
         try:
-            return ff_bundle(folder).save(preset, reload_fn, meta, reason)
+            return target.save(preset, reload_fn, meta, reason)
         except RuntimeError as error:
             last = error
-            if "does not exist" not in str(error) and "not found" not in str(error):
-                raise
+            if not _refused(error):
+                if "does not exist" not in str(error) and "not found" not in str(error):
+                    raise
+                continue
+        try:
+            reload_fn(writer.BUNDLE)
+        except Exception:
+            aside = target.set_aside(reload_fn, standalone_process)
+            if aside is None:
+                raise last
+            log.warning("bundle refused by OrcaSlicer, set aside: %s", aside)
+            report.append({"set_aside": aside})
+            try:
+                return target.save(preset, reload_fn, meta, reason)
+            except RuntimeError as error:
+                last = error
+                if not _refused(error):
+                    raise
+        if plain is None:
+            keep_refused(preset)
+            raise last
+        keys = [k for k in preset if k not in writer.FLAT_SKIP and preset[k] != plain.get(k)]
+
+        def without(left_out):
+            out = dict(preset)
+            for k in left_out:
+                if k in plain:
+                    out[k] = plain[k]
+                else:
+                    out.pop(k, None)
+            return out
+        left_out = writer.culprits(keys, lambda left: target.attempt(without(left), reload_fn))
+        if not left_out:
+            try:
+                reload_fn(writer.BUNDLE)
+            except Exception:
+                pass
+            keep_refused(preset)
+            raise last
+        log.warning("OrcaSlicer refused %s in %s; saved without them", left_out, preset["name"])
+        report.append({"left_out": left_out})
+        return target.save(without(left_out), reload_fn, dict(meta, left_out=left_out), reason)
     raise last or RuntimeError("no OrcaSlicer user folder took the bundle")
+
+
+def install_notes(report):
+    """{left_out: [keys], set_aside: [{name, how}]} for the page from install's report."""
+    out = {"left_out": [], "set_aside": []}
+    for item in report:
+        out["left_out"] += item.get("left_out") or []
+        out["set_aside"] += [{"name": n, "how": h} for n, h in item.get("set_aside") or []]
+    return out
 
 
 def saved_presets(bundle):
@@ -839,8 +916,12 @@ class Tab:
         spool = data.get("spoolman_id")
         meta = preset_meta(preset, base_name, base_config, values, identity,
                            spool if isinstance(spool, int) and not isinstance(spool, bool) else None)
-        path = install(preset, bundle, printer["name"], meta)
-        self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle))
+        plain = writer.filament_preset(name, base_config, {"filament_type": values["filament_type"]}, printer["name"],
+                                       identity, measured.identity_key(identity), preset["description"])
+        report = []
+        path = install(preset, bundle, printer["name"], meta, plain=plain, report=report)
+        self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle),
+                   **install_notes(report))
 
     def on_remove_preset(self, data):
         bundle = orca.host.preset_bundle()

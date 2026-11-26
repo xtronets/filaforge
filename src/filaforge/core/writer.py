@@ -50,13 +50,39 @@ def filament_id(identity_key, printer):
     return ID_PREFIX + hashlib.sha256(("%s|%s" % (identity_key, printer)).encode("utf-8")).hexdigest()[:10].upper()
 
 
+# OrcaSlicer reads these as whole numbers or switches; "212.5" in one of them makes it refuse the whole bundle
+INT_KEYS = frozenset({"nozzle_temperature", "nozzle_temperature_initial_layer", "nozzle_temperature_range_low",
+                      "nozzle_temperature_range_high", "hot_plate_temp", "hot_plate_temp_initial_layer",
+                      "textured_plate_temp", "textured_plate_temp_initial_layer", "temperature_vitrification",
+                      "chamber_temperature", "overhang_fan_speed", "close_fan_the_first_x_layers"})
+BOOL_KEYS = frozenset({"enable_pressure_advance", "activate_chamber_temp_control"})
+
+
+def config_value(key, value):
+    """value (text) as OrcaSlicer reads key: whole numbers rounded, switches as 0/1, the rest as given."""
+    text = str(value).strip()
+    if text == "nil" or (key not in INT_KEYS and key not in BOOL_KEYS):
+        return text
+    if key in BOOL_KEYS and text.lower() in ("true", "false"):
+        return "1" if text.lower() == "true" else "0"
+    try:
+        number = float(text.rstrip("%"))
+    except ValueError:
+        return text
+    if not math.isfinite(number):
+        return text
+    if key in BOOL_KEYS:
+        return "1" if number else "0"
+    return str(int(math.floor(number + 0.5)))
+
+
 def filament_preset(name, base_config, settings, printer, identity, identity_key, description=""):
     """The standalone filament preset: base_config ({key: OrcaSlicer text}) under settings ({key: text})."""
     flat = {k: v for k, v in (base_config or {}).items() if k not in FLAT_SKIP and isinstance(v, str)}
     for key, value in settings.items():
         parent = flat.get(key)
         count = len(parent.split(",")) if isinstance(parent, str) and key not in TEXT_KEYS else 1
-        flat[key] = [str(value)] * max(1, count)
+        flat[key] = [config_value(key, value)] * max(1, count)
     flat.update({
         "type": "filament", "name": name, "from": "User", "instantiation": "true", "inherits": "",
         "version": "1.0.0", "filament_settings_id": [name], "filament_id": filament_id(identity_key, printer),
@@ -66,6 +92,25 @@ def filament_preset(name, base_config, settings, printer, identity, identity_key
     if identity.colour and re.match(r"^#[0-9A-Fa-f]{6}$", identity.colour):
         flat["filament_colour"] = [identity.colour.upper()]
     return flat
+
+
+def culprits(keys, loads):
+    """The fewest of keys to leave out so that loads(left_out) is true, found by halving; [] if nothing needs to
+    go, None if leaving all of them out does not help either."""
+    dropped = []
+    rest = list(keys)
+    while not loads(dropped):
+        if not rest or not loads(dropped + rest):
+            return None
+        lo, hi = 0, len(rest)
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if loads(dropped + rest[:mid]):
+                hi = mid
+            else:
+                lo = mid
+        dropped.append(rest.pop(hi - 1))
+    return dropped
 
 
 def problem(preset):
@@ -82,6 +127,9 @@ def problem(preset):
             if key not in TEXT_KEYS and key != "compatible_printers" and value and \
                     not all(_numberish(v) for v in value) and preset["type"] == "filament" and key in NUMERIC_KEYS:
                 return "%s is not a number" % key
+            if preset["type"] == "filament" and key in INT_KEYS | BOOL_KEYS and \
+                    any(v != "nil" and v != config_value(key, v) for v in value):
+                return "%s is not a whole number" % key
         elif not isinstance(value, str):
             return "%s is not text" % key
     return ""
@@ -199,6 +247,90 @@ class Bundle:
         state["presets"][preset["name"]] = dict(meta or {}, kind=kind, file=path)
         _write_json(os.path.join(self.folder, STATE), state)
         return path
+
+    def attempt(self, preset, reload_fn):
+        """Whether OrcaSlicer takes the bundle with preset in it. The bundle's files are as before afterwards
+        (not reloaded: the caller saves or reloads next)."""
+        path = self.path(preset["type"], preset["name"])
+        old = None
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                old = f.read()
+        _write_json(path, preset)
+        try:
+            reload_fn(BUNDLE)
+            ok = True
+        except Exception:
+            ok = False
+        if old is None:
+            os.unlink(path)
+        else:
+            with open(path, "wb") as f:
+                f.write(old)
+        return ok
+
+    def files(self):
+        """[(kind, path)] of the preset files in the bundle's folders, whether FilaForge lists them or not."""
+        out = []
+        for kind, sub in (("filament", "filament"), ("process", "process")):
+            folder = os.path.join(self.folder, sub)
+            if os.path.isdir(folder):
+                out += [(kind, os.path.join(folder, f)) for f in sorted(os.listdir(folder)) if f.endswith(".json")]
+        return out
+
+    def set_aside(self, reload_fn, standalone=None):
+        """Take out the presets that make OrcaSlicer refuse the bundle. standalone(data) -> a fixed copy to try
+        first (a process whose parent is gone, say) or None. Every one taken out goes into the history, so it can
+        be restored. Returns [(name, "fixed"|"removed")], or None if the bundle is refused without any of them."""
+        items = self.files()
+        held = []
+        for kind, path in items:
+            with open(path, "rb") as f:
+                held.append((kind, path, f.read()))
+            os.unlink(path)
+        try:
+            reload_fn(BUNDLE)
+        except Exception:
+            for _, path, data in held:
+                with open(path, "wb") as f:
+                    f.write(data)
+            try:
+                reload_fn(BUNDLE)
+            except Exception:
+                pass
+            return None
+        state = self.state()
+        out = []
+        for kind, path, data in held:
+            with open(path, "wb") as f:
+                f.write(data)
+            try:
+                reload_fn(BUNDLE)
+                continue
+            except Exception:
+                pass
+            parsed = _parsed(data) if isinstance(_parsed(data), dict) else {}
+            name = str(parsed.get("name") or os.path.basename(path)[:-5])
+            fixed = standalone(parsed) if standalone and parsed else None
+            if fixed is not None:
+                _write_json(path, fixed)
+                try:
+                    reload_fn(BUNDLE)
+                    if self.history is not None:
+                        self.history.add(kind, name, data, {}, "repaired")
+                    out.append((name, "fixed"))
+                    continue
+                except Exception:
+                    pass
+            os.unlink(path)
+            if self.history is not None:
+                info = state["presets"].get(name) or {}
+                self.history.add(kind, name, data, {k: v for k, v in info.items() if k != "file"}, "invalid")
+            state["presets"].pop(name, None)
+            out.append((name, "removed"))
+        _write_json(os.path.join(self.folder, STATE), state)
+        reload_fn(BUNDLE)
+        return out
 
     def remove(self, name, reload_fn, reason="removed"):
         state = self.state()

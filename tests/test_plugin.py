@@ -210,6 +210,54 @@ class PluginTests(unittest.TestCase):
             new = json.load(f)
         self.assertEqual((new["inherits"], new["layer_height"], new["outer_wall_speed"]), ("", "0.2", "120"))
 
+    def make(self, result, settings=None):
+        settings = settings if settings is not None else [x for x in result["settings"] if x["apply"]]
+        return self.send(cmd="make_preset", identity=result["identity"], settings=settings,
+                         base=result["base"]["name"], name=result["preset_name"])
+
+    def test_fractional_whole_numbers(self):
+        # "212.5" in a whole-number key made OrcaSlicer refuse the bundle
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        settings = [dict(x) for x in result["settings"] if x["apply"]]
+        settings += [{"orca_key": "nozzle_temperature", "value": "212.5"},
+                     {"orca_key": "overhang_fan_speed", "value": "85.4"},
+                     {"orca_key": "enable_pressure_advance", "value": "true"}]
+        saved = self.last("saved", self.make(result, settings))
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertEqual(preset["nozzle_temperature"][0], "213")
+        self.assertEqual(preset["overhang_fan_speed"][0], "85")
+        self.assertEqual(saved["left_out"], [])
+
+    def test_refused_value_left_out(self):
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        settings = [dict(x) for x in result["settings"] if x["apply"]]
+        self.orca.refuse = "1.21"                              # the density OrcaSlicer "refuses"
+        saved = self.last("saved", self.make(result, settings))
+        self.assertEqual(saved["left_out"], ["filament_density"])
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertNotEqual(preset["filament_density"], ["1.21"])
+        self.assertIn("filament_flow_ratio" if "filament_flow_ratio" in preset else "nozzle_temperature", preset)
+
+    def test_broken_process_set_aside(self):
+        # a process whose parent OrcaSlicer no longer has blocked every later save
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        proc = self.last("saved", self.send(cmd="process_save", base="0.20mm Standard @Creality K1C",
+                                            name="Gone FF", changes=[]))
+        with open(proc["path"], encoding="utf-8") as f:
+            data = json.load(f)
+        data["inherits"] = "0.20mm Renamed @Creality K1C"
+        with open(proc["path"], "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        saved = self.last("saved", self.make(result))
+        self.assertTrue(os.path.exists(saved["path"]))
+        self.assertEqual(saved["set_aside"], [{"name": "Gone FF", "how": "fixed"}])
+        with open(proc["path"], encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["inherits"], "")
+        hist = self.last("history", self.send(cmd="history"))
+        self.assertIn("Gone FF", json.dumps(hist))
+
     def test_no_descriptor_opens(self):
         # OrcaSlicer's sandbox can't name a file opened by descriptor and asks the user: open by path only
         import ast, glob
@@ -447,6 +495,7 @@ class PluginTests(unittest.TestCase):
             fake_orca.install([])
             import filaforge
             from filaforge.core.sources import tds
+            sys.dont_write_bytecode = True                     # the test's own helper module, not FilaForge
             from test_core import make_pdf
             assert "Nozzle" in tds.pdf_text(make_pdf(["Nozzle temperature 200-220"]))
             print(len(nameless), nameless)
