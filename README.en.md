@@ -147,8 +147,17 @@ you can change them. Changes are kept in `settings.json`; **Restore defaults** g
 - **Speeds and accelerations (×)**: process factors for the outer wall, inner walls, top, infill, bridges and
   accelerations. 1 = unchanged. An empty field in a group takes the "All" column. A factor only lowers a
   speed, it never raises one.
-- **Fan on bridges and overhangs** (`overhang_fan_speed`): by default PLA 100%, PETG 60%, ABS and ASA 50%,
-  PC and PA 40%.
+- **Cooling** (the second table):
+  - **Min and Max (%)** (`fan_min_speed`, `fan_max_speed`): part fan on long and short layers. By default
+    PLA and TPU 100/100, PETG 30/60, ABS 10/30, ASA 10/35, PC 0/30, PA 0/40.
+  - **Bridges (%)** (`overhang_fan_speed`): part fan on bridges and overhangs. By default PLA 100%, PETG 60%,
+    ABS and ASA 50%, PC and PA 40%.
+  - **Full from layer** (`full_fan_speed_layer`): from this layer the part fan runs at full speed. PLA and
+    PETG 3, ABS, ASA and PA 4, PC 5.
+  - **Min layer time (s)** (`slow_down_layer_time`): a shorter layer slows down and gets the highest fan.
+    PLA 8, PETG 10, ABS, ASA and PA 12, PC 15.
+  - **Aux (%)** (`additional_cooling_fan_speed`): the auxiliary fan. PLA 70%, PETG 20%, materials that warp
+    0%. Set only when the printer profile has an auxiliary fan (`auxiliary_fan`).
 - **Layers without fan** (`close_fan_the_first_x_layers`): ABS and ASA 3, PC 4, PA 3, so the first layers
   stick to the bed.
 - **Chamber** (`chamber_temperature`): ABS and ASA 45 °C, PC 55 °C, PA 45 °C. Set only when the printer
@@ -268,6 +277,14 @@ window or in OrcaSlicer. You can then delete the `<OrcaSlicer data>/filaforge/` 
 *Manual* when you have none of your own), and the Save to Spoolman button is hidden. Finding data, presets, your measurements and the print process work the same.
 
 The **Saved** button in the header lists every preset and process made by FilaForge, and removes them.
+
+**Cooling for the print**: OrcaSlicer keeps every fan setting in the filament preset, not in the process.
+So next to the preset name you pick the cooling, and FilaForge makes a separate filament preset:
+- **Standard**: the values from the results table.
+- **Detail and overhangs**: highest fan +20 points, bridge and auxiliary fan +20, shortest layer time +4 s.
+  Materials that warp get 50% at most. "detail" is added to the name.
+- **Strength**: lowest and highest fan at about 60%, the auxiliary fan halved, bridges unchanged. The layers
+  bond better, so it suits functional parts. "strength" is added to the name.
 
 **Preset names**: FilaForge adds the **FF** mark and leaves out `@printer`. If a preset with the same name
 already exists for another printer, the printer model is added in brackets, e.g.

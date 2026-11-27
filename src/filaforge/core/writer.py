@@ -54,7 +54,9 @@ def filament_id(identity_key, printer):
 INT_KEYS = frozenset({"nozzle_temperature", "nozzle_temperature_initial_layer", "nozzle_temperature_range_low",
                       "nozzle_temperature_range_high", "hot_plate_temp", "hot_plate_temp_initial_layer",
                       "textured_plate_temp", "textured_plate_temp_initial_layer", "temperature_vitrification",
-                      "chamber_temperature", "overhang_fan_speed", "close_fan_the_first_x_layers"})
+                      "chamber_temperature", "overhang_fan_speed", "close_fan_the_first_x_layers",
+                      "fan_min_speed", "fan_max_speed", "full_fan_speed_layer", "slow_down_layer_time",
+                      "additional_cooling_fan_speed"})
 BOOL_KEYS = frozenset({"enable_pressure_advance", "activate_chamber_temp_control"})
 
 
@@ -142,7 +144,8 @@ NUMERIC_KEYS = frozenset({"nozzle_temperature", "nozzle_temperature_initial_laye
                           "temperature_vitrification", "chamber_temperature", "filament_flow_ratio",
                           "pressure_advance", "enable_pressure_advance", "filament_retraction_length",
                           "filament_retraction_speed", "overhang_fan_speed", "close_fan_the_first_x_layers",
-                          "activate_chamber_temp_control"})
+                          "activate_chamber_temp_control", "full_fan_speed_layer", "slow_down_layer_time",
+                          "additional_cooling_fan_speed"})
 
 
 def _numberish(text):

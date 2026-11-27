@@ -14,7 +14,7 @@ import webbrowser
 
 import orca
 
-from .core import defects, files, habits, history, measured, merge, process, research, review, spoolman, writer
+from .core import cooling, defects, files, habits, history, measured, merge, process, research, review, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
@@ -170,7 +170,8 @@ def printer_info(bundle):
         nozzle = 0.4
     return {"name": getattr(printer, "name", "") or "", "model": _clean(cfg("printer_model")),
             "nozzle": nozzle, "process": getattr(process_preset, "name", "") or "",
-            "chamber_control": _clean(cfg("support_chamber_temp_control")).lower() in ("1", "true")}
+            "chamber_control": _clean(cfg("support_chamber_temp_control")).lower() in ("1", "true"),
+            "aux_fan": _clean(cfg("auxiliary_fan")).lower() in ("1", "true")}
 
 
 def filament_presets(bundle, identity):
@@ -910,18 +911,23 @@ class Tab:
             values["filament_type"] = identity.material
         else:
             values.setdefault("filament_type", identity.material)
+        mode = str(data.get("cooling") or "standard")
+        cooled = cooling.apply(values, mode, habits.material_class(identity.material, identity.product), base_config)
+        values.update(cooled)
         preset = writer.filament_preset(name, base_config, values, printer["name"], identity,
                                         measured.identity_key(identity),
                                         "FilaForge %s from %s" % (VERSION, base_name or "defaults"))
         spool = data.get("spoolman_id")
         meta = preset_meta(preset, base_name, base_config, values, identity,
                            spool if isinstance(spool, int) and not isinstance(spool, bool) else None)
+        if cooled:
+            meta["cooling"] = mode
         plain = writer.filament_preset(name, base_config, {"filament_type": values["filament_type"]}, printer["name"],
                                        identity, measured.identity_key(identity), preset["description"])
         report = []
         path = install(preset, bundle, printer["name"], meta, plain=plain, report=report)
         self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle),
-                   **install_notes(report))
+                   cooling=cooled, **install_notes(report))
 
     def on_remove_preset(self, data):
         bundle = orca.host.preset_bundle()

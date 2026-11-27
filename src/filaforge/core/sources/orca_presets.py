@@ -30,6 +30,9 @@ READ = {
     "chamber_temperature": ("chamber_temp", "first"),
     "overhang_fan_speed": ("bridge_fan", "first"),
     "close_fan_the_first_x_layers": ("fan_off_layers", "first"),
+    "full_fan_speed_layer": ("full_fan_layer", "first"),
+    "slow_down_layer_time": ("layer_time", "first"),
+    "additional_cooling_fan_speed": ("aux_fan", "first"),
     "filament_retraction_length": ("retraction_length", "first"),
     "filament_retraction_speed": ("retraction_speed", "first"),
 }

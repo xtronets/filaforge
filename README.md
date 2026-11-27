@@ -151,8 +151,18 @@ wartości FilaForge.
 - **Prędkości i przyspieszenia (×)**: mnożniki procesu dla ściany zewnętrznej, ścian wewnętrznych, góry,
   wypełnienia, mostów i przyspieszeń. 1 = bez zmian. Puste pole w grupie bierze wartość z kolumny
   „Wszystkie”. Mnożnik tylko obniża prędkość, nigdy jej nie podnosi.
-- **Nawiew na mostach i nawisach** (`overhang_fan_speed`): domyślnie PLA 100%, PETG 60%, ABS i ASA 50%,
-  PC i PA 40%.
+- **Chłodzenie** (druga tabela):
+  - **Min i Max (%)** (`fan_min_speed`, `fan_max_speed`): nawiew przy długich i krótkich warstwach. Domyślnie
+    PLA i TPU 100/100, PETG 30/60, ABS 10/30, ASA 10/35, PC 0/30, PA 0/40.
+  - **Mosty (%)** (`overhang_fan_speed`): nawiew na mostach i nawisach. Domyślnie PLA 100%, PETG 60%, ABS
+    i ASA 50%, PC i PA 40%.
+  - **Pełny od warstwy** (`full_fan_speed_layer`): od tej warstwy nawiew idzie z pełną mocą. PLA i PETG 3,
+    ABS, ASA i PA 4, PC 5.
+  - **Min. czas warstwy (s)** (`slow_down_layer_time`): krótsza warstwa zwalnia i dostaje maksymalny nawiew.
+    PLA 8, PETG 10, ABS, ASA i PA 12, PC 15.
+  - **Boczny (%)** (`additional_cooling_fan_speed`): wentylator pomocniczy. PLA 70%, PETG 20%, materiały,
+    które się wypaczają, 0%. Ustawiany tylko wtedy, gdy profil drukarki ma wentylator pomocniczy
+    (`auxiliary_fan`).
 - **Warstwy bez nawiewu** (`close_fan_the_first_x_layers`): ABS i ASA 3, PC 4, PA 3, żeby pierwsze warstwy
   dobrze trzymały się stołu.
 - **Komora** (`chamber_temperature`): ABS i ASA 45 °C, PC 55 °C, PA 45 °C. Ustawiana tylko wtedy, gdy
@@ -272,6 +282,14 @@ w oknie **Zapisane** albo w Orce. Folder `<dane Orki>/filaforge/` możesz potem 
 *Ręcznie*, jeśli własnych presetów nie masz), a przycisk zapisu do Spoolmana jest ukryty. Wyszukiwanie danych, presety, Twoje pomiary i proces druku działają tak samo.
 
 Przycisk **Zapisane** w nagłówku pokazuje wszystkie presety i procesy zrobione przez FilaForge. Tam też je usuniesz.
+
+**Chłodzenie pod druk**: OrcaSlicer trzyma wszystkie ustawienia wentylatorów w presecie filamentu, a nie
+w procesie. Dlatego obok nazwy presetu wybierasz chłodzenie, a FilaForge robi osobny preset filamentu:
+- **Standard**: wartości z tabeli wyników.
+- **Detale i nawisy**: maksymalny nawiew +20 punktów, nawiew mostów i wentylator boczny +20, minimalny czas
+  warstwy +4 s. Materiały, które się wypaczają, dostają najwyżej 50%. Do nazwy dochodzi „detale”.
+- **Wytrzymałość**: nawiew min i max ok. 60%, wentylator boczny o połowę, mosty bez zmian. Warstwy wiążą się
+  mocniej, więc to dobry wybór na części użytkowe. Do nazwy dochodzi „wytrzymały”.
 
 **Nazwy presetów**: FilaForge dodaje znacznik **FF** i nie dopisuje `@drukarka`. Jeśli preset o tej samej
 nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np. `Sunlu PLA+ FF (Snapmaker U1)`.

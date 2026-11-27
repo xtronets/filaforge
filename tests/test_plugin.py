@@ -240,6 +240,18 @@ class PluginTests(unittest.TestCase):
         self.assertNotEqual(preset["filament_density"], ["1.21"])
         self.assertIn("filament_flow_ratio" if "filament_flow_ratio" in preset else "nozzle_temperature", preset)
 
+    def test_cooling_mode(self):
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        settings = [dict(x) for x in result["settings"] if x["apply"]]
+        saved = self.last("saved", self.send(cmd="make_preset", identity=result["identity"], settings=settings,
+                                             base=result["base"]["name"], name="Sunlu PLA+ strength",
+                                             cooling="strength"))
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertTrue(saved["cooling"])
+        self.assertEqual(preset["fan_max_speed"][0], saved["cooling"]["fan_max_speed"])
+        self.assertLess(float(preset["fan_max_speed"][0]), 100)
+
     def test_broken_process_set_aside(self):
         # a process whose parent OrcaSlicer no longer has blocked every later save
         result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))

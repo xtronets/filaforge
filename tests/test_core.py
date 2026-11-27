@@ -477,7 +477,8 @@ class HabitTests(unittest.TestCase):
                    Observation("fan_off_layers", 1.0, BASELINE, "generic", "Generic ABS")]
         base = {"overhang_fan_speed": "100", "close_fan_the_first_x_layers": "1", "chamber_temperature": "0"}
         open_obs = research.habit_observations(ident, row, "ABS", chamber_control=False)
-        self.assertEqual({o.key for o in open_obs}, {"bridge_fan", "fan_off_layers"})   # no chamber to heat
+        self.assertNotIn("chamber_temp", {o.key for o in open_obs})                    # no chamber to heat
+        self.assertTrue({"bridge_fan", "fan_off_layers", "fan_max", "aux_fan"} <= {o.key for o in open_obs})
         rows = {r["orca_key"]: r for r in merge.orca_settings(merge.merge(generic + open_obs), base)}
         self.assertEqual((rows["overhang_fan_speed"]["value"], rows["overhang_fan_speed"]["kind"]), ("50", ESTIMATED))
         self.assertTrue(rows["close_fan_the_first_x_layers"]["apply"])
@@ -709,3 +710,33 @@ class WriterRepairTests(unittest.TestCase):
         self.assertEqual(writer.config_value("enable_pressure_advance", "1.0"), "1")
         self.assertEqual(writer.config_value("filament_flow_ratio", "0.985"), "0.985")
         self.assertEqual(writer.config_value("nozzle_temperature", "nil"), "nil")
+
+
+class CoolingTests(unittest.TestCase):
+    def test_modes(self):
+        from filaforge.core import cooling
+        pla = {"fan_min_speed": "100", "fan_max_speed": "100", "overhang_fan_speed": "100",
+               "additional_cooling_fan_speed": "70", "slow_down_layer_time": "8"}
+        self.assertEqual(cooling.apply(pla, "standard", "PLA"), {})
+        strong = cooling.apply(pla, "strength", "PLA")
+        self.assertEqual(strong["fan_max_speed"], "60")
+        self.assertEqual(strong["additional_cooling_fan_speed"], "35")
+        self.assertNotIn("overhang_fan_speed", strong)            # bridges still need their fan
+        detail = cooling.apply(pla, "detail", "PLA")
+        self.assertEqual(detail["slow_down_layer_time"], "12")
+        self.assertEqual(detail["additional_cooling_fan_speed"], "90")
+        self.assertNotIn("fan_max_speed", detail)                 # already 100
+        abs_ = cooling.apply({"fan_max_speed": "30", "overhang_fan_speed": "50"}, "detail", "ABS")
+        self.assertEqual(abs_["fan_max_speed"], "50")              # warping materials stay low
+        self.assertNotIn("overhang_fan_speed", abs_)
+        # a key the settings lack is read from the parent preset
+        self.assertEqual(cooling.apply({}, "strength", "PETG", {"fan_max_speed": "60,60"})["fan_max_speed"], "36")
+
+    def test_fan_habits(self):
+        from filaforge.core import habits, research
+        from filaforge.core.model import Identity
+        row = habits.table()["PETG"]
+        obs = {o.key: o.value for o in research.habit_observations(Identity("X", "PETG", ""), row, "PETG")}
+        self.assertEqual((obs["fan_min"], obs["fan_max"], obs["aux_fan"], obs["layer_time"]), (30, 60, 20, 10))
+        none = research.habit_observations(Identity("X", "PETG", ""), row, "PETG", aux_fan=False)
+        self.assertNotIn("aux_fan", {o.key for o in none})

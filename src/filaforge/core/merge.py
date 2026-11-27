@@ -10,7 +10,7 @@ from .model import BASELINE, DECLARED, ESTIMATED, KIND_RANK, PRESET, TESTED, Obs
 from .text import round_to
 
 TOLERANCE = {"nozzle_temp": 5, "bed_temp": 5, "density": 0.03, "fan_min": 10, "fan_max": 10, "vitrification": 5,
-             "bridge_fan": 10, "fan_off_layers": 0,
+             "bridge_fan": 10, "fan_off_layers": 0, "full_fan_layer": 0, "layer_time": 2, "aux_fan": 10,
              "chamber_temp": 5, "retraction_length": 0.3, "retraction_speed": 10, "flow_ratio": 0.03,
              "pressure_advance": 0.01, "dry_temp": 5, "dry_time": 2, "print_speed_max": 30}
 REL_TOLERANCE = {"max_volumetric_speed": 0.2}
@@ -209,6 +209,9 @@ ORCA_MAP = (
     ("activate_chamber_temp_control", "chamber_temp", True),
     ("overhang_fan_speed", "bridge_fan", True),
     ("close_fan_the_first_x_layers", "fan_off_layers", True),
+    ("full_fan_speed_layer", "full_fan_layer", True),
+    ("slow_down_layer_time", "layer_time", True),
+    ("additional_cooling_fan_speed", "aux_fan", True),
     ("filament_flow_ratio", "flow_ratio", True),
     ("pressure_advance", "pressure_advance", True),
     ("enable_pressure_advance", "pressure_advance", True),

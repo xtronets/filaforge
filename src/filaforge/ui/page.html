@@ -230,6 +230,8 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .pend span { flex: 1; min-width: 240px; }
 .sec { font-size: 11.5px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
 @media (max-width: 820px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--border); } }
+.row2 { display: flex; gap: 10px; align-items: flex-end; }
+.row2 select { width: 100%; }
 </style>
 </head>
 <body>
@@ -306,7 +308,13 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
         <button class="link small" id="btn-same" style="margin-top:8px"></button>
       </div>
       <div class="body" style="border-top:1px solid var(--border)">
-        <div class="field"><label data-t="preset_name"></label><input id="preset-name"></div>
+        <div class="row2">
+          <div class="field" style="flex:2"><label data-t="preset_name"></label><input id="preset-name"></div>
+          <div class="field" style="flex:1"><label data-t="cooling"></label>
+            <select id="cooling"><option value="standard" data-t="cool_standard"></option><option value="detail" data-t="cool_detail"></option><option value="strength" data-t="cool_strength"></option></select>
+          </div>
+        </div>
+        <div class="note" id="cooling-note" style="margin-top:4px"></div>
         <div class="actions" style="margin-top:10px">
           <button id="btn-make-preset" data-t="make_preset"></button>
           <button class="secondary" id="btn-spoolman-plan" data-t="to_spoolman"></button>
@@ -372,6 +380,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <div class="body">
     <div class="note" data-t="habits_note"></div>
     <div class="habits"><table id="habits-table"></table></div>
+    <div class="habits" style="margin-top:10px"><table id="habits-table2"></table></div>
   </div>
   <div class="foot"><button class="secondary" id="btn-habits-reset" data-t="habits_reset" style="margin-right:auto"></button>
     <button class="secondary" data-close data-t="cancel"></button><button id="btn-habits-save" data-t="save"></button></div>
@@ -542,7 +551,11 @@ const T = {
     sheet: 'Karta techniczna (TDS)', sheet_eg: 'Adres PDF lub strony produktu', add: 'Dodaj', or_pdf: '…albo wybierz plik PDF',
     research: 'Szukaj danych', empty: 'Wybierz szpulę ze Spoolmana albo wpisz producenta i materiał, potem „Szukaj danych”. FilaForge zbierze wartości z otwartych baz, kart technicznych producenta i presetów Orki, pokaże skąd jest każda i zrobi z nich preset.',
     setting: 'Ustawienie', value: 'Wartość', origin: 'Pochodzenie', sources: 'Źródła', preset_name: 'Nazwa presetu w Orce',
-    make_preset: 'Utwórz preset w Orce', to_spoolman: 'Zapisz w Spoolmanie…', measured_title: 'Twoje pomiary',
+    make_preset: 'Utwórz preset w Orce', cooling: 'Chłodzenie pod druk', cool_standard: 'Standard', cool_detail: 'Detale i nawisy',
+    cool_strength: 'Wytrzymałość', cool_suffix_detail: 'detale', cool_suffix_strength: 'wytrzymały',
+    cool_note_detail: 'Więcej nawiewu na nawisy, mosty i małe detale, dłuższy minimalny czas warstwy. Materiały, które się wypaczają, dostają najwyżej 50%.',
+    cool_note_strength: 'Mniej nawiewu (ok. 60%), wentylator boczny o połowę: warstwy wiążą się mocniej. Na części użytkowe.',
+    cool_done: 'Chłodzenie: {list}.', to_spoolman: 'Zapisz w Spoolmanie…', measured_title: 'Twoje pomiary',
     measured_note: 'Wartości z Twojej kalibracji mają pierwszeństwo przed wszystkimi źródłami. Puste pole = brak pomiaru.',
     calib_title: 'Kalibracja w Orce:', calib_use: 'Wstaw do pomiarów', calib_put: 'Wstawione do „{field}”. Kliknij „Zapisz pomiary i przelicz”.',
     calib_need: 'Uzupełnij pola kalibracji.', nozzle_opt: 'Dysza {n} mm', nozzle_opt_orca: 'Dysza {n} mm (w Orce)',
@@ -581,10 +594,14 @@ const T = {
     habits: 'Materiały', habits_title: 'Zwyczaje materiałów',
     habits_note: 'Mnożniki prędkości i przyspieszeń dla procesu: 1 = bez zmian, 0,7 = 70% prędkości z procesu drukarki. Puste pole w grupie (np. Mosty) bierze wartość z kolumny „Wszystkie”. Kolumny presetu filamentu to szacunki FilaForge: wygrywa z nimi preset producenta, karta techniczna i Twój pomiar. Puste pole = nie proponuj. Zmienione pola są podświetlone.',
     habits_reset: 'Przywróć domyślne', habits_saved: 'Zapisane. Kliknij „Szukaj danych” albo „Przelicz”, żeby zobaczyć nowe wartości.',
-    h_speed: 'Prędkości (×)', h_accel: 'Przyspieszenia (×)', h_filament: 'Preset filamentu',
+    h_speed: 'Prędkości (×)', h_accel: 'Przyspieszenia (×)', h_filament: 'Preset filamentu', h_cooling: 'Chłodzenie',
     hf_all: 'Wszystkie', hf_outer: 'Ściana zewn.', hf_inner: 'Ściany wewn.', hf_top: 'Góra', hf_infill: 'Wypełn.', hf_bridge: 'Mosty',
-    hf_accel: 'Wszystkie', hf_outer_accel: 'Ściana zewn.', hf_bridge_fan: 'Nawiew mostów (%)', hf_fan_off_layers: 'Warstwy bez nawiewu',
+    hf_accel: 'Wszystkie', hf_outer_accel: 'Ściana zewn.', hf_bridge_fan: 'Mosty (%)', hf_fan_off_layers: 'Bez nawiewu (warstwy)',
     hf_chamber: 'Komora (°C)', hf_enclosure: 'Wymaga obudowy',
+    hf_fan_min: 'Min (%)', hf_fan_max: 'Max (%)', hf_full_fan_layer: 'Pełny od warstwy', hf_layer_time: 'Min. czas warstwy (s)', hf_aux_fan: 'Boczny (%)',
+    hh_fan_min: 'Nawiew przy długich warstwach', hh_fan_max: 'Nawiew przy krótkich warstwach', hh_full_fan_layer: 'Od tej warstwy nawiew idzie z pełną mocą',
+    hh_layer_time: 'Krótsza warstwa zwalnia i dostaje maksymalny nawiew', hh_aux_fan: 'Wentylator pomocniczy, tylko w drukarce, która go ma',
+    hh_bridge_fan: 'Nawiew na mostach i nawisach', hh_fan_off_layers: 'Pierwsze warstwy bez nawiewu (przyczepność)',
     cls_PLA: 'PLA', cls_SILK: 'PLA Silk', cls_PETG: 'PETG, PCTG', cls_ABS: 'ABS', cls_ASA: 'ASA', cls_PC: 'PC', cls_PA: 'PA (nylon)', cls_CF: 'Z włóknem węglowym', cls_TPU: 'TPU',
     w_enclosure: '{cls} wypacza się i pęka w otwartej drukarce. Drukuj go w zamkniętej obudowie, bez przeciągów.', w_enclosed_yes: 'Moja drukarka jest zamknięta',
     w_chamber_passive: 'Drukarka nie grzeje komory, więc temperatury komory nie ustawiam. Przed drukiem {cls} rozgrzej wnętrze stołem przez 10–15 minut i nie otwieraj drzwi.', w_enclosed_no: 'Nie jest zamknięta',
@@ -721,7 +738,11 @@ const T = {
     sheet: 'Data sheet (TDS)', sheet_eg: 'Address of a PDF or product page', add: 'Add', or_pdf: '…or pick a PDF file',
     research: 'Find data', empty: 'Pick a spool from Spoolman, or type the brand and material, then “Find data”. FilaForge gathers values from open databases, the maker’s data sheets and OrcaSlicer’s presets, shows where each comes from and turns them into a preset.',
     setting: 'Setting', value: 'Value', origin: 'Origin', sources: 'Sources', preset_name: 'Preset name in OrcaSlicer',
-    make_preset: 'Create preset in OrcaSlicer', to_spoolman: 'Save to Spoolman…', measured_title: 'Your measurements',
+    make_preset: 'Create preset in OrcaSlicer', cooling: 'Cooling for the print', cool_standard: 'Standard', cool_detail: 'Detail and overhangs',
+    cool_strength: 'Strength', cool_suffix_detail: 'detail', cool_suffix_strength: 'strength',
+    cool_note_detail: 'More fan for overhangs, bridges and small details, a longer shortest layer time. Materials that warp get 50% at most.',
+    cool_note_strength: 'Less fan (about 60%), the auxiliary fan halved: the layers bond better. For functional parts.',
+    cool_done: 'Cooling: {list}.', to_spoolman: 'Save to Spoolman…', measured_title: 'Your measurements',
     measured_note: 'Values from your own calibration win over every source. An empty field means not measured.',
     calib_title: 'OrcaSlicer calibration:', calib_use: 'Put into measurements', calib_put: 'Put into “{field}”. Click “Save and recalculate”.',
     calib_need: 'Fill in the calibration fields.', nozzle_opt: '{n} mm nozzle', nozzle_opt_orca: '{n} mm nozzle (in OrcaSlicer)',
@@ -760,10 +781,14 @@ const T = {
     habits: 'Materials', habits_title: 'Material habits',
     habits_note: 'Speed and acceleration factors for the process: 1 = unchanged, 0.7 = 70% of the printer process’s speed. An empty field in a group (e.g. Bridges) takes the “All” column. The filament preset columns are FilaForge’s estimates: a maker’s preset, a data sheet and your own measurement win over them. An empty field = no suggestion. Changed fields are highlighted.',
     habits_reset: 'Restore defaults', habits_saved: 'Saved. Click “Find data” or “Calculate” to see the new values.',
-    h_speed: 'Speeds (×)', h_accel: 'Accelerations (×)', h_filament: 'Filament preset',
+    h_speed: 'Speeds (×)', h_accel: 'Accelerations (×)', h_filament: 'Filament preset', h_cooling: 'Cooling',
     hf_all: 'All', hf_outer: 'Outer wall', hf_inner: 'Inner walls', hf_top: 'Top', hf_infill: 'Infill', hf_bridge: 'Bridges',
-    hf_accel: 'All', hf_outer_accel: 'Outer wall', hf_bridge_fan: 'Bridge fan (%)', hf_fan_off_layers: 'Layers without fan',
+    hf_accel: 'All', hf_outer_accel: 'Outer wall', hf_bridge_fan: 'Bridges (%)', hf_fan_off_layers: 'No fan (layers)',
     hf_chamber: 'Chamber (°C)', hf_enclosure: 'Needs enclosure',
+    hf_fan_min: 'Min (%)', hf_fan_max: 'Max (%)', hf_full_fan_layer: 'Full from layer', hf_layer_time: 'Min layer time (s)', hf_aux_fan: 'Aux (%)',
+    hh_fan_min: 'Part fan on long layers', hh_fan_max: 'Part fan on short layers', hh_full_fan_layer: 'From this layer the part fan runs at full speed',
+    hh_layer_time: 'A shorter layer slows down and gets the highest fan', hh_aux_fan: 'Auxiliary fan, only on a printer that has one',
+    hh_bridge_fan: 'Part fan on bridges and overhangs', hh_fan_off_layers: 'First layers without the part fan (adhesion)',
     cls_PLA: 'PLA', cls_SILK: 'Silk PLA', cls_PETG: 'PETG, PCTG', cls_ABS: 'ABS', cls_ASA: 'ASA', cls_PC: 'PC', cls_PA: 'PA (nylon)', cls_CF: 'Carbon fibre filled', cls_TPU: 'TPU',
     w_enclosure: '{cls} warps and cracks in an open printer. Print it in a closed enclosure, out of drafts.', w_enclosed_yes: 'My printer is enclosed',
     w_chamber_passive: 'The printer doesn’t heat its chamber, so no chamber temperature is set. Before printing {cls}, warm the inside with the bed for 10–15 minutes and keep the door shut.', w_enclosed_no: 'It isn’t enclosed',
@@ -951,6 +976,7 @@ function renderResult() {
   $('r-base').textContent = r.base ? t({vendor: 'base_vendor', own: 'base_own'}[r.base.kind] || 'base_generic', {name: r.base.name.replace(/^_local\/[^/]+\//, '')}) : t('base_none');
   $('r-legend').textContent = t('legend');
   $('preset-name').value = r.preset_name || r.identity.label;
+  $('cooling').value = 'standard'; S.coolSuffix = ''; $('cooling-note').textContent = '';
   const same = r.settings.filter(s => s.same_as_base && !s.apply).length;
   $('btn-same').hidden = !same;
   $('btn-same').textContent = t(S.showSame ? 'hide_same' : 'show_same', {n: same});
@@ -1087,8 +1113,10 @@ function currentMvs() {
 }
 
 // ---------- material habits
-const H_COLS = [['h_speed', ['all', 'outer', 'inner', 'top', 'infill', 'bridge']], ['h_accel', ['accel', 'outer_accel']],
-                ['h_filament', ['bridge_fan', 'fan_off_layers', 'chamber', 'enclosure']]];
+const H_TABLES = [
+  ['habits-table', [['h_speed', ['all', 'outer', 'inner', 'top', 'infill', 'bridge']], ['h_accel', ['accel', 'outer_accel']]]],
+  ['habits-table2', [['h_cooling', ['fan_min', 'fan_max', 'bridge_fan', 'full_fan_layer', 'layer_time', 'aux_fan', 'fan_off_layers']],
+                     ['h_filament', ['chamber', 'enclosure']]]]];
 function habitDefault(cls, f) { const d = ((S.habits && S.habits.defaults) || {})[cls] || {}; return d[f] == null ? null : d[f]; }
 function habitValue(cls, f) {
   const o = (S.settings.habits || {})[cls] || {};
@@ -1098,16 +1126,19 @@ function renderHabits(fromDefaults) {
   const info = S.habits;
   if (!info) return;
   const step = f => info.fields[f].kind === 'factor' ? 0.05 : 1;
-  const head1 = `<tr><th></th>${H_COLS.map(([g, fs]) => `<th class="grp sep" colspan="${fs.length}">${esc(t(g))}</th>`).join('')}</tr>`;
-  const head2 = `<tr><th></th>${H_COLS.map(([, fs]) => fs.map((f, i) => `<th class="${i ? '' : 'sep'}">${esc(t('hf_' + f))}</th>`).join('')).join('')}</tr>`;
-  const rows = info.classes.map(cls => `<tr><td>${esc(t('cls_' + cls))}</td>${H_COLS.map(([, fs]) => fs.map((f, i) => {
-    const v = fromDefaults ? habitDefault(cls, f) : habitValue(cls, f);
-    const fd = info.fields[f], cell = i ? '' : 'sep';
-    if (fd.kind === 'bool') return `<td class="${cell}"><input type="checkbox" data-h="${cls}" data-f="${f}"${v ? ' checked' : ''}></td>`;
-    return `<td class="${cell}"><input type="number" data-h="${cls}" data-f="${f}" min="${fd.min}" max="${fd.max}" step="${step(f)}"
-      value="${v == null ? '' : esc(v)}" placeholder="${f !== 'all' && fd.kind === 'factor' && f !== 'accel' ? '–' : ''}"></td>`;
-  }).join('')).join('')}</tr>`).join('');
-  $('habits-table').innerHTML = `<thead>${head1}${head2}</thead><tbody>${rows}</tbody>`;
+  for (const [id, cols] of H_TABLES) {
+    const fs0 = cols.filter(([, fs]) => fs.every(f => info.fields[f]));
+    const head1 = `<tr><th></th>${fs0.map(([g, fs]) => `<th class="grp sep" colspan="${fs.length}">${esc(t(g))}</th>`).join('')}</tr>`;
+    const head2 = `<tr><th></th>${fs0.map(([, fs]) => fs.map((f, i) => `<th class="${i ? '' : 'sep'}" title="${esc(t('hh_' + f) === 'hh_' + f ? '' : t('hh_' + f))}">${esc(t('hf_' + f))}</th>`).join('')).join('')}</tr>`;
+    const rows = info.classes.map(cls => `<tr><td>${esc(t('cls_' + cls))}</td>${fs0.map(([, fs]) => fs.map((f, i) => {
+      const v = fromDefaults ? habitDefault(cls, f) : habitValue(cls, f);
+      const fd = info.fields[f], cell = i ? '' : 'sep';
+      if (fd.kind === 'bool') return `<td class="${cell}"><input type="checkbox" data-h="${cls}" data-f="${f}"${v ? ' checked' : ''}></td>`;
+      return `<td class="${cell}"><input type="number" data-h="${cls}" data-f="${f}" min="${fd.min}" max="${fd.max}" step="${step(f)}"
+        value="${v == null ? '' : esc(v)}" placeholder="${f !== 'all' && fd.kind === 'factor' && f !== 'accel' ? '–' : ''}"></td>`;
+    }).join('')).join('')}</tr>`).join('');
+    $(id).innerHTML = `<thead>${head1}${head2}</thead><tbody>${rows}</tbody>`;
+  }
   markHabits();
 }
 function habitInput(el) {
@@ -1118,14 +1149,14 @@ function habitInput(el) {
   return Number.isFinite(n) ? n : null;
 }
 function markHabits() {
-  document.querySelectorAll('#habits-table [data-h]').forEach(el => {
+  document.querySelectorAll('.habits [data-h]').forEach(el => {
     const d = habitDefault(el.dataset.h, el.dataset.f), v = habitInput(el);
     el.classList.toggle('changed', el.type === 'checkbox' ? !!v !== !!d : v !== d);
   });
 }
 function habitOverrides() {
   const out = {};
-  document.querySelectorAll('#habits-table [data-h]').forEach(el => {
+  document.querySelectorAll('.habits [data-h]').forEach(el => {
     const cls = el.dataset.h, f = el.dataset.f, d = habitDefault(cls, f), v = habitInput(el);
     if (el.type === 'checkbox' ? !!v === !!d : v === d) return;
     (out[cls] = out[cls] || {})[f] = v;
@@ -1414,7 +1445,15 @@ document.body.addEventListener('click', e => {
 $('btn-make-preset').addEventListener('click', () => {
   busy($('btn-make-preset'), true);
   send({cmd: 'make_preset', identity: S.result.identity, settings: chosenSettings(), base: S.result.base ? S.result.base.name : '', name: $('preset-name').value.trim(),
-        spoolman_id: S.resultSpool || null});
+        spoolman_id: S.resultSpool || null, cooling: $('cooling').value});
+});
+$('cooling').addEventListener('change', () => {
+  const mode = $('cooling').value, input = $('preset-name');
+  let name = input.value.trim();
+  if (S.coolSuffix && name.endsWith(S.coolSuffix)) name = name.slice(0, -S.coolSuffix.length);
+  S.coolSuffix = mode === 'standard' ? '' : ' ' + t('cool_suffix_' + mode);
+  input.value = name + S.coolSuffix;
+  $('cooling-note').textContent = mode === 'standard' ? '' : t('cool_note_' + mode);
 });
 function spoolmanSection() { return (S.printer && S.printer.model) || '*'; }
 $('btn-spoolman-plan').addEventListener('click', () => {
@@ -1488,8 +1527,10 @@ $('btn-settings-save').addEventListener('click', () => {
   $('dlg-settings').close();
 });
 $('btn-habits').addEventListener('click', () => { renderHabits(false); $('dlg-habits').showModal(); });
-$('habits-table').addEventListener('input', markHabits);
-$('habits-table').addEventListener('change', markHabits);
+for (const id of ['habits-table', 'habits-table2']) {
+  $(id).addEventListener('input', markHabits);
+  $(id).addEventListener('change', markHabits);
+}
 $('btn-habits-reset').addEventListener('click', () => renderHabits(true));
 $('btn-habits-save').addEventListener('click', () => {
   send({cmd: 'settings', habits: habitOverrides()});
@@ -1616,7 +1657,8 @@ function onMessage(m) {
       busy($('btn-make-preset'), false); busy($('btn-process-save'), false);
       S.saved = m.saved || S.saved; renderSaved();
       if (m.renamed) $('preset-name').value = m.name;
-      if (m.kind === 'filament') toast(t('made_preset', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
+      const cool = Object.entries(m.cooling || {}).map(([k, v]) => k + ' ' + v).join(', ');
+      if (m.kind === 'filament') toast(t('made_preset', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : '') + (cool ? ' ' + t('cool_done', {list: cool}) : ''));
       else if (m.kind === 'process') toast(t('made_process', {name: m.name}) + (m.renamed ? ' ' + t('renamed') : ''));
       if ((m.left_out || []).length || (m.set_aside || []).length) {
         const parts = [];

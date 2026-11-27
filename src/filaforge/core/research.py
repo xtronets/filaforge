@@ -40,14 +40,21 @@ def typical_speed(process_config):
 HABIT_WEIGHT = 0.3
 
 
-def habit_observations(identity, row, cls, chamber_control=False):
-    """The material table's filament estimates: bridge fan, fan-free first layers, chamber (a printer that heats it)."""
+HABIT_KEYS = (("fan_min", "fan_min"), ("fan_max", "fan_max"), ("bridge_fan", "bridge_fan"),
+              ("full_fan_layer", "full_fan_layer"), ("layer_time", "layer_time"), ("aux_fan", "aux_fan"),
+              ("fan_off_layers", "fan_off_layers"), ("chamber", "chamber_temp"))
+
+
+def habit_observations(identity, row, cls, chamber_control=False, aux_fan=True):
+    """The material table's filament estimates: the part fan, the auxiliary fan (a printer that has one), the
+    shortest layer time, fan-free first layers, chamber (a printer that heats it)."""
     label = "FilaForge: %s habits" % cls
     note = "rule of thumb for %s (Settings → Materials)" % cls
     out = []
-    for field, key in (("bridge_fan", "bridge_fan"), ("fan_off_layers", "fan_off_layers"), ("chamber", "chamber_temp")):
+    for field, key in HABIT_KEYS:
         value = row.get(field)
-        if value is None or (key == "chamber_temp" and (not chamber_control or not value)):
+        if value is None or (key == "chamber_temp" and (not chamber_control or not value)) or \
+                (key == "aux_fan" and not aux_fan):
             continue
         out.append(Observation(key, float(value), ESTIMATED, "habits", label, "", HABIT_WEIGHT, note))
     return out
@@ -100,7 +107,8 @@ def run(identity, presets, fetcher, process_config=None, tested=(), sheet_urls=(
         obs, report = tds.from_bytes(data, "Data sheet: %s" % (item.get("name") or "file"), item.get("name") or "")
         observations += obs
         reports.append(report)
-    observations += habit_observations(identity, row, cls, bool(printer.get("chamber_control")))
+    observations += habit_observations(identity, row, cls, bool(printer.get("chamber_control")),
+                                       printer.get("aux_fan", True))
     observations += list(tested)
     if tested:
         reports.append(merging_report(tested))
