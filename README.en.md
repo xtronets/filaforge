@@ -20,7 +20,17 @@ measurements. Every value shows where it came from and how sure it is.
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
-## New in 0.7.0: print defects
+## New in 0.8.0: 15 defects, fix history, cooling
+
+- **15 print defects** instead of 8. New: seam and zits, ghosting, holes on top, gaps at the walls, curling
+  edges, supports and layer shift.
+- **Fix history.** FilaForge lists every attempt and learns from them: a fix that helped a similar filament
+  moves up the plan.
+- **Calibration tests** with where to find them in OrcaSlicer and what to read, and a way straight to the
+  measurements calculator.
+- **Cooling** (since 0.7.8): lowest/highest part fan, auxiliary fan and shortest layer time for each material,
+  and "detail" and "strength" preset variants.
+- **Self-repairing preset bundle** (since 0.7.1): no more "Local bundle contains an invalid preset".
 
 Something went wrong in a print? Click **Defects**, pick the problem and answer a question or two. FilaForge
 looks at the filament and process you printed with and lists the causes, likeliest first, from the material,
@@ -74,11 +84,15 @@ Details in [Print defects](#print-defects).
 - **Helps with OrcaSlicer's calibration**: for the flow ratio (YOLO, Pass 1/2), max flow, pressure advance,
   temperature and retraction tests it says how to read the result, works it out with the formulas from the
   OrcaSlicer wiki and puts it into your measurements.
-- **Diagnoses print defects**: stringing, the first layer, layers splitting, dimensions, over- and
-  under-extrusion, overhangs and bridges, and lifting corners. It orders the causes by material, settings and
-  measurements, fixes one thing at a time and learns from how the print came out.
+- **Diagnoses 15 print defects**: stringing, the first layer, layers splitting, dimensions, over- and
+  under-extrusion, overhangs and bridges, lifting corners, seam and zits, ghosting, holes on top, gaps at the
+  walls, curling edges, supports and layer shift. It orders the causes by material, settings and measurements,
+  fixes one thing at a time, learns from how the print came out and from similar filaments, and keeps the whole
+  fix history in one place.
 - **Knows material habits**: slower PETG bridges, the bridge fan, the chamber and fan-free first layers for
   ABS/ASA/PC/PA, a warning for an open printer. Every factor can be changed in the **Materials** window.
+- **Sets the cooling** for the material (lowest/highest fan, auxiliary fan, shortest layer time, full fan from a
+  layer) and for the kind of print: "detail and overhangs" and "strength" preset variants.
 - **Keeps presets in order**: **Review** finds missing and conflicting values and presets left behind by an
   OrcaSlicer update, and brings changes you made by hand in OrcaSlicer into your measurements.
 - **Keeps a history**: before an FF preset is replaced or removed, the earlier version is kept to compare
@@ -244,7 +258,8 @@ and spool it was made for.
 
 ## Requirements
 
-- OrcaSlicer **2.5** or newer, with plugin support.
+- OrcaSlicer **2.5** or newer, with plugin support, on **Windows, macOS or Linux**. The plugin is plain Python
+  with no extra libraries, so one `.whl` works on every system.
 - Optional: [Spoolman](https://github.com/Donkie/Spoolman), to pick spools and save settings. Everything else works without it.
 - Optional: [Spooler](https://github.com/bloodf/spooler). If you have it, FilaForge takes the Spoolman address from it.
 
@@ -253,7 +268,8 @@ and spool it was made for.
 **Install**
 
 1. Download `filaforge_any.whl` from [Releases](https://github.com/xtronets/filaforge/releases/latest).
-2. In OrcaSlicer open the **Plugins** menu (on Windows and Linux it is under the ▾ next to File).
+2. In OrcaSlicer open the **Plugins** menu (on Windows and Linux it is under the ▾ next to File, on macOS in the
+   menu bar at the top of the screen).
 3. Click **Install local plugin** and pick the downloaded file.
 4. Tick **Activate** and allow what the plugin asks for: a background thread, its own folder and the network
    addresses listed in [Privacy and network](#privacy-and-network).
@@ -311,13 +327,18 @@ already exists for another printer, the printer model is added in brackets, e.g.
 
 ## What it stores and where
 
+`<OrcaSlicer data>` is OrcaSlicer's data folder: `%APPDATA%\OrcaSlicer` on Windows,
+`~/Library/Application Support/OrcaSlicer` on macOS and `~/.config/OrcaSlicer` on Linux (in Flatpak
+`~/.var/app/io.github.softfever.OrcaSlicer/config/OrcaSlicer`). FilaForge finds it by itself.
+
 | What | Where |
 |---|---|
 | Filament and process presets | a separate **FilaForge** bundle in your user presets: `<OrcaSlicer data>/user/<account>/_local/filaforge/` |
 | Settings | `<OrcaSlicer data>/filaforge/settings.json` |
 | Your measurements | `<OrcaSlicer data>/filaforge/measured.json` |
 | Preset history | `<OrcaSlicer data>/filaforge/history/` |
-| Defect fixes tried | `<OrcaSlicer data>/filaforge/defects.json` |
+| Defect fix history | `<OrcaSlicer data>/filaforge/defects.json` |
+| Presets OrcaSlicer refused | `<OrcaSlicer data>/filaforge/refused/` (to attach to a bug report) |
 | Cached internet answers | `<OrcaSlicer data>/filaforge/cache/`. Database answers are kept for a week, others for a day. Without a network an older copy is used. |
 | Log | `<OrcaSlicer data>/filaforge/filaforge.log` |
 | Settings in Spoolman | the filament's `orca_settings` extra field. Density, diameter and price stay in Spoolman's own fields. |
@@ -345,6 +366,9 @@ the PDF file instead.
 - **"Set the Spoolman address in Settings."** Enter the Spoolman address in **Settings**, or set it up in Spooler.
 - **A data sheet from a new site won't download.** Restart OrcaSlicer and allow the new address, or pick the PDF file.
 - **No maker preset.** FilaForge uses the material's generic preset and says so in the sources bar.
+- **"Local bundle contains an invalid preset".** Since 0.7.1 FilaForge fixes this itself: a preset OrcaSlicer
+  refuses is made standalone or set aside into History, and a value it refuses is taken from the base preset.
+  If the error stays, attach the file from the `refused/` folder to your report.
 - **Something went wrong.** Details are in `<OrcaSlicer data>/filaforge/filaforge.log`. Report it in
   [Issues](https://github.com/xtronets/filaforge/issues) with that file attached.
 
@@ -360,6 +384,9 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # refresh the vendored PDF reader
 - `src/filaforge/plugin.py` and `__init__.py`: the OrcaSlicer tab and the page's messages.
 - `src/filaforge/ui/page.html`: the interface (PL/EN).
 - `src/filaforge/_vendor/pypdf/`: vendored [pypdf](https://github.com/py-pdf/pypdf) 5.4.0 (BSD).
+
+**Tests on three systems**: the *Build* workflow runs the tests on Windows, macOS and Linux before it builds
+`filaforge_any.whl`.
 
 **Test in a real OrcaSlicer**: the *Real OrcaSlicer* workflow runs the Linux OrcaSlicer (2.5.2 and the latest) on a
 virtual screen with a clean data folder and the plugin installed. The plugin tests itself (`src/filaforge/selftest.py`,

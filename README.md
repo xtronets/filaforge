@@ -20,7 +20,17 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
-## Nowość w 0.7.0: defekty wydruku
+## Nowość w 0.8.0: 15 defektów, historia napraw, chłodzenie
+
+- **15 defektów wydruku** zamiast 8. Doszły: szew i pryszcze, ghosting, dziury na górze, szczeliny przy
+  ścianach, zawijanie krawędzi, podpory i przesunięcie warstw.
+- **Historia napraw.** FilaForge pokazuje wszystkie próby i uczy się z nich: poprawka, która pomogła przy
+  podobnym filamencie, idzie w planie wyżej.
+- **Testy kalibracyjne** z opisem, gdzie je znaleźć w Orce i co odczytać, oraz z przejściem prosto do
+  kalkulatora pomiarów.
+- **Chłodzenie** (od 0.7.8): nawiew min/max, wentylator boczny, minimalny czas warstwy dla każdego materiału
+  oraz warianty presetu „detale” i „wytrzymały”.
+- **Samonaprawa pakietu presetów** (od 0.7.1): koniec z błędem „Local bundle contains an invalid preset”.
 
 Coś wyszło źle na wydruku? Kliknij **Defekty**, wybierz problem i odpowiedz na jedno–dwa pytania. FilaForge
 sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Bierze pod
@@ -77,11 +87,15 @@ Szczegóły w sekcji [Defekty wydruku](#defekty-wydruku).
   i wstawia do Twoich pomiarów.
 - **Liczy proces druku dopasowany do filamentu**: prędkości obniżone do maks. przepływu, zwyczaje materiału,
   mosty, przyspieszenia, limity drukarki i warianty dla małych detali.
-- **Diagnozuje defekty wydruku**: nitkowanie, pierwszą warstwę, rozwarstwianie, wymiary, nad- i
-  niedoekstruzję, nawisy i mosty oraz podnoszące się rogi. Ustawia przyczyny według materiału, ustawień i
-  pomiarów, poprawia jedną rzecz naraz i uczy się z wyniku wydruku.
+- **Diagnozuje 15 defektów wydruku**: nitkowanie, pierwszą warstwę, rozwarstwianie, wymiary, nad- i
+  niedoekstruzję, nawisy i mosty, podnoszące się rogi, szew i pryszcze, ghosting, dziury na górze, szczeliny
+  przy ścianach, zawijanie krawędzi, podpory i przesunięcie warstw. Ustawia przyczyny według materiału,
+  ustawień i pomiarów, poprawia jedną rzecz naraz, uczy się z wyniku wydruku i z podobnych filamentów,
+  a całą historię napraw pokazuje w jednym miejscu.
 - **Zna zwyczaje materiałów**: wolniejsze mosty PETG, nawiew na mostach, komorę i pierwsze warstwy bez nawiewu
   dla ABS/ASA/PC/PA, ostrzeżenie o otwartej drukarce. Wszystkie współczynniki zmienisz w oknie **Materiały**.
+- **Ustawia chłodzenie** pod materiał (nawiew min/max, wentylator boczny, minimalny czas warstwy, pełny nawiew
+  od warstwy) i pod rodzaj druku: warianty presetu „detale i nawisy” oraz „wytrzymałość”.
 - **Pilnuje porządku w presetach**: **Przegląd** wyłapuje brakujące i sprzeczne wartości oraz presety
   nieaktualne po aktualizacji Orki. Ręczne zmiany zrobione w Orce przenosi do Twoich pomiarów.
 - **Ma historię zmian**: przed każdym nadpisaniem albo usunięciem presetu FF zachowuje poprzednią wersję,
@@ -250,7 +264,8 @@ informacją, dla której drukarki i szpuli był zrobiony.
 
 ## Wymagania
 
-- OrcaSlicer **2.5** lub nowszy, z obsługą wtyczek.
+- OrcaSlicer **2.5** lub nowszy, z obsługą wtyczek, na **Windows, macOS albo Linuksie**. Wtyczka to czysty
+  Python bez dodatkowych bibliotek, więc jeden plik `.whl` działa na każdym systemie.
 - Opcjonalnie [Spoolman](https://github.com/Donkie/Spoolman), żeby wybierać szpule i zapisywać ustawienia. Bez niego wszystko inne działa.
 - Opcjonalnie [Spooler](https://github.com/bloodf/spooler). Jeśli go masz, FilaForge sam weźmie z niego adres Spoolmana.
 
@@ -259,7 +274,8 @@ informacją, dla której drukarki i szpuli był zrobiony.
 **Instalacja**
 
 1. Pobierz `filaforge_any.whl` z [Releases](https://github.com/xtronets/filaforge/releases/latest).
-2. W Orce otwórz menu **Wtyczki**. W Windows i Linux jest pod ▾ obok menu Plik.
+2. W Orce otwórz menu **Wtyczki**. W Windows i Linuksie jest pod ▾ obok menu Plik, w macOS w pasku menu u góry
+   ekranu.
 3. Kliknij **Zainstaluj lokalną wtyczkę** i wskaż pobrany plik.
 4. Zaznacz **Aktywuj** i zezwól na to, o co wtyczka prosi: wątek w tle, własny folder i adresy sieciowe
    opisane w [Prywatność i sieć](#prywatność-i-sieć).
@@ -316,13 +332,18 @@ nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np.
 
 ## Gdzie co zapisuje
 
+`<dane Orki>` to folder danych OrcaSlicera: `%APPDATA%\OrcaSlicer` w Windows,
+`~/Library/Application Support/OrcaSlicer` w macOS i `~/.config/OrcaSlicer` w Linuksie (we Flatpaku
+`~/.var/app/io.github.softfever.OrcaSlicer/config/OrcaSlicer`). FilaForge znajduje go sam.
+
 | Co | Gdzie |
 |---|---|
 | Presety filamentów i procesów | osobny pakiet **FilaForge** w Twoich presetach użytkownika: `<dane Orki>/user/<konto>/_local/filaforge/` |
 | Ustawienia | `<dane Orki>/filaforge/settings.json` |
 | Twoje pomiary | `<dane Orki>/filaforge/measured.json` |
 | Historia zmian presetów | `<dane Orki>/filaforge/history/` |
-| Próby naprawy defektów | `<dane Orki>/filaforge/defects.json` |
+| Historia napraw defektów | `<dane Orki>/filaforge/defects.json` |
+| Presety odrzucone przez Orkę | `<dane Orki>/filaforge/refused/` (do dołączenia do zgłoszenia błędu) |
 | Pamięć podręczna odpowiedzi z internetu | `<dane Orki>/filaforge/cache/`. Odpowiedzi baz są ważne tydzień, pozostałe dzień. Gdy sieci nie ma, użyta jest starsza kopia. |
 | Dziennik | `<dane Orki>/filaforge/filaforge.log` |
 | Ustawienia w Spoolmanie | pole dodatkowe `orca_settings` filamentu. Gęstość, średnica i cena zostają w zwykłych polach Spoolmana. |
@@ -349,6 +370,9 @@ ten adres i poprosi o niego przy następnym uruchomieniu Orki. Do tego czasu mo�
 - **„Ustaw adres Spoolmana w Ustawieniach.”** Wpisz adres Spoolmana w **Ustawienia** albo skonfiguruj go w Spoolerze.
 - **Karta TDS z nowej strony nie chce się pobrać.** Uruchom Orkę ponownie i zezwól na nowy adres albo wybierz plik PDF.
 - **Brak presetu producenta.** FilaForge użyje ogólnego presetu materiału i powie o tym w pasku źródeł.
+- **„Local bundle contains an invalid preset”.** Od 0.7.1 FilaForge naprawia to sam: preset, którego Orka nie
+  przyjmuje, robi samodzielnym albo odkłada do Historii, a wartość, której nie przyjmuje, bierze z presetu
+  bazowego. Jeśli błąd zostaje, dołącz do zgłoszenia plik z folderu `refused/`.
 - **Coś poszło nie tak.** Szczegóły są w `<dane Orki>/filaforge/filaforge.log`. Zgłoś błąd w
   [Issues](https://github.com/xtronets/filaforge/issues) i dołącz ten plik.
 
@@ -364,6 +388,9 @@ python3 scripts/vendor_pypdf.py pypdf-*.whl    # odświeżenie dołączonego czy
 - `src/filaforge/plugin.py` i `__init__.py`: zakładka w Orce i obsługa wiadomości ze strony.
 - `src/filaforge/ui/page.html`: interfejs (PL/EN).
 - `src/filaforge/_vendor/pypdf/`: dołączony [pypdf](https://github.com/py-pdf/pypdf) 5.4.0 (BSD).
+
+**Testy na trzech systemach**: workflow *Build* uruchamia testy na Windows, macOS i Linuksie, a dopiero potem
+buduje `filaforge_any.whl`.
 
 **Test w prawdziwej Orce**: workflow *Real OrcaSlicer* uruchamia Orkę dla Linuksa (2.5.2 i najnowszą) na wirtualnym
 ekranie z czystym katalogiem danych i zainstalowaną wtyczką. Wtyczka sama się testuje (`src/filaforge/selftest.py`,
