@@ -57,7 +57,9 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update -qq
+          # the runner's extra repositories (Microsoft, Azure CLI…) are not needed and now and then answer 403
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.* || true
+          for i in 1 2 3; do sudo apt-get update -qq && break; sleep 10; done
           sudo -E apt-get install -y -qq --no-install-recommends xvfb imagemagick xdotool libwebkit2gtk-4.1-0 libgtk-3-0t64 libegl1 libgl1 \
             libglu1-mesa libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good libsecret-1-0 >/dev/null
 
