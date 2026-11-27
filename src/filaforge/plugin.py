@@ -1128,8 +1128,20 @@ class Tab:
         ctx, info, _, _ = defect_context(bundle, data.get("slot"))
         shelf = attempts()
         ctx["tried"] = shelf.tried(defect, info["key"]) if defect else {}
+        ctx["elsewhere"] = shelf.elsewhere(defect, info["cls"], info["model"], info["key"]) if defect else {}
         causes = defects.plan(defect, ctx, data.get("answers"), data.get("inputs")) if defect else []
         self.reply(cmd, defect=defect, causes=causes, info=info, pending=shelf.pending(), **extra)
+
+    def on_defect_history(self, data):
+        bundle = orca.host.preset_bundle()
+        key = None
+        if not data.get("all"):
+            try:
+                _, info, _, _ = defect_context(bundle, data.get("slot"))
+                key = info["key"]
+            except ValueError:
+                key = None
+        self.reply("defect_history", all=bool(data.get("all")) or key is None, items=attempts().history(key))
 
     def on_defect_context(self, data):
         self._defect_reply(dict(data, defect=""), "defect_context",
@@ -1145,6 +1157,7 @@ class Tab:
         ctx, info, chosen, proc_preset = defect_context(bundle, data.get("slot"))
         shelf = attempts()
         ctx["tried"] = shelf.tried(defect, info["key"])
+        ctx["elsewhere"] = shelf.elsewhere(defect, info["cls"], info["model"], info["key"])
         found = next((c for c in defects.plan(defect, ctx, data.get("answers"), data.get("inputs"))
                       if c["cause"] == cause), None)
         if found is None or found["kind"] not in ("change", "advice", "calibration"):

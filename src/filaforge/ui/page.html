@@ -193,14 +193,20 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 #dlg-defects { width: min(1060px, 96vw); }
 #dlg-defects .body { max-height: 74vh; overflow: auto; }
 .df-top { display: grid; grid-template-columns: minmax(220px, 340px); gap: 8px; align-items: center; }
-.chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .chips button { display: grid; grid-template-columns: 26px 1fr; gap: 2px 10px; align-items: center; text-align: left; padding: 9px 11px;
                 background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: 10px; font-weight: 600; }
 .chips button:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
 .chips .ico { grid-row: 1 / span 2; width: 24px; height: 24px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .chips small { grid-column: 2; font-weight: 400; color: var(--muted); font-size: 11.5px; line-height: 1.3; }
-@media (max-width: 860px) { .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .chips { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.df-hist { display: flex; flex-direction: column; gap: 6px; }
+.df-hist .item { border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; font-size: 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.df-hist .item .when { color: var(--muted); font-size: 11.5px; }
+.tag.good { background: color-mix(in srgb, var(--tested) 18%, transparent); }
+.tag.bad { background: color-mix(in srgb, var(--bad, #c62828) 16%, transparent); }
 .df-empty { border: 1px dashed var(--border); border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; }
 .kind { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; letter-spacing: .02em; }
 .kind.change { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
@@ -408,8 +414,14 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
     <div class="df-q" id="df-q"></div>
     <div id="df-inputs"></div>
     <div class="df-plan" id="df-plan"></div>
+    <div id="df-history" hidden>
+      <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:8px"><b data-t="dfh_title"></b>
+        <label class="inline small"><input type="checkbox" id="dfh-all"> <span data-t="dfh_all"></span></label></div>
+      <div class="df-hist" id="dfh-list"></div>
+    </div>
   </div>
-  <div class="foot"><span class="note" data-t="df_rule" style="margin-right:auto"></span><button class="secondary" data-close data-t="close"></button></div>
+  <div class="foot"><span class="note" data-t="df_rule" style="margin-right:auto"></span>
+    <button class="secondary" id="btn-df-history" data-t="dfh_open"></button><button class="secondary" data-close data-t="close"></button></div>
 </dialog>
 
 <dialog id="dlg-history">
@@ -428,6 +440,91 @@ const T = {
     df: 'Defekty', df_title: 'Defekty wydruku',
     df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
     df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
+    dfh_open: 'Historia napraw', dfh_back: 'Wróć do defektów', dfh_title: 'Historia napraw', dfh_all: 'wszystkie filamenty',
+    dfh_none: 'Jeszcze nic nie próbowano.', dfh_pending: 'czeka na wydruk', df_enter: 'Wpisz wynik testu',
+    el_good: 'pomogło przy: {names}', el_bad: 'nie pomogło przy: {names}',
+    tst_flow: 'Orka → Kalibracja → Flow rate. Wybierz najgładszy kwadrat i wpisz jego modyfikator.',
+    tst_pa: 'Orka → Kalibracja → Pressure advance (wzór albo wieża). Odczytaj wartość z najlepszego miejsca.',
+    tst_mvs: 'Orka → Kalibracja → Max flowrate. Zmierz wysokość, na której ściana zaczyna się psuć.',
+    tst_temp: 'Orka → Kalibracja → Temperatura (wieża). Wybierz piętro z najmniejszym nitkowaniem i najlepszymi nawisami.',
+    tst_retraction: 'Orka → Kalibracja → Retraction test. Długość dla wysokości bez nitek odczytasz w podglądzie G-code.',
+    tst_input_shaping: 'Uruchom kalibrację rezonansu w drukarce (K1C i U1: auto-kalibracja w menu drukarki, Klipper: SHAPER_CALIBRATE) albo test Input shaping z menu Kalibracja w Orce. Wynik zostaje w drukarce.',
+    dn_seam: 'Szew i pryszcze', dh_seam: 'Widoczny szew, kropki na ścianach',
+    dn_ghosting: 'Ghosting, echo', dh_ghosting: 'Fale za ostrymi krawędziami',
+    dn_top_holes: 'Dziury na górze', dh_top_holes: 'Dziury, prześwity, szorstka góra',
+    dn_wall_gaps: 'Szczeliny przy ścianach', dh_wall_gaps: 'Przerwy między ścianą a wypełnieniem',
+    dn_curling: 'Zawijanie krawędzi', dh_curling: 'Nawisy i rogi podwijają się w górę',
+    dn_supports: 'Podpory', dh_supports: 'Trzymają za mocno albo się przewracają',
+    dn_layer_shift: 'Przesunięcie warstw', dh_layer_shift: 'Warstwy przesunięte w bok',
+    q_seam_look: 'Jak to wygląda?', a_seam_look_line: 'pionowa linia', a_seam_look_zits: 'kropki na ścianach', a_seam_look_gap: 'dziura na szwie', a_seam_look_bump: 'zgrubienie na szwie',
+    q_ghosting_axis: 'Fale w jednym kierunku?', a_ghosting_axis_both: 'w obu', a_ghosting_axis_one: 'tylko w X albo Y',
+    q_ghosting_fast: 'Drukowałeś szybko?', a_ghosting_fast_no: 'nie', a_ghosting_fast_yes: 'tak',
+    q_top_holes_look: 'Jak wygląda góra?', a_top_holes_look_holes: 'dziury, prześwity', a_top_holes_look_lines: 'widać wypełnienie pod spodem', a_top_holes_look_rough: 'szorstka, nierówna',
+    q_wall_gaps_where: 'Gdzie są szczeliny?', a_wall_gaps_where_infill: 'ściana – wypełnienie', a_wall_gaps_where_walls: 'między ścianami', a_wall_gaps_where_top: 'przy krawędzi góry',
+    q_curling_where: 'Co się zawija?', a_curling_where_overhangs: 'nawisy', a_curling_where_small: 'małe detale, czubki', a_curling_where_corners: 'rogi w trakcie druku',
+    q_supports_problem: 'Co jest nie tak?', a_supports_problem_stuck: 'trudno je oderwać', a_supports_problem_underside: 'brzydki spód nad podporą', a_supports_problem_fail: 'przewracają się, łamią',
+    q_layer_shift_when: 'Gdzie się przesuwa?', a_layer_shift_when_random: 'w różnych miejscach', a_layer_shift_when_same_height: 'zawsze na tej samej wysokości',
+    q_layer_shift_axis: 'W którą stronę?', a_layer_shift_axis_one: 'zawsze w jedną oś', a_layer_shift_axis_both: 'różnie',
+    cn_scarf: 'Zwykły szew', cn_seam_aligned: 'Losowy szew', cn_seam_back: 'Szew na widoku', cn_seam_gap: 'Przerwa szwu', cn_wipe: 'Brak wycierania',
+    cn_input_shaping: 'Rezonans drukarki', cn_belts: 'Luźny pasek', cn_outer_accel: 'Za duże przyspieszenie', cn_outer_speed: 'Za szybka ściana zewn.', cn_frame: 'Luźna rama lub stół',
+    cn_top_layers: 'Za mało warstw górnych', cn_infill_density: 'Za rzadkie wypełnienie', cn_top_fan: 'Za słaby nawiew', cn_top_speed: 'Za szybka góra',
+    cn_top_pattern: 'Wzór górnej powierzchni', cn_see_over: 'Nadekstruzja', cn_ironing: 'Prasowanie', cn_infill_overlap: 'Za małe nakładanie',
+    cn_top_overlap: 'Za małe nakładanie góry', cn_see_under: 'Niedoekstruzja', cn_infill_speed: 'Za szybkie wypełnienie', cn_fan_up: 'Za słaby nawiew',
+    cn_layer_time: 'Za krótki czas warstwy', cn_several: 'Kilka sztuk naraz', cn_support_gap: 'Odstęp podpory', cn_interface_spacing: 'Gęstość interfejsu',
+    cn_support_material: 'PETG klei się do siebie', cn_interface_layers: 'Za mało warstw interfejsu', cn_interface_fan: 'Nawiew nad podporą', cn_tree: 'Podpory drzewiaste',
+    cn_support_speed: 'Za szybkie podpory', cn_see_first: 'Przyczepność', cn_see_curling: 'Zawinięte krawędzie', cn_z_hop: 'Dysza zahacza o wydruk',
+    cn_avoid_walls: 'Przejazdy przez ściany', cn_accel_down: 'Za duże przyspieszenia', cn_travel_accel: 'Za ostre przejazdy', cn_travel_speed: 'Za szybkie przejazdy',
+    cn_drivers: 'Silniki i sterowniki', cn_retraction_test: 'Retrakcja nieskalibrowana', cn_temp_test: 'Temperatura nieskalibrowana',
+    w_scarf: 'Szew skośny (scarf) rozkłada początek i koniec obwodu na długości, więc nie ma jednej widocznej linii ani zgrubienia.',
+    w_seam_random: 'Losowy szew rozsiewa początki obwodów po całej ścianie i każdy zostawia kropkę. Wyrównany zbiera je w jednej linii.',
+    w_seam_back: 'Szew z tyłu modelu trafia tam, gdzie go nie widać.',
+    w_seam_gap_gap: 'Dziura na szwie: obwód kończy się za wcześnie. Zmniejszam przerwę szwu ({from} → {to}).',
+    w_seam_gap_bump: 'Zgrubienie na szwie: obwód nachodzi na swój początek. Zwiększam przerwę szwu ({from} → {to}).',
+    w_pa_seam: 'Kropki i zgrubienia na szwie to często pressure advance: na końcu obwodu ciśnienie w dyszy jest za duże.',
+    w_wipe: 'Wycieranie przy retrakcji zbiera kroplę z dyszy na ścianie, zamiast zostawiać ją na szwie.',
+    w_temp_ooze: 'Chłodniejszy filament ({to} °C) mniej wycieka podczas przejazdów.',
+    w_input_shaping: 'Fale za krawędziami to rezonans ramy. Najwięcej daje kalibracja input shapingu w drukarce.',
+    w_belts: 'Fale tylko w jednej osi wskazują na tę oś: sprawdź naciąg paska i śruby na kole zębatym.',
+    w_outer_accel: 'Mniejsze przyspieszenie ściany zewnętrznej ({from} → {to} mm/s²) słabiej pobudza ramę.',
+    w_outer_speed: 'Wolniejsza ściana zewnętrzna ({from} → {to} mm/s) zostawia mniej echa.',
+    w_frame: 'Dokręć śruby ramy i stołu, postaw drukarkę na stabilnym podłożu.',
+    w_top_layers: 'Więcej warstw górnych ({from} → {to}) zakrywa wypełnienie, nad którym góra się zapada.',
+    w_infill_density: 'Przy rzadkim wypełnieniu ({from}%) góra nie ma na czym leżeć. 15% daje jej oparcie.',
+    w_top_fan: 'PLA potrzebuje mocnego nawiewu, żeby góra zastygła nad wypełnieniem ({from} → {to}%).',
+    w_top_speed: 'Wolniejsza górna powierzchnia ({from} → {to} mm/s) zdąży zastygnąć i domknąć się.',
+    w_top_pattern: 'Wzór monotoniczny kładzie linie zawsze w tę samą stronę, więc góra jest równa i nie prześwituje.',
+    w_see_over: 'Szorstka, nierówna góra to zwykle za dużo materiału.',
+    w_ironing: 'Prasowanie przejeżdża gorącą dyszą po górze i wygładza ją.',
+    w_infill_overlap: 'Większe nakładanie wypełnienia na ściany ({from} → {to}) zamyka szczelinę.',
+    w_top_overlap: 'Większe nakładanie góry i dołu na ściany ({from} → {to}) domyka krawędź górnej powierzchni.',
+    w_see_under: 'Przerwy między ścianami to zwykle za mało materiału.',
+    w_pa_walls: 'Za duży pressure advance „wysysa” materiał na początku linii i zostawia przerwy przy rogach.',
+    w_infill_speed: 'Przy szybkim wypełnieniu ({from} mm/s) dysza nie nadąża. Zwalniam do {to} mm/s.',
+    w_curl_fan: 'Mocniejszy nawiew na nawisach ({from} → {to}%) szybciej je utrwala, zanim się podwiną.',
+    w_fan_up: 'PLA zawija się, gdy za wolno stygnie. Pełny nawiew ({from} → {to}%).',
+    w_layer_time: 'Małe warstwy nie zdążą ostygnąć. Dłuższy minimalny czas warstwy ({from} → {to} s) zwalnia druk przy małych detalach.',
+    w_temp_curl: 'Chłodniejszy filament ({to} °C) szybciej zastyga i mniej się zawija.',
+    w_several: 'Drukuj kilka sztuk naraz: każda warstwa ma wtedy więcej czasu na ostygnięcie.',
+    w_support_gap_up: 'Większy odstęp nad podporą ({from} → {to} mm): łatwiej ją oderwać.',
+    w_support_gap_down: 'Mniejszy odstęp nad podporą ({from} → {to} mm): spód leży na niej równo, zamiast opadać.',
+    w_interface_spacing_up: 'Rzadszy interfejs ({from} → {to} mm) mniej przywiera do modelu.',
+    w_interface_spacing_down: 'Gęstszy interfejs ({from} → {to} mm) daje równy spód.',
+    w_support_material: 'PETG mocno klei się do samego siebie. Najlepiej działa interfejs z innego materiału (np. PLA) albo większy odstęp.',
+    w_interface_layers: 'Więcej warstw interfejsu ({from} → {to}) daje gładszą powierzchnię pod modelem.',
+    w_interface_fan: 'Pełny nawiew nad interfejsem podpór utrwala pierwszą warstwę nad podporą.',
+    w_tree: 'Podpory drzewiaste są stabilniejsze, mają mniejszy styk ze stołem i łatwiej je usunąć.',
+    w_support_speed: 'Wolniejsze podpory ({from} → {to} mm/s) mniej się chwieją.',
+    w_see_first: 'Jeśli podpory odrywają się od stołu, to problem z przyczepnością.',
+    w_see_curling: 'Przesunięcie zawsze na tej samej wysokości: dysza zwykle zahacza o zawiniętą krawędź.',
+    w_z_hop: 'Z-hop podnosi dyszę przy przejazdach ({from} → {to} mm), więc nie zahacza o wydruk.',
+    w_avoid_walls: 'Przejazdy omijają ściany, więc dysza nie uderza w krawędzie.',
+    w_shift_belts: 'Najczęstsza przyczyna: luźny pasek albo śruba na kole zębatym silnika. Sprawdź naciąg i dokręć.',
+    w_accel_shift: 'Mniejsze przyspieszenie ({from} → {to} mm/s²) zmniejsza ryzyko gubienia kroków.',
+    w_travel_accel: 'Łagodniejsze przejazdy ({from} → {to} mm/s²).',
+    w_travel_speed: 'Wolniejsze przejazdy ({from} → {to} mm/s).',
+    w_drivers: 'Przegrzane sterowniki lub silniki gubią kroki: sprawdź chłodzenie elektroniki.',
+    w_retraction_test: 'Test retrakcji pokaże najkrótszą długość bez nitek, zamiast zgadywać.',
+    w_temp_test: 'Wieża temperatur pokaże, w jakiej temperaturze ten filament drukuje najlepiej.',
     df_slot: 'Głowica {n}: {name}', df_process: 'Proces: {name}', df_from_printer: 'z drukarki', df_best: 'Najbardziej prawdopodobne', df_more: 'Inne możliwe przyczyny', df_pick: 'Wybierz defekt powyżej, a pojawią się jego możliwe przyczyny, od najbardziej prawdopodobnej.',
     dk_kind_change: 'zmiana ustawień', dk_kind_advice: 'porada', dk_kind_calibration: 'test kalibracyjny', dk_kind_redirect: 'inny defekt',
     dh_stringing: 'Włoski i nitki między elementami', dh_first_layer: 'Wydruk odkleja się od stołu', dh_layer_split: 'Warstwy się rozchodzą, część pęka',
@@ -615,6 +712,91 @@ const T = {
     df: 'Defects', df_title: 'Print defects',
     df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
     df_rule: 'One change at a time: reprint and say whether it helped.',
+    dfh_open: 'Fix history', dfh_back: 'Back to defects', dfh_title: 'Fix history', dfh_all: 'all filaments',
+    dfh_none: 'Nothing tried yet.', dfh_pending: 'waiting for a print', df_enter: 'Enter the test result',
+    el_good: 'helped with: {names}', el_bad: 'did not help with: {names}',
+    tst_flow: 'OrcaSlicer → Calibration → Flow rate. Pick the smoothest square and enter its modifier.',
+    tst_pa: 'OrcaSlicer → Calibration → Pressure advance (pattern or tower). Read the value at the best spot.',
+    tst_mvs: 'OrcaSlicer → Calibration → Max flowrate. Measure the height where the wall starts to fail.',
+    tst_temp: 'OrcaSlicer → Calibration → Temperature (tower). Pick the level with the least stringing and the best overhangs.',
+    tst_retraction: 'OrcaSlicer → Calibration → Retraction test. Read the length for the string-free height in the G-code preview.',
+    tst_input_shaping: 'Run the printer’s resonance calibration (K1C and U1: auto calibration in the printer menu, Klipper: SHAPER_CALIBRATE) or the Input shaping test in OrcaSlicer’s Calibration menu. The result stays in the printer.',
+    dn_seam: 'Seam and zits', dh_seam: 'Visible seam, dots on the walls',
+    dn_ghosting: 'Ghosting, ringing', dh_ghosting: 'Ripples after sharp edges',
+    dn_top_holes: 'Holes on top', dh_top_holes: 'Holes, gaps, rough top',
+    dn_wall_gaps: 'Gaps at the walls', dh_wall_gaps: 'Gaps between wall and infill',
+    dn_curling: 'Curling edges', dh_curling: 'Overhangs and tips curl up',
+    dn_supports: 'Supports', dh_supports: 'Stick too hard or fall over',
+    dn_layer_shift: 'Layer shift', dh_layer_shift: 'Layers moved sideways',
+    q_seam_look: 'What does it look like?', a_seam_look_line: 'vertical line', a_seam_look_zits: 'dots on the walls', a_seam_look_gap: 'hole at the seam', a_seam_look_bump: 'bulge at the seam',
+    q_ghosting_axis: 'Ripples in one direction?', a_ghosting_axis_both: 'both', a_ghosting_axis_one: 'only X or Y',
+    q_ghosting_fast: 'Printed fast?', a_ghosting_fast_no: 'no', a_ghosting_fast_yes: 'yes',
+    q_top_holes_look: 'What does the top look like?', a_top_holes_look_holes: 'holes, gaps', a_top_holes_look_lines: 'infill shows through', a_top_holes_look_rough: 'rough, uneven',
+    q_wall_gaps_where: 'Where are the gaps?', a_wall_gaps_where_infill: 'wall – infill', a_wall_gaps_where_walls: 'between walls', a_wall_gaps_where_top: 'at the top edge',
+    q_curling_where: 'What curls?', a_curling_where_overhangs: 'overhangs', a_curling_where_small: 'small details, tips', a_curling_where_corners: 'corners while printing',
+    q_supports_problem: 'What is wrong?', a_supports_problem_stuck: 'hard to remove', a_supports_problem_underside: 'ugly surface above', a_supports_problem_fail: 'fall over, break',
+    q_layer_shift_when: 'Where does it shift?', a_layer_shift_when_random: 'in different places', a_layer_shift_when_same_height: 'always at the same height',
+    q_layer_shift_axis: 'Which way?', a_layer_shift_axis_one: 'always one axis', a_layer_shift_axis_both: 'varies',
+    cn_scarf: 'Plain seam', cn_seam_aligned: 'Random seam', cn_seam_back: 'Seam in view', cn_seam_gap: 'Seam gap', cn_wipe: 'No wipe',
+    cn_input_shaping: 'Printer resonance', cn_belts: 'Loose belt', cn_outer_accel: 'Acceleration too high', cn_outer_speed: 'Outer wall too fast', cn_frame: 'Loose frame or bed',
+    cn_top_layers: 'Too few top layers', cn_infill_density: 'Infill too sparse', cn_top_fan: 'Fan too weak', cn_top_speed: 'Top surface too fast',
+    cn_top_pattern: 'Top surface pattern', cn_see_over: 'Over-extrusion', cn_ironing: 'Ironing', cn_infill_overlap: 'Overlap too small',
+    cn_top_overlap: 'Top overlap too small', cn_see_under: 'Under-extrusion', cn_infill_speed: 'Infill too fast', cn_fan_up: 'Fan too weak',
+    cn_layer_time: 'Layer time too short', cn_several: 'Several at once', cn_support_gap: 'Support gap', cn_interface_spacing: 'Interface density',
+    cn_support_material: 'PETG sticks to itself', cn_interface_layers: 'Too few interface layers', cn_interface_fan: 'Fan over supports', cn_tree: 'Tree supports',
+    cn_support_speed: 'Supports too fast', cn_see_first: 'Bed adhesion', cn_see_curling: 'Curled edges', cn_z_hop: 'Nozzle hits the print',
+    cn_avoid_walls: 'Travel across walls', cn_accel_down: 'Accelerations too high', cn_travel_accel: 'Travel too harsh', cn_travel_speed: 'Travel too fast',
+    cn_drivers: 'Motors and drivers', cn_retraction_test: 'Retraction not calibrated', cn_temp_test: 'Temperature not calibrated',
+    w_scarf: 'A scarf seam spreads the start and end of a loop over a length, so there is no single visible line or bulge.',
+    w_seam_random: 'A random seam scatters loop starts over the whole wall and each leaves a dot. Aligned gathers them in one line.',
+    w_seam_back: 'A seam at the back of the model goes where it is not seen.',
+    w_seam_gap_gap: 'A hole at the seam: the loop ends too early. Smaller seam gap ({from} → {to}).',
+    w_seam_gap_bump: 'A bulge at the seam: the loop runs over its start. Larger seam gap ({from} → {to}).',
+    w_pa_seam: 'Dots and bulges at the seam are often pressure advance: the nozzle pressure is too high at the end of a loop.',
+    w_wipe: 'Wiping while retracting leaves the drop on the wall instead of at the seam.',
+    w_temp_ooze: 'Cooler filament ({to} °C) oozes less on travels.',
+    w_input_shaping: 'Ripples after edges are frame resonance. Input shaping calibration in the printer helps most.',
+    w_belts: 'Ripples in one axis point at that axis: check the belt tension and the pulley set screws.',
+    w_outer_accel: 'A lower outer wall acceleration ({from} → {to} mm/s²) shakes the frame less.',
+    w_outer_speed: 'A slower outer wall ({from} → {to} mm/s) leaves less ringing.',
+    w_frame: 'Tighten the frame and bed screws, stand the printer on a firm surface.',
+    w_top_layers: 'More top layers ({from} → {to}) cover the infill the top sags over.',
+    w_infill_density: 'With sparse infill ({from}%) the top has nothing to rest on. 15% gives it support.',
+    w_top_fan: 'PLA needs strong cooling for the top to set over the infill ({from} → {to}%).',
+    w_top_speed: 'A slower top surface ({from} → {to} mm/s) has time to set and close.',
+    w_top_pattern: 'A monotonic pattern lays lines always the same way, so the top is even and does not show through.',
+    w_see_over: 'A rough, uneven top is usually too much material.',
+    w_ironing: 'Ironing runs the hot nozzle over the top and smooths it.',
+    w_infill_overlap: 'More infill/wall overlap ({from} → {to}) closes the gap.',
+    w_top_overlap: 'More top/bottom overlap with the walls ({from} → {to}) closes the edge of the top surface.',
+    w_see_under: 'Gaps between walls are usually too little material.',
+    w_pa_walls: 'Too much pressure advance starves the start of a line and leaves gaps at corners.',
+    w_infill_speed: 'At fast infill ({from} mm/s) the hotend can’t keep up. Slower: {to} mm/s.',
+    w_curl_fan: 'A stronger overhang fan ({from} → {to}%) sets them before they curl.',
+    w_fan_up: 'PLA curls when it cools too slowly. Full fan ({from} → {to}%).',
+    w_layer_time: 'Small layers don’t have time to cool. A longer shortest layer time ({from} → {to} s) slows down small details.',
+    w_temp_curl: 'Cooler filament ({to} °C) sets faster and curls less.',
+    w_several: 'Print several at once: each layer then has more time to cool.',
+    w_support_gap_up: 'A larger gap above the support ({from} → {to} mm): easier to remove.',
+    w_support_gap_down: 'A smaller gap above the support ({from} → {to} mm): the underside rests on it instead of sagging.',
+    w_interface_spacing_up: 'A sparser interface ({from} → {to} mm) sticks less to the model.',
+    w_interface_spacing_down: 'A denser interface ({from} → {to} mm) gives an even underside.',
+    w_support_material: 'PETG sticks hard to itself. An interface of another material (e.g. PLA) or a larger gap works best.',
+    w_interface_layers: 'More interface layers ({from} → {to}) give a smoother surface under the model.',
+    w_interface_fan: 'Full fan over the support interface sets the first layer above the support.',
+    w_tree: 'Tree supports are steadier, touch the bed less and come off more easily.',
+    w_support_speed: 'Slower supports ({from} → {to} mm/s) wobble less.',
+    w_see_first: 'If the supports come off the bed, it is bed adhesion.',
+    w_see_curling: 'A shift always at the same height: the nozzle usually hits a curled edge.',
+    w_z_hop: 'Z hop lifts the nozzle on travels ({from} → {to} mm), so it doesn’t hit the print.',
+    w_avoid_walls: 'Travels go around walls, so the nozzle doesn’t knock edges.',
+    w_shift_belts: 'The usual cause: a loose belt or a pulley set screw on the motor. Check the tension and tighten.',
+    w_accel_shift: 'A lower acceleration ({from} → {to} mm/s²) makes skipped steps less likely.',
+    w_travel_accel: 'Gentler travels ({from} → {to} mm/s²).',
+    w_travel_speed: 'Slower travels ({from} → {to} mm/s).',
+    w_drivers: 'Hot drivers or motors skip steps: check the electronics cooling.',
+    w_retraction_test: 'A retraction test shows the shortest string-free length instead of guessing.',
+    w_temp_test: 'A temperature tower shows the temperature this filament prints best at.',
     df_slot: 'Tool {n}: {name}', df_process: 'Process: {name}', df_from_printer: 'printer’s', df_best: 'Most likely', df_more: 'Other possible causes', df_pick: 'Pick a defect above to see its possible causes, likeliest first.',
     dk_kind_change: 'settings change', dk_kind_advice: 'advice', dk_kind_calibration: 'calibration test', dk_kind_redirect: 'another defect',
     dh_stringing: 'Hairs and strings between parts', dh_first_layer: 'The print comes off the bed', dh_layer_split: 'Layers separate, the part cracks',
@@ -1198,14 +1380,32 @@ const DF_LABELS = {
         brim_width: 'Szerokość brimu', enable_overhang_bridge_fan: 'Nawiew na nawisach i mostach', filament_diameter: 'Średnica filamentu',
         cool_plate_temp: 'Stół chłodny', cool_plate_temp_initial_layer: 'Stół chłodny – 1. warstwa', eng_plate_temp: 'Stół inżynieryjny',
         eng_plate_temp_initial_layer: 'Stół inżynieryjny – 1. warstwa', supertack_plate_temp: 'Stół SuperTack', supertack_plate_temp_initial_layer: 'Stół SuperTack – 1. warstwa',
-        textured_cool_plate_temp: 'Stół chłodny teksturowany', textured_cool_plate_temp_initial_layer: 'Stół chłodny tekst. – 1. warstwa' },
+        textured_cool_plate_temp: 'Stół chłodny teksturowany', textured_cool_plate_temp_initial_layer: 'Stół chłodny tekst. – 1. warstwa',
+        seam_slope_type: 'Szew skośny (scarf)', seam_position: 'Pozycja szwu', seam_gap: 'Przerwa szwu', filament_wipe: 'Wycieranie przy retrakcji',
+        outer_wall_acceleration: 'Przysp. ściany zewn.', default_acceleration: 'Przyspieszenie domyślne', travel_acceleration: 'Przysp. przejazdów',
+        outer_wall_speed: 'Prędkość ściany zewn.', travel_speed: 'Prędkość przejazdów', top_shell_layers: 'Warstwy górne', top_shell_thickness: 'Grubość góry',
+        sparse_infill_density: 'Gęstość wypełnienia', top_surface_speed: 'Prędkość górnej powierzchni', top_surface_pattern: 'Wzór górnej powierzchni',
+        ironing_type: 'Prasowanie', infill_wall_overlap: 'Nakładanie wypełnienia na ściany', top_bottom_infill_wall_overlap: 'Nakładanie góry/dołu na ściany',
+        sparse_infill_speed: 'Prędkość wypełnienia', slow_down_layer_time: 'Min. czas warstwy', support_top_z_distance: 'Odstęp Z podpory (góra)',
+        support_interface_spacing: 'Odstęp linii interfejsu', support_interface_top_layers: 'Warstwy interfejsu (góra)', support_type: 'Rodzaj podpór',
+        support_speed: 'Prędkość podpór', support_material_interface_fan_speed: 'Nawiew interfejsu podpór', filament_z_hop: 'Z-hop',
+        reduce_crossing_wall: 'Omijanie ścian przy przejazdach' },
   en: { xy_hole_compensation: 'X-Y hole compensation', xy_contour_compensation: 'X-Y contour compensation', elefant_foot_compensation: 'Elephant foot compensation',
         filament_shrink: 'Filament shrinkage (XY)', bridge_flow: 'Bridge flow ratio', slowdown_for_curled_perimeters: 'Slow down for curled perimeters',
         enable_overhang_speed: 'Slow down on overhangs', overhang_3_4_speed: 'Overhangs 50–75%', overhang_4_4_speed: 'Overhangs 75–100%', brim_type: 'Brim type',
         brim_width: 'Brim width', enable_overhang_bridge_fan: 'Overhang and bridge fan', filament_diameter: 'Filament diameter',
         cool_plate_temp: 'Cool plate', cool_plate_temp_initial_layer: 'Cool plate – first layer', eng_plate_temp: 'Engineering plate',
         eng_plate_temp_initial_layer: 'Engineering plate – first layer', supertack_plate_temp: 'SuperTack plate', supertack_plate_temp_initial_layer: 'SuperTack plate – first layer',
-        textured_cool_plate_temp: 'Textured cool plate', textured_cool_plate_temp_initial_layer: 'Textured cool plate – first layer' },
+        textured_cool_plate_temp: 'Textured cool plate', textured_cool_plate_temp_initial_layer: 'Textured cool plate – first layer',
+        seam_slope_type: 'Scarf seam', seam_position: 'Seam position', seam_gap: 'Seam gap', filament_wipe: 'Wipe while retracting',
+        outer_wall_acceleration: 'Outer wall acceleration', default_acceleration: 'Default acceleration', travel_acceleration: 'Travel acceleration',
+        outer_wall_speed: 'Outer wall speed', travel_speed: 'Travel speed', top_shell_layers: 'Top shell layers', top_shell_thickness: 'Top shell thickness',
+        sparse_infill_density: 'Sparse infill density', top_surface_speed: 'Top surface speed', top_surface_pattern: 'Top surface pattern',
+        ironing_type: 'Ironing', infill_wall_overlap: 'Infill/wall overlap', top_bottom_infill_wall_overlap: 'Top/bottom infill/wall overlap',
+        sparse_infill_speed: 'Sparse infill speed', slow_down_layer_time: 'Shortest layer time', support_top_z_distance: 'Support top Z distance',
+        support_interface_spacing: 'Support interface spacing', support_interface_top_layers: 'Support interface top layers', support_type: 'Support type',
+        support_speed: 'Support speed', support_material_interface_fan_speed: 'Support interface fan', filament_z_hop: 'Z hop',
+        reduce_crossing_wall: 'Avoid crossing walls' },
 };
 function dfLabel(key) { return (DF_LABELS[L] || {})[key] || label(key); }
 const DF = { meta: null, defect: '', answers: {}, rows: [{kind: 'outer', expected: '', measured: ''}], wall: '', slot: null, info: null, causes: [], pending: [] };
@@ -1218,6 +1418,13 @@ const DF_ICONS = {
   under_extrusion: '<path d="M3 9h4M10 9h3M17 9h4M3 15h2M8 15h6M17 15h4"/>',
   overhangs: '<path d="M4 20V7h11"/><path d="M15 7c3 0 4 2 4 5"/><path d="M4 20h4"/>',
   warping: '<path d="M3 20h18"/><path d="M4 12c1 3 2 4 4 4h8c2 0 3-1 4-4"/>',
+  seam: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 3v18"/><circle cx="12" cy="8" r="1.2"/><circle cx="12" cy="15" r="1.2"/>',
+  ghosting: '<path d="M4 6h8v12H4z"/><path d="M15 6v12M18 7v10M21 8v8"/>',
+  top_holes: '<path d="M3 9l9-5 9 5-9 5z"/><circle cx="10" cy="9" r="1"/><circle cx="14" cy="8" r="1"/><path d="M3 9v6l9 5 9-5V9"/>',
+  wall_gaps: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 4v16"/><path d="M10 8l8 8M10 12l6 6M12 6l6 6"/>',
+  curling: '<path d="M3 20h18"/><path d="M5 20V9h9"/><path d="M14 9c3 0 4-2 4-5"/>',
+  supports: '<path d="M3 6h18"/><path d="M6 6v14M10 6v14M14 6v14M18 6v14"/><path d="M3 20h18"/>',
+  layer_shift: '<path d="M4 20h10v-5H4zM8 15h10v-5H8zM5 10h10V5H5z"/>',
 };
 function dfIcon(d) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${DF_ICONS[d] || ''}</svg>`; }
 function dfAnswers() {
@@ -1284,13 +1491,18 @@ function renderDefects() {
     const tried = (c.tried || []).slice(-1)[0];
     const btn = c.kind === 'change' ? `<button data-apply="${i}">${esc(t('df_apply'))}</button>`
       : c.kind === 'advice' ? `<button class="secondary" data-apply="${i}">${esc(t('df_did'))}</button>`
-      : c.kind === 'calibration' ? `<button class="secondary" data-apply="${i}">${esc(t('df_test'))}</button>`
+      : c.kind === 'calibration' ? `<button class="secondary" data-apply="${i}">${esc(t('df_test'))}</button>${TEST_CALIB[c.test] ? `<button class="link small" data-calib="${esc(c.test)}">${esc(t('df_enter'))}</button>` : ''}`
       : c.kind === 'redirect' ? `<button class="secondary" data-redirect="${esc(c.vars.defect)}">${esc(t('df_go'))}: ${esc(t('dn_' + c.vars.defect))}</button>` : '';
     const rows = (c.changes || []).length ? `<table>${c.changes.map(ch => `<tr><td>${esc(dfLabel(ch.key))} <span class="tag">${esc(t('tg_' + ch.target))}</span></td>
         <td class="n">${esc(dfValue(ch.before))}</td><td>→</td><td class="n"><b>${esc(dfValue(ch.after))}</b></td></tr>`).join('')}</table>` : '';
-    const name = c.kind === 'need' ? '' : `<div class="name">${esc(t('cn_' + c.cause))} <span class="kind ${c.kind}">${esc(t('dk_kind_' + c.kind))}</span>${tried ? ` <span class="tag">${esc(t('tr_' + tried))}</span>` : ''}</div>`;
+    const good = (c.elsewhere || []).filter(e => e.outcome === 'fixed' || e.outcome === 'better').map(e => e.label);
+    const bad = (c.elsewhere || []).filter(e => e.outcome === 'same' || e.outcome === 'worse').map(e => e.label);
+    const els = !tried && good.length ? ` <span class="tag good" title="${esc(good.join(', '))}">${esc(t('el_good', {names: good.join(', ')}))}</span>`
+      : !tried && bad.length ? ` <span class="tag bad" title="${esc(bad.join(', '))}">${esc(t('el_bad', {names: bad.join(', ')}))}</span>` : '';
+    const name = c.kind === 'need' ? '' : `<div class="name">${esc(t('cn_' + c.cause))} <span class="kind ${c.kind}">${esc(t('dk_kind_' + c.kind))}</span>${tried ? ` <span class="tag">${esc(t('tr_' + tried))}</span>` : ''}${els}</div>`;
+    const how = c.kind === 'calibration' && c.test ? `<div class="note" style="margin-top:4px">${esc(t('tst_' + c.test))}</div>` : '';
     return `<div class="cause${best ? ' best' : ''}${tried === 'same' || tried === 'worse' ? ' tried' : ''}">${name}
-      <div class="why">${esc(t(c.why, dfVars(c.vars)))}${rows}</div><div class="go">${btn}</div></div>`;
+      <div class="why">${esc(t(c.why, dfVars(c.vars)))}${rows}${how}</div><div class="go">${btn}</div></div>`;
   };
   const first = causes.findIndex(c => c.kind !== 'need');
   $('df-plan').innerHTML = causes.map((c, i) => (i === first ? `<div class="sec">${esc(t('df_best'))}</div>` : i === first + 1 ? `<div class="sec">${esc(t('df_more'))}</div>` : '')
@@ -1564,7 +1776,37 @@ $('df-inputs').addEventListener('click', e => {
   if (e.target.id === 'btn-df-row') { DF.rows.push({kind: 'outer', expected: '', measured: ''}); renderDefects(); }
   if (e.target.id === 'btn-df-calc') dfAsk();
 });
+const TEST_CALIB = {flow: 'flow_yolo', pa: 'pa', mvs: 'max_flow', temp: 'temp', retraction: 'retraction'};
+function renderDefectHistory(m) {
+  $('dfh-all').checked = !!m.all;
+  const items = m.items || [];
+  $('dfh-list').innerHTML = items.length ? items.map(a => {
+    const ch = (a.changes || []).map(c => `${dfLabel(c.key)} ${dfValue(c.before)} → ${dfValue(c.after)}`).join(' · ');
+    const into = a.filament || a.process || '';
+    return `<div class="item"><div><b>${esc(t('dn_' + a.defect))}</b>: ${esc(t('cn_' + a.cause))}${m.all ? ` · ${esc(a.label || '')}` : ''}
+        ${into ? `<span class="tag">${esc(into)}</span>` : ''}${ch ? `<div class="note">${esc(ch)}</div>` : ''}</div>
+      <div style="text-align:right">${a.outcome ? `<span class="tag ${a.outcome === 'fixed' || a.outcome === 'better' ? 'good' : 'bad'}">${esc(t('po_' + a.outcome))}</span>` : `<span class="tag">${esc(t('dfh_pending'))}</span>`}
+        <div class="when">${esc(fmtTime(a.at))}</div></div></div>`;
+  }).join('') : `<div class="df-empty">${esc(t('dfh_none'))}</div>`;
+}
+$('btn-df-history').addEventListener('click', () => {
+  const show = $('df-history').hidden;
+  $('df-history').hidden = !show;
+  for (const id of ['df-list', 'df-q', 'df-inputs', 'df-plan']) $(id).hidden = show;
+  $('btn-df-history').textContent = t(show ? 'dfh_back' : 'dfh_open');
+  if (show) send({cmd: 'defect_history', slot: DF.slot, all: $('dfh-all').checked});
+});
+$('dfh-all').addEventListener('change', () => send({cmd: 'defect_history', slot: DF.slot, all: $('dfh-all').checked}));
 $('df-plan').addEventListener('click', e => {
+  const cal = e.target.closest('[data-calib]');
+  if (cal) {
+    $('dlg-defects').close();
+    renderCalib();
+    $('c-test').value = TEST_CALIB[cal.dataset.calib];
+    renderCalib();
+    $('c-test').scrollIntoView({behavior: 'smooth', block: 'center'});
+    return;
+  }
   const a = e.target.closest('[data-apply]'), go = e.target.closest('[data-redirect]');
   if (go) { DF.defect = go.dataset.redirect; DF.answers = {}; renderDefects(); dfAsk(); return; }
   if (!a) return;
@@ -1721,6 +1963,9 @@ function onMessage(m) {
       $('btn-process-save').disabled = !m.changes.length;
       $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
       renderWarnings();
+      break;
+    case 'defect_history':
+      renderDefectHistory(m);
       break;
     case 'defect_context':
       DF.meta = {list: m.list, questions: m.questions, inputs: m.inputs};

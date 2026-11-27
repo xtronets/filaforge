@@ -180,7 +180,9 @@ karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu
 Przycisk **Defekty** w nagłówku pomaga naprawić to, co wyszło źle na wydruku. Wybierz defekt z listy:
 
 nitkowanie · pierwsza warstwa nie trzyma · rozwarstwianie i pękanie · wymiary, otwory, stopa słonia ·
-nadekstruzja · niedoekstruzja · opadające nawisy i mosty · podnoszące się rogi.
+nadekstruzja · niedoekstruzja · opadające nawisy i mosty · podnoszące się rogi · szew i pryszcze ·
+ghosting (echo) · dziury na górze · szczeliny przy ścianach · zawijanie krawędzi · podpory ·
+przesunięcie warstw.
 
 **Diagnoza zamiast jednej stałej poprawki.** Każdy defekt ma kilka możliwych przyczyn. FilaForge ustawia je
 od najbardziej prawdopodobnej na podstawie:
@@ -202,9 +204,13 @@ Przykłady obliczeń:
 - **Flow z pomiaru ściany**: kostka w trybie wazy, ściana zmierzona suwmiarką, nowy flow =
   flow × szerokość linii / zmierzona ściana.
 
-Część przyczyn to nie ustawienia: suszenie, mycie płyty, poziomowanie, Z-offset, zatkana dysza, przeciąg.
-FilaForge mówi to wprost zamiast zmieniać coś na ślepo. Tam, gdzie lepszy jest test, odsyła do testów
-kalibracyjnych Orki.
+Część przyczyn to nie ustawienia: suszenie, mycie płyty, poziomowanie, Z-offset, zatkana dysza, przeciąg,
+luźny pasek, kalibracja rezonansu. FilaForge mówi to wprost zamiast zmieniać coś na ślepo.
+
+**Wydruk testowy.** Tam, gdzie lepszy jest test niż zgadywanie, przyczyna wskazuje konkretny test
+kalibracyjny Orki (flow, pressure advance, maks. przepływ, wieża temperatur, retrakcja, input shaping) i mówi,
+co z niego odczytać. Przycisk **Wpisz wynik testu** przenosi do kalkulatora w „Twoich pomiarach” z wybranym
+testem, więc wynik od razu trafia do pomiarów.
 
 **Jedna zmiana naraz i pętla po wydruku.** Zmiana trafia do presetu FF filamentu albo procesu (z historią
 zmian). Gdy drukowałeś na swoim presecie, FilaForge robi jego kopię FF i dopiero ją poprawia. Po wydruku
@@ -214,6 +220,11 @@ odpowiadasz w tym samym oknie:
 |---|---|
 | Naprawione, Lepiej | Zmiana zostaje. Wartości filamentu trafiają do Twoich pomiarów, więc następny preset też je dostanie. Przy „Lepiej” plan może zaproponować kolejny krok tej samej przyczyny. |
 | Bez zmian, Gorzej | Zmiana jest cofana, a ta przyczyna spada na dół listy. Przechodzisz do następnej. |
+
+**Historia napraw.** Przycisk **Historia napraw** w oknie Defektów pokazuje wszystkie próby dla filamentu na
+stole (albo dla wszystkich filamentów): defekt, przyczynę, zmienione wartości, preset, wynik i datę.
+FilaForge uczy się z niej: poprawka, która pomogła przy innym filamencie tego samego rodzaju na tej samej
+drukarce, idzie w planie wyżej i ma znaczek „pomogło przy: …”, a ta, która nie pomogła, trochę niżej.
 
 ## Przegląd presetów i historia zmian
 

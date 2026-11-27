@@ -16,11 +16,11 @@ import json
 import os
 import time
 
-from . import files
+from . import files, habits
 from .review import number
 
 DEFECTS = ("stringing", "first_layer", "layer_split", "dimensions", "over_extrusion", "under_extrusion",
-           "overhangs", "warping")
+           "overhangs", "warping", "seam", "ghosting", "top_holes", "wall_gaps", "curling", "supports", "layer_shift")
 
 # defect -> [(question, (answers...))]; the first answer is the default
 QUESTIONS = {
@@ -32,7 +32,16 @@ QUESTIONS = {
     "under_extrusion": [("when", ("always", "fast", "later"))],
     "overhangs": [("which", ("both", "bridges", "overhangs"))],
     "warping": [("big", ("no", "yes")), ("cleaned", ("unknown", "no", "yes"))],
+    "seam": [("look", ("line", "zits", "gap", "bump"))],
+    "ghosting": [("axis", ("both", "one")), ("fast", ("no", "yes"))],
+    "top_holes": [("look", ("holes", "lines", "rough"))],
+    "wall_gaps": [("where", ("infill", "walls", "top"))],
+    "curling": [("where", ("overhangs", "small", "corners"))],
+    "supports": [("problem", ("stuck", "underside", "fail"))],
+    "layer_shift": [("when", ("random", "same_height")), ("axis", ("one", "both"))],
 }
+# the OrcaSlicer calibration test a "calibration" cause asks for, and what to read from it
+TESTS = ("flow", "pa", "mvs", "temp", "retraction", "input_shaping")
 # measurements a defect can take
 INPUTS = {"dimensions": ("rows",), "over_extrusion": ("wall",), "under_extrusion": ("wall",)}
 
@@ -157,6 +166,11 @@ def stringing(x, a):
                           {"from": _fmt(length, 2), "to": _fmt(length + step, 2), "bowden": bowden},
                           [_change("filament", "filament_retraction_length", _fmt(length, 2) if own else "nil",
                                    _fmt(length + step, 2))]))
+    if "retraction_length" not in x.measured:
+        out.append(_cause("retraction_test", "calibration", 30 + (10 if a.get("kind") == "strings" else 0),
+                          "w_retraction_test", test="retraction"))
+    if "nozzle_temp" not in x.measured:
+        out.append(_cause("temp_test", "calibration", 28, "w_temp_test", test="temp"))
     speed = x.f("filament_retraction_speed") or number(x.prn.get("retraction_speed"))
     if speed and speed < 30 and not bowden:
         out.append(_cause("retraction_speed", "change", 25, "w_retraction_speed", {"from": _fmt(speed), "to": "40"},
@@ -453,6 +467,8 @@ def overhangs(x, a):
     temp = _temp_step(x, -5, "temp_down", 15, "w_temp_overhang")
     if temp:
         out.append(temp)
+    if "nozzle_temp" not in x.measured:
+        out.append(_cause("temp_test", "calibration", 18, "w_temp_test", test="temp"))
     out.append(_cause("geometry", "advice", 20, "w_geometry"))
     return out
 
@@ -495,8 +511,301 @@ def warping(x, a):
     return out
 
 
+# --- surfaces, mechanics, supports -------------------------------------------------------------------------------
+def _pct_value(text):
+    """("10%" -> (10.0, True), "0.4" -> (0.4, False)), None when it isn't a number."""
+    raw = _first(text)
+    value = number(raw)
+    return None if value is None else (value, raw.endswith("%"))
+
+
+def _on(text):
+    return _first(text).lower() in ("1", "true")
+
+
+def _overhang_fan(x, base, why="w_overhang_fan"):
+    """The bridge and overhang fan up to what the material takes, or None."""
+    fan = x.f("overhang_fan_speed")
+    target = 100 if x.cls in ("PLA", "SILK", "CF", "TPU") else (80 if x.cls == "PETG" else 60)
+    if fan is None or fan >= target:
+        return None
+    new = min(target, fan + 20)
+    return _cause("overhang_fan", "change", base, why, {"from": _fmt(fan), "to": _fmt(new), "cls": x.cls,
+                                                        "enclosed_material": x.cls in ENCLOSED_MATERIALS},
+                  [_change("filament", "overhang_fan_speed", _fmt(fan), _fmt(new))])
+
+
+def _accel_down(x, key, cause, score, why, factor=0.6, floor=1000.0):
+    """A process acceleration (or, when it is 0 = default, the default one) lowered by factor."""
+    now = x.p(key) or x.p("default_acceleration")
+    if not now or now <= floor:
+        return None
+    new = max(floor, round(now * factor / 100) * 100)
+    return _cause(cause, "change", score, why, {"from": _fmt(now), "to": _fmt(new)},
+                  [_change("process", key, _fmt(x.p(key) or 0), _fmt(new))])
+
+
+def seam(x, a):
+    out = []
+    look = a.get("look", "line")
+    slope = _first(x.proc.get("seam_slope_type"))
+    if slope in ("none", "") and look in ("line", "gap", "bump"):
+        out.append(_cause("scarf", "change", 60 + (10 if look == "line" else 0), "w_scarf", {},
+                          [_change("process", "seam_slope_type", slope or "none", "external")]))
+    position = _first(x.proc.get("seam_position"))
+    if position == "random" and look == "zits":
+        out.append(_cause("seam_aligned", "change", 70, "w_seam_random", {},
+                          [_change("process", "seam_position", "random", "aligned")]))
+    elif position in ("nearest", "aligned") and look == "line":
+        out.append(_cause("seam_back", "change", 40, "w_seam_back", {},
+                          [_change("process", "seam_position", position, "back")]))
+    gap = _pct_value(x.proc.get("seam_gap"))
+    if gap and look in ("gap", "bump"):
+        value, pct = gap
+        step = 5.0 if pct else 0.02
+        new = value - step if look == "gap" else value + step
+        lo, hi = (0.0, 20.0) if pct else (0.0, 0.1)
+        if lo <= new <= hi:
+            unit = "%" if pct else ""
+            out.append(_cause("seam_gap", "change", 65, "w_seam_gap_" + look,
+                              {"from": _fmt(value) + unit, "to": _fmt(new) + unit},
+                              [_change("process", "seam_gap", _fmt(value) + unit, _fmt(new) + unit)]))
+    if look in ("zits", "bump"):
+        out.append(_cause("pa_test", "calibration", 55 if "pressure_advance" not in x.measured else 25, "w_pa_seam",
+                          test="pa"))
+        wipe = _first(x.fil.get("filament_wipe"))
+        if wipe not in ("1", "true") and not _on(x.prn.get("wipe")):
+            out.append(_cause("wipe", "change", 45, "w_wipe", {},
+                              [_change("filament", "filament_wipe", wipe or "nil", "1")]))
+    if look == "zits":
+        temp = _temp_step(x, -5, "temp_down", 25, "w_temp_ooze")
+        if temp:
+            out.append(temp)
+        out.append(_dry(x, 15))
+    return out
+
+
+def ghosting(x, a):
+    out = []
+    one, fast = a.get("axis") == "one", a.get("fast") == "yes"
+    out.append(_cause("input_shaping", "calibration", 60 + (5 if not one else 0), "w_input_shaping",
+                      test="input_shaping"))
+    if one:
+        out.append(_cause("belts", "advice", 65, "w_belts"))
+    accel = _accel_down(x, "outer_wall_acceleration", "outer_accel", 55 + (10 if fast else 0), "w_outer_accel")
+    if accel:
+        out.append(accel)
+    speed = x.p("outer_wall_speed")
+    if speed and speed > 80:
+        new = max(60.0, round(speed * 0.75))
+        out.append(_cause("outer_speed", "change", 35 + (15 if fast else 0), "w_outer_speed",
+                          {"from": _fmt(speed), "to": _fmt(new)},
+                          [_change("process", "outer_wall_speed", _fmt(speed), _fmt(new))]))
+    out.append(_cause("frame", "advice", 25, "w_frame"))
+    return out
+
+
+def top_holes(x, a):
+    out = []
+    look = a.get("look", "holes")
+    layers = x.p("top_shell_layers")
+    if layers is not None and layers < 8 and look in ("holes", "lines"):
+        new = min(8, int(layers) + 2)
+        changes = [_change("process", "top_shell_layers", _fmt(layers), str(new))]
+        thick = x.p("top_shell_thickness")
+        height = x.p("layer_height") or 0.2
+        if thick and thick < new * height:
+            changes.append(_change("process", "top_shell_thickness", _fmt(thick), _fmt(round(new * height, 2))))
+        out.append(_cause("top_layers", "change", 60 + (10 if layers < 4 else 0), "w_top_layers",
+                          {"from": _fmt(layers), "to": str(new)}, changes))
+    density = _pct_value(x.proc.get("sparse_infill_density"))
+    if density and density[0] < 15 and look in ("holes", "lines"):
+        out.append(_cause("infill_density", "change", 45, "w_infill_density", {"from": _fmt(density[0]), "to": "15"},
+                          [_change("process", "sparse_infill_density", _fmt(density[0]) + "%", "15%")]))
+    fan_max = x.f("fan_max_speed")
+    if look == "holes" and x.cls in ("PLA", "SILK", "TPU") and fan_max is not None and fan_max < 90:
+        out.append(_cause("top_fan", "change", 50, "w_top_fan", {"from": _fmt(fan_max), "to": "100"},
+                          [_change("filament", "fan_max_speed", _fmt(fan_max), "100")]))
+    speed = x.p("top_surface_speed")
+    if speed and speed > 120 and look in ("holes", "rough"):
+        new = max(80.0, round(speed * 0.7))
+        out.append(_cause("top_speed", "change", 35, "w_top_speed", {"from": _fmt(speed), "to": _fmt(new)},
+                          [_change("process", "top_surface_speed", _fmt(speed), _fmt(new))]))
+    if look == "lines":
+        pattern = _first(x.proc.get("top_surface_pattern"))
+        if pattern and pattern not in ("monotonic", "monotonicline"):
+            out.append(_cause("top_pattern", "change", 45, "w_top_pattern", {"from": pattern},
+                              [_change("process", "top_surface_pattern", pattern, "monotonic")]))
+    if look == "rough":
+        out.append(_cause("see_over", "redirect", 55, "w_see_over", {"defect": "over_extrusion"}))
+        ironing = _first(x.proc.get("ironing_type"))
+        if ironing in ("no ironing", ""):
+            out.append(_cause("ironing", "change", 40, "w_ironing", {},
+                              [_change("process", "ironing_type", ironing or "no ironing", "top")]))
+    out.append(_cause("flow_test", "calibration", 30 if "flow_ratio" not in x.measured else 10, "w_flow_test",
+                      test="flow"))
+    return out
+
+
+def wall_gaps(x, a):
+    out = []
+    where = a.get("where", "infill")
+    overlap = _pct_value(x.proc.get("infill_wall_overlap"))
+    if overlap and where == "infill":
+        value, pct = overlap
+        if pct and value < 40:
+            new = min(40.0, value + 10)
+            out.append(_cause("infill_overlap", "change", 65, "w_infill_overlap",
+                              {"from": _fmt(value) + "%", "to": _fmt(new) + "%"},
+                              [_change("process", "infill_wall_overlap", _fmt(value) + "%", _fmt(new) + "%")]))
+    top = _pct_value(x.proc.get("top_bottom_infill_wall_overlap"))
+    if top and where == "top":
+        value, pct = top
+        if pct and value < 50:
+            new = min(50.0, value + 10)
+            out.append(_cause("top_overlap", "change", 65, "w_top_overlap",
+                              {"from": _fmt(value) + "%", "to": _fmt(new) + "%"},
+                              [_change("process", "top_bottom_infill_wall_overlap", _fmt(value) + "%",
+                                       _fmt(new) + "%")]))
+    if where == "walls":
+        out.append(_cause("see_under", "redirect", 55, "w_see_under", {"defect": "under_extrusion"}))
+        out.append(_cause("pa_test", "calibration", 45 if "pressure_advance" not in x.measured else 20,
+                          "w_pa_walls", test="pa"))
+    out.append(_cause("flow_test", "calibration", 50 if "flow_ratio" not in x.measured else 15, "w_flow_test",
+                      test="flow"))
+    measured = _measured_flow(x)
+    if measured:
+        out.append(measured)
+    speed = x.p("sparse_infill_speed")
+    if speed and speed > 200 and where == "infill":
+        new = round(speed * 0.8)
+        out.append(_cause("infill_speed", "change", 35, "w_infill_speed", {"from": _fmt(speed), "to": _fmt(new)},
+                          [_change("process", "sparse_infill_speed", _fmt(speed), _fmt(new))]))
+    return out
+
+
+def curling(x, a):
+    out = []
+    where = a.get("where", "overhangs")
+    if x.needs_enclosure() and where == "corners":
+        out.append(_cause("enclosure", "advice", 85, "w_enclosure", {"cls": x.cls}))
+    if x.cls in ENCLOSED_MATERIALS:
+        if where == "corners":
+            out.append(_cause("see_warping", "redirect", 60, "w_see_warping", {"defect": "warping"}))
+    else:
+        fan = _overhang_fan(x, 55 + (10 if where == "overhangs" else 0), "w_curl_fan")
+        if fan:
+            out.append(fan)
+        fan_max = x.f("fan_max_speed")
+        if x.cls in ("PLA", "SILK") and fan_max is not None and fan_max < 100:
+            out.append(_cause("fan_up", "change", 50, "w_fan_up", {"from": _fmt(fan_max), "to": "100"},
+                              [_change("filament", "fan_max_speed", _fmt(fan_max), "100")]))
+    layer = x.f("slow_down_layer_time")
+    if layer is not None and layer < 20 and where in ("small", "corners"):
+        new = min(20, int(layer) + 4)
+        out.append(_cause("layer_time", "change", 60 if where == "small" else 40, "w_layer_time",
+                          {"from": _fmt(layer), "to": str(new)},
+                          [_change("filament", "slow_down_layer_time", _fmt(layer), str(new))]))
+    if where == "overhangs" and _first(x.proc.get("slowdown_for_curled_perimeters")) in ("0", "false"):
+        out.append(_cause("curled", "change", 55, "w_curled", {},
+                          [_change("process", "slowdown_for_curled_perimeters", "0", "1")]))
+    temp = _temp_step(x, -5, "temp_down", 25 + (10 if where == "small" else 0), "w_temp_curl")
+    if temp:
+        out.append(temp)
+    if where == "small":
+        out.append(_cause("several", "advice", 30, "w_several"))
+    return out
+
+
+def supports(x, a):
+    out = []
+    problem = a.get("problem", "stuck")
+    gap = x.p("support_top_z_distance")
+    spacing = x.p("support_interface_spacing")
+    if problem == "stuck":
+        top = 0.35 if x.cls == "PETG" else 0.3
+        if gap is not None and gap + 0.05 <= top:
+            step = 0.1 if x.cls == "PETG" and gap < 0.2 else 0.05
+            new = round(min(top, gap + step), 2)
+            out.append(_cause("support_gap", "change", 65 + (10 if x.cls == "PETG" else 0), "w_support_gap_up",
+                              {"from": _fmt(gap, 2), "to": _fmt(new, 2)},
+                              [_change("process", "support_top_z_distance", _fmt(gap, 2), _fmt(new, 2))]))
+        if spacing is not None and spacing < 0.5:
+            new = round(spacing + 0.2, 2)
+            out.append(_cause("interface_spacing", "change", 40, "w_interface_spacing_up",
+                              {"from": _fmt(spacing, 2), "to": _fmt(new, 2)},
+                              [_change("process", "support_interface_spacing", _fmt(spacing, 2), _fmt(new, 2))]))
+        if x.cls == "PETG":
+            out.append(_cause("support_material", "advice", 45, "w_support_material"))
+    elif problem == "underside":
+        if gap is not None and gap - 0.05 >= 0.1:
+            new = round(gap - 0.05, 2)
+            out.append(_cause("support_gap", "change", 60, "w_support_gap_down",
+                              {"from": _fmt(gap, 2), "to": _fmt(new, 2)},
+                              [_change("process", "support_top_z_distance", _fmt(gap, 2), _fmt(new, 2))]))
+        layers = x.p("support_interface_top_layers")
+        if layers is not None and layers < 3:
+            out.append(_cause("interface_layers", "change", 50, "w_interface_layers",
+                              {"from": _fmt(layers), "to": "3"},
+                              [_change("process", "support_interface_top_layers", _fmt(layers), "3")]))
+        if spacing is not None and spacing > 0.2:
+            new = round(max(0.1, spacing - 0.2), 2)
+            out.append(_cause("interface_spacing", "change", 45, "w_interface_spacing_down",
+                              {"from": _fmt(spacing, 2), "to": _fmt(new, 2)},
+                              [_change("process", "support_interface_spacing", _fmt(spacing, 2), _fmt(new, 2))]))
+        fan = x.f("support_material_interface_fan_speed")
+        if x.cls in ("PLA", "SILK") and fan is not None and fan < 100:
+            out.append(_cause("interface_fan", "change", 35, "w_interface_fan", {"to": "100"},
+                              [_change("filament", "support_material_interface_fan_speed", _fmt(fan), "100")]))
+    else:
+        kind = _first(x.proc.get("support_type"))
+        if kind.startswith("normal"):
+            new = kind.replace("normal", "tree")
+            out.append(_cause("tree", "change", 55, "w_tree", {},
+                              [_change("process", "support_type", kind, new)]))
+        speed = x.p("support_speed")
+        if speed and speed > 80:
+            new = max(50.0, round(speed * 0.7))
+            out.append(_cause("support_speed", "change", 35, "w_support_speed", {"from": _fmt(speed), "to": _fmt(new)},
+                              [_change("process", "support_speed", _fmt(speed), _fmt(new))]))
+        out.append(_cause("see_first", "redirect", 40, "w_see_first", {"defect": "first_layer"}))
+    return out
+
+
+def layer_shift(x, a):
+    out = []
+    same, one = a.get("when") == "same_height", a.get("axis") == "one"
+    if same:
+        out.append(_cause("see_curling", "redirect", 55, "w_see_curling", {"defect": "curling"}))
+        hop = x.f("filament_z_hop")
+        printer_hop = number(x.prn.get("z_hop")) or 0.0
+        now = hop if hop is not None else printer_hop
+        if now < 0.4:
+            out.append(_cause("z_hop", "change", 55, "w_z_hop", {"from": _fmt(now, 2), "to": "0.4"},
+                              [_change("filament", "filament_z_hop", _fmt(hop, 2) if hop is not None else "nil",
+                                       "0.4")]))
+        if _first(x.proc.get("reduce_crossing_wall")) in ("0", "false"):
+            out.append(_cause("avoid_walls", "change", 40, "w_avoid_walls", {},
+                              [_change("process", "reduce_crossing_wall", "0", "1")]))
+    out.append(_cause("belts", "advice", 60 + (10 if one else 0) + (0 if same else 10), "w_shift_belts"))
+    accel = _accel_down(x, "default_acceleration", "accel_down", 45 + (0 if same else 10), "w_accel_shift", 0.7)
+    if accel:
+        out.append(accel)
+    travel = _accel_down(x, "travel_acceleration", "travel_accel", 40 + (0 if same else 10), "w_travel_accel", 0.7)
+    if travel:
+        out.append(travel)
+    speed = x.p("travel_speed")
+    if speed and speed > 300:
+        out.append(_cause("travel_speed", "change", 35, "w_travel_speed", {"from": _fmt(speed), "to": "250"},
+                          [_change("process", "travel_speed", _fmt(speed), "250")]))
+    if not same:
+        out.append(_cause("drivers", "advice", 25, "w_drivers"))
+    return out
+
+
 CAUSES = {"stringing": stringing, "first_layer": first_layer, "layer_split": layer_split,
-          "overhangs": overhangs, "warping": warping}
+          "overhangs": overhangs, "warping": warping, "seam": seam, "ghosting": ghosting, "top_holes": top_holes,
+          "wall_gaps": wall_gaps, "curling": curling, "supports": supports, "layer_shift": layer_shift}
 WITH_INPUTS = {"dimensions": dimensions, "over_extrusion": over_extrusion, "under_extrusion": under_extrusion}
 
 
@@ -515,13 +824,19 @@ def plan(defect, ctx, answers=None, inputs=None):
         causes = WITH_INPUTS[defect](x, answers, inputs)
     else:
         causes = CAUSES[defect](x, answers)
+    elsewhere = ctx.get("elsewhere") or {}
     for c in causes:
         tried = list(x.tried.get(c["cause"]) or [])
         c["tried"] = tried
+        c["elsewhere"] = list(elsewhere.get(c["cause"]) or [])[-3:]
         if tried and tried[-1] in ("same", "worse"):
             c["score"] = LIMIT + c["score"] / 10
         elif tried and tried[-1] == "better":
             c["score"] += 15
+        elif c["elsewhere"]:
+            # what this fix did on similar filaments (same kind of material, same printer)
+            good = sum(1 for e in c["elsewhere"] if e["outcome"] in ("fixed", "better"))
+            c["score"] += 12 * good - 6 * (len(c["elsewhere"]) - good)
         c["changes"] = [ch for ch in c["changes"] if ch["before"] != ch["after"]]
         if c["kind"] == "change" and not c["changes"]:
             c["kind"] = "need"
@@ -583,3 +898,21 @@ class Attempts:
 
     def pending(self):
         return [a for a in self.all() if not a.get("outcome")]
+
+    def history(self, key=None, limit=100):
+        """The attempts, newest first; with key only those of one filament (and printer)."""
+        items = [a for a in self.all() if key is None or a.get("key") == key]
+        return list(reversed(items))[:limit]
+
+    def elsewhere(self, defect, cls, model, key):
+        """{cause: [{label, outcome}]} of a defect on other filaments of the same kind of material on the same
+        printer model, oldest first: what helped there is likelier to help here."""
+        out = {}
+        for a in self.all():
+            if a.get("defect") != defect or a.get("key") == key or not a.get("outcome") or a.get("model") != model:
+                continue
+            ident = a.get("identity") or {}
+            if habits.material_class(ident.get("material") or "", ident.get("product") or "") != cls:
+                continue
+            out.setdefault(a["cause"], []).append({"label": a.get("label") or "", "outcome": a["outcome"]})
+        return out

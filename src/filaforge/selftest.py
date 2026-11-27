@@ -257,10 +257,11 @@ def _defects(page, tab):
     _check(ctx["info"]["filament"], "defects: no filament on the plate")
     _check(ctx["info"]["slots"], "defects: no slots")
     plans = {}
-    for defect in ("stringing", "warping", "overhangs"):
+    for defect in ctx["list"]:
         plan = page.ask(tab, "defect_plan", "defect_plan", defect=defect)
         _check(plan["causes"], "defects: no causes for %s" % defect)
         plans[defect] = plan["causes"][0]["cause"]
+    page.ask(tab, "defect_history", "defect_history")
     return {"slots": len(ctx["info"]["slots"]), "cls": ctx["info"]["cls"], "first": plans}
 
 

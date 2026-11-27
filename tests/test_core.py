@@ -566,6 +566,62 @@ class DefectTests(unittest.TestCase):
     def causes(self, defect, answers=None, inputs=None, **kw):
         return {c["cause"]: c for c in defects.plan(defect, self.ctx(**kw), answers, inputs)}
 
+    def test_new_defects(self):
+        proc = dict(self.PROC, seam_slope_type="none", seam_position="random", seam_gap="10%",
+                    outer_wall_acceleration="5000", outer_wall_speed="200", top_shell_layers="3",
+                    sparse_infill_density="10%", infill_wall_overlap="15%", support_top_z_distance="0.2",
+                    support_type="normal(auto)", default_acceleration="10000", travel_speed="500")
+        seam = self.causes("seam", {"look": "zits"}, process=proc)
+        self.assertEqual(seam["seam_aligned"]["changes"][0]["after"], "aligned")
+        self.assertEqual(seam["pa_test"]["test"], "pa")
+        gap = self.causes("seam", {"look": "gap"}, process=proc)["seam_gap"]
+        self.assertEqual(gap["changes"][0]["after"], "5%")
+        ghost = self.causes("ghosting", {"axis": "one", "fast": "yes"}, process=proc)
+        self.assertEqual(ghost["outer_accel"]["changes"][0]["after"], "3000")
+        self.assertIn("belts", ghost)
+        top = self.causes("top_holes", {"look": "holes"}, process=proc)
+        self.assertEqual(top["top_layers"]["changes"][0]["after"], "5")
+        self.assertEqual(top["infill_density"]["changes"][0]["after"], "15%")
+        self.assertEqual(self.causes("wall_gaps", {"where": "infill"}, process=proc)["infill_overlap"]
+                         ["changes"][0]["after"], "25%")
+        stuck = self.causes("supports", {"problem": "stuck"}, process=proc)["support_gap"]
+        self.assertEqual(stuck["changes"][0]["after"], "0.25")
+        self.assertEqual(self.causes("supports", {"problem": "fail"}, process=proc)["tree"]["changes"][0]["after"],
+                         "tree(auto)")
+        shift = self.causes("layer_shift", {"when": "same_height"}, process=proc,
+                            printer={"z_hop": "0.2"})
+        self.assertEqual(shift["z_hop"]["changes"][0]["after"], "0.4")
+        self.assertEqual(shift["see_curling"]["kind"], "redirect")
+        curl = self.causes("curling", {"where": "small"}, filament=dict(self.PLA, slow_down_layer_time="8"))
+        self.assertEqual(curl["layer_time"]["changes"][0]["after"], "12")
+        # warping materials: corners curling are warping, not too little fan
+        abs_curl = self.causes("curling", {"where": "corners"}, cls="ABS", enclosed=True)
+        self.assertIn("see_warping", abs_curl)
+        self.assertNotIn("fan_up", abs_curl)
+
+    def test_learned_elsewhere(self):
+        plain = self.causes("stringing", {"dried": "yes", "kind": "hairs"})
+        helped = self.causes("stringing", {"dried": "yes", "kind": "hairs"},
+                             elsewhere={"temp_down": [{"label": "Other PLA", "outcome": "fixed"}]})
+        self.assertGreater(helped["temp_down"]["score"], plain["temp_down"]["score"])
+        self.assertEqual(helped["temp_down"]["elsewhere"][0]["label"], "Other PLA")
+
+    def test_attempts_history(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            shelf = defects.Attempts(folder)
+            a = shelf.add({"defect": "stringing", "cause": "temp_down", "key": "a|K1C", "model": "K1C",
+                           "label": "A", "identity": {"material": "PLA"}})
+            shelf.add({"defect": "stringing", "cause": "dry", "key": "b|K1C", "model": "K1C", "label": "B",
+                       "identity": {"material": "PETG"}})
+            shelf.update(a["id"], outcome="fixed")
+            self.assertEqual([x["label"] for x in shelf.history()], ["B", "A"])
+            self.assertEqual([x["label"] for x in shelf.history("a|K1C")], ["A"])
+            self.assertEqual(shelf.elsewhere("stringing", "PLA", "K1C", "c|K1C"),
+                             {"temp_down": [{"label": "A", "outcome": "fixed"}]})
+            self.assertEqual(shelf.elsewhere("stringing", "PETG", "K1C", "c|K1C"), {})   # B has no outcome
+            self.assertEqual(shelf.elsewhere("stringing", "PLA", "U1", "c|U1"), {})
+
     def test_scale_and_offset(self):
         # 0.5% shrinkage and 0.05 mm per side too big: told apart from two sizes
         rows = [{"kind": "outer", "expected": e, "measured": e * 0.995 + 0.1} for e in (20, 60, 100)]

@@ -460,6 +460,19 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(self.plugin.store().get(ident, "Creality K1C", 0.4)[key],
                          float(nxt["changes"][0]["after"]))
 
+    def test_defect_history(self):
+        self.send(cmd="init")
+        self.last("defect_context", self.send(cmd="defect_context"))
+        self.send(cmd="defect_apply", defect="stringing", cause="dry", answers={"dried": "no"})
+        hist = self.last("defect_history", self.send(cmd="defect_history"))
+        self.assertEqual([(h["defect"], h["cause"]) for h in hist["items"]], [("stringing", "dry")])
+        self.assertFalse(hist["all"])
+        every = self.last("defect_history", self.send(cmd="defect_history", all=True))
+        self.assertTrue(every["all"])
+        for defect in ("seam", "ghosting", "top_holes", "wall_gaps", "curling", "supports", "layer_shift"):
+            plan = self.last("defect_plan", self.send(cmd="defect_plan", defect=defect))
+            self.assertTrue(plan["causes"], defect)
+
     def test_defect_dimensions_to_process(self):
         self.send(cmd="init")
         rows = [{"kind": "hole", "expected": 5, "measured": 4.8}]

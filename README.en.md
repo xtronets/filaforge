@@ -175,7 +175,8 @@ own measurement win over them; they only replace the value of the material's gen
 The **Defects** button in the header helps fix what went wrong in a print. Pick the defect from the list:
 
 stringing · first layer not sticking · layers splitting and cracking · dimensions, holes, elephant foot ·
-over-extrusion · under-extrusion · drooping overhangs and bridges · corners lifting.
+over-extrusion · under-extrusion · drooping overhangs and bridges · corners lifting · seam and zits ·
+ghosting (ringing) · holes on top · gaps at the walls · curling edges · supports · layer shift.
 
 **A diagnosis, not one fixed tweak.** Every defect has several possible causes. FilaForge puts them in order,
 likeliest first, from:
@@ -197,9 +198,13 @@ How some fixes are calculated:
 - **Flow ratio from a wall**: a cube in vase mode, the wall measured with calipers, new flow ratio =
   flow ratio × line width / measured wall.
 
-Some causes aren't settings: drying, washing the plate, levelling, Z offset, a clogged nozzle, a draft.
-FilaForge says so instead of changing something blindly. Where a test is the better way, it points to
-OrcaSlicer's calibration tests.
+Some causes aren't settings: drying, washing the plate, levelling, Z offset, a clogged nozzle, a draft, a
+loose belt, resonance calibration. FilaForge says so instead of changing something blindly.
+
+**Test prints.** Where a test beats guessing, the cause names the OrcaSlicer calibration test (flow, pressure
+advance, max flowrate, temperature tower, retraction, input shaping) and what to read from it. **Enter the
+test result** takes you to the calculator in "Your measurements" with that test picked, so the result goes
+straight into your measurements.
 
 **One change at a time, and a loop after the print.** The change goes into the FF filament or process preset
 (with its history). When you printed with your own preset, FilaForge makes an FF copy of it and fixes that.
@@ -209,6 +214,11 @@ After the print, answer in the same window:
 |---|---|
 | Fixed, Better | The change stays. Filament values go into your measurements, so the next preset gets them too. After "Better" the plan can offer the next step of the same cause. |
 | No change, Worse | The change is undone and that cause drops to the bottom of the list. Go on to the next one. |
+
+**Fix history.** The **Fix history** button in the Defects window lists every attempt for the filament on the
+plate (or for all filaments): the defect, the cause, the changed values, the preset, the outcome and the date.
+FilaForge learns from it: a fix that helped another filament of the same kind on the same printer moves up the
+plan with a "helped with: …" tag, and one that didn't moves a little down.
 
 ## Preset review and history
 
