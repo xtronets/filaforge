@@ -17,7 +17,23 @@ permissions:
   contents: write
 
 jobs:
+  tests:
+    # the plugin runs inside OrcaSlicer on Windows, macOS and Linux: paths, files and text on each of them
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tests
+
   build:
+    needs: tests
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -27,9 +43,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Tests
-        run: python -m unittest discover -s tests
 
       - name: Build the wheel
         run: python scripts/build.py
