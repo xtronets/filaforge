@@ -577,6 +577,7 @@ def seam(x, a):
         if wipe not in ("1", "true") and not _on(x.prn.get("wipe")):
             out.append(_cause("wipe", "change", 45, "w_wipe", {},
                               [_change("filament", "filament_wipe", wipe or "nil", "1")]))
+    out.append(_cause("seam_paint", "advice", 20, "w_seam_paint"))
     if look == "zits":
         temp = _temp_step(x, -5, "temp_down", 25, "w_temp_ooze")
         if temp:
@@ -714,6 +715,7 @@ def curling(x, a):
         out.append(temp)
     if where == "small":
         out.append(_cause("several", "advice", 30, "w_several"))
+    out.append(_cause("geometry", "advice", 15, "w_geometry"))
     return out
 
 
@@ -769,6 +771,7 @@ def supports(x, a):
             out.append(_cause("support_speed", "change", 35, "w_support_speed", {"from": _fmt(speed), "to": _fmt(new)},
                               [_change("process", "support_speed", _fmt(speed), _fmt(new))]))
         out.append(_cause("see_first", "redirect", 40, "w_see_first", {"defect": "first_layer"}))
+    out.append(_cause("support_settings", "advice", 15, "w_support_settings_" + problem))
     return out
 
 

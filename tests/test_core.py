@@ -599,6 +599,16 @@ class DefectTests(unittest.TestCase):
         self.assertIn("see_warping", abs_curl)
         self.assertNotIn("fan_up", abs_curl)
 
+    def test_never_empty(self):
+        # a preset without the keys a defect looks at still gets a plan (OrcaSlicer's CI presets lack many)
+        import itertools
+        for cls in ("PLA", "PETG", "ABS", "TPU"):
+            for defect, questions in defects.QUESTIONS.items():
+                for combo in itertools.product(*[[(q, o) for o in opts] for q, opts in questions]):
+                    plan = defects.plan(defect, {"cls": cls, "filament": {}, "process": {}, "printer": {}},
+                                        dict(combo))
+                    self.assertTrue(plan, (cls, defect, combo))
+
     def test_learned_elsewhere(self):
         plain = self.causes("stringing", {"dried": "yes", "kind": "hairs"})
         helped = self.causes("stringing", {"dried": "yes", "kind": "hairs"},
