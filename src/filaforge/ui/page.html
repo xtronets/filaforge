@@ -238,6 +238,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .cause { border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; font-size: 12px; }
 .cause.best { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .cause.tried { opacity: .62; }
+.cause .go { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .cause .name { font-weight: 650; font-size: 12.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cause .why { grid-column: 1; color: var(--fg); font-size: 12px; }
 .cause .go { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: 6px; }
@@ -477,10 +478,12 @@ const T = {
     pf_peak: 'Szczyt przepływu', pf_measured_short: 'zmierzone {v}', pf_flow: 'Przepływ według rodzaju ruchu (mm³/s)',
     pf_role: 'Ruch', pf_share: 'Czasu', pf_mean: 'Średnio', pf_fix: 'Popraw', pf_applied: 'Zapisane w {names}. Potnij ponownie, żeby sprawdzić.',
     pf_lv_stop: 'krytyczne', pf_lv_warn: 'ostrzeżenie', pf_lv_info: 'informacja',
+    pf_accept: 'Limit jest sprawdzony', pf_accepted: 'Zapisane jako Twój pomiar: kontrola nie będzie już o to pytać.',
+    pf_profile_behind: 'Profil nie zgadza się z Twoimi pomiarami', pfw_profile_behind: 'Wydruk pocięto z innymi wartościami niż zmierzyłeś ({n}): {keys}. Popraw zapisze Twoje pomiary w presecie (FF albo jego kopii FF), a potem potnij ponownie.',
     pf_flow_over_measured: 'Przepływ ponad Twój pomiar', pf_flow_at_limit: 'Druk na granicy przepływu', pf_spool_short: 'Za mało filamentu',
     pf_spool_tight: 'Filamentu na styk', pf_retractions: 'Dużo retrakcji', pf_warp_brim: 'Duża pierwsza warstwa bez brimu',
-    pfw_flow_over_measured: 'Przez {share}% czasu druku przepływ przekracza Twój pomiar maks. przepływu ({measured} mm³/s), najwięcej w: {role}. Szczyt: {peak} mm³/s. Hotend nie nadąży i warstwy wyjdą niedolane. Preset pozwala na {preset} mm³/s.',
-    pfw_flow_at_limit: 'Przez {share}% czasu druk idzie na granicy przepływu z presetu ({preset} mm³/s, szczyt {peak}). Bez pomiaru nie wiadomo, czy ten filament tyle stopi: zrób test maks. przepływu.',
+    pfw_flow_over_measured: 'Przez {share}% czasu druku przepływ przekracza Twój pomiar maks. przepływu ({measured} mm³/s), najwięcej w: {role}. Szczyt: {peak} mm³/s. Hotend nie nadąży i warstwy wyjdą niedolane. Preset pozwala na {preset} mm³/s: popraw go w „Profil nie zgadza się z Twoimi pomiarami”.',
+    pfw_flow_at_limit: 'Przez {share}% czasu druk idzie na granicy przepływu z presetu ({preset} mm³/s, szczyt {peak}). Orka sama trzyma przepływ w tym limicie, więc to nie błąd, o ile limit jest prawdziwy. Jeśli ten filament dobrze drukuje przy {preset} mm³/s albo test dał tyle samo, kliknij „Limit jest sprawdzony”. Jeśli nie wiesz, zrób test maks. przepływu.',
     pfw_spool_short: 'Wydruk potrzebuje {need} g, a na szpuli {spool} zostało {left} g. Wydruk skończy się przed czasem.',
     pfw_spool_tight: 'Wydruk potrzebuje {need} g, a na szpuli {spool} zostało {left} g. Zapas jest mniejszy niż 10%.',
     pfw_retractions: '{cls}: {layers} warstw ma ponad {limit} retrakcji (najwięcej {max} na wysokości {z} mm). Tyle retrakcji grozi nitkowaniem i zmieleniem filamentu. Omijanie ścian przy przejazdach ogranicza ich liczbę.',
@@ -776,10 +779,12 @@ const T = {
     pf_peak: 'Peak flow', pf_measured_short: 'measured {v}', pf_flow: 'Flow by feature (mm³/s)',
     pf_role: 'Feature', pf_share: 'Time', pf_mean: 'Mean', pf_fix: 'Fix', pf_applied: 'Saved in {names}. Slice again to check.',
     pf_lv_stop: 'critical', pf_lv_warn: 'warning', pf_lv_info: 'info',
+    pf_accept: 'The limit is checked', pf_accepted: 'Saved as your measurement: the check won’t ask about it again.',
+    pf_profile_behind: 'The profile differs from your measurements', pfw_profile_behind: 'The print was sliced with other values than you measured ({n}): {keys}. Fix writes your measurements into the preset (FF or an FF copy of it); then slice again.',
     pf_flow_over_measured: 'Flow above your measurement', pf_flow_at_limit: 'Printing at the flow limit', pf_spool_short: 'Not enough filament',
     pf_spool_tight: 'Filament is tight', pf_retractions: 'Many retractions', pf_warp_brim: 'Large first layer with no brim',
-    pfw_flow_over_measured: 'For {share}% of the print time the flow is above your max flow measurement ({measured} mm³/s), most in: {role}. Peak: {peak} mm³/s. The hotend can’t keep up and the layers come out under-extruded. The preset allows {preset} mm³/s.',
-    pfw_flow_at_limit: 'For {share}% of the time the print runs at the preset’s flow limit ({preset} mm³/s, peak {peak}). Without a measurement there is no telling whether this filament melts that fast: run the max flow test.',
+    pfw_flow_over_measured: 'For {share}% of the print time the flow is above your max flow measurement ({measured} mm³/s), most in: {role}. Peak: {peak} mm³/s. The hotend can’t keep up and the layers come out under-extruded. The preset allows {preset} mm³/s: fix it under “The profile differs from your measurements”.',
+    pfw_flow_at_limit: 'For {share}% of the time the print runs at the preset’s flow limit ({preset} mm³/s, peak {peak}). OrcaSlicer holds the flow there itself, so it is no error as long as the limit is real. If this filament prints well at {preset} mm³/s or the test gave the same, click “The limit is checked”. If you don’t know, run the max flow test.',
     pfw_spool_short: 'The print needs {need} g and spool {spool} has {left} g left. It will run out before the end.',
     pfw_spool_tight: 'The print needs {need} g and spool {spool} has {left} g left. Less than 10% to spare.',
     pfw_retractions: '{cls}: {layers} layers have more than {limit} retractions (at most {max} at {z} mm). That many risk stringing and grinding the filament. Avoiding crossing walls cuts their number.',
@@ -1882,8 +1887,9 @@ function renderPreflight() {
     Object.keys(v).forEach(k => { if (v[k] !== '' && isFinite(+v[k])) v[k] = fmtExact(+v[k]); });
     if (v.role) v.role = t('role_' + v.role);
     const rows = (x.changes || []).length ? `<table class="chg">${x.changes.map(c => `<tr><td>${esc(dfLabel(c.key))}</td><td>${esc(dfValue(c.before))} → <b>${esc(dfValue(c.after))}</b></td></tr>`).join('')}</table>` : '';
-    const btn = (x.changes || []).length ? `<button data-pf="${i}">${esc(t('pf_fix'))}</button>`
-      : x.test && TEST_CALIB[x.test] ? `<button class="secondary" data-pf-test="${esc(x.test)}">${esc(t('df_enter'))}</button>` : '';
+    let btn = (x.changes || []).length ? `<button data-pf="${i}">${esc(t('pf_fix'))}</button>` : '';
+    if (x.accept) btn += `<button data-pf-accept="${i}">${esc(t('pf_accept'))}</button>`;
+    if (x.test && TEST_CALIB[x.test]) btn += `<button class="secondary" data-pf-test="${esc(x.test)}">${esc(t('df_enter'))}</button>`;
     const how = x.test ? `<div class="note" style="margin-top:4px">${esc(t('tst_' + x.test))}</div>` : '';
     return `<div class="cause lv-${x.level}"><div class="name">${esc(t('pf_' + x.code))} <span class="kind">${esc(t('pf_lv_' + x.level))}</span></div>
       <div class="why">${esc(t('pfw_' + x.code, v))}${rows}${how}</div><div class="go">${btn}</div></div>`;
@@ -1905,6 +1911,13 @@ $('btn-pf-again').addEventListener('click', () => send({cmd: 'preflight'}));
 $('pf-list').addEventListener('click', e => {
   const b = e.target.closest('[data-pf]'), tb = e.target.closest('[data-pf-test]');
   if (tb) { openCalibFor(PF.report.filament, tb.dataset.pfTest); return; }
+  const ab = e.target.closest('[data-pf-accept]');
+  if (ab && PF.report) {
+    const x = PF.report.findings[+ab.dataset.pfAccept];
+    ab.disabled = true;
+    send({cmd: 'preflight_accept', filament: PF.report.filament, values: x.accept, model: PF.report.model, nozzle: PF.report.nozzle});
+    return;
+  }
   if (!b || !PF.report) return;
   const x = PF.report.findings[+b.dataset.pf];
   b.disabled = true;
@@ -2136,6 +2149,9 @@ function onMessage(m) {
       PF.report = m.report;
       pfBadge();
       if ($('dlg-preflight').open) renderPreflight();
+      break;
+    case 'preflight_accepted':
+      toast(t('pf_accepted'));
       break;
     case 'preflight_ready':
       send({cmd: 'preflight'});

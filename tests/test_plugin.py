@@ -491,7 +491,17 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(report["filament"], "Generic PLA @K1C-all")
         self.assertEqual(report["file"], "plate_1.gcode")
         self.assertEqual(report["layers"], 5)
-        self.assertEqual(measured.identity_key(ident), measured.identity_key(ident))
+        self.assertEqual(codes["profile_behind"]["changes"][0]["after"], "20")
+        # a print at the preset's limit, not measured: "the limit is checked" makes it the user's measurement
+        self.plugin.store().set(ident, "*", {}, nozzle=0.4)
+        report = self.last("preflight", self.send(cmd="preflight"))["report"]
+        self.assertIn("flow_at_limit", [f["code"] for f in report["findings"]])
+        posted = self.send(cmd="preflight_accept", filament=report["filament"], values={"max_volumetric_speed": 24},
+                           model=report["model"], nozzle=report["nozzle"])
+        self.last("preflight_accepted", posted)
+        after = self.last("preflight", posted)["report"]
+        self.assertEqual(after["measured_mvs"], 24)
+        self.assertNotIn("flow_at_limit", [f["code"] for f in after["findings"]])
 
     def test_calib_target(self):
         self.send(cmd="init")

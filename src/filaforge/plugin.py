@@ -780,6 +780,24 @@ class Preflight:
                 log.exception("pre-flight notice")
 
 
+def find_filament(bundle, name):
+    """A filament preset by the name a G-code gives it: as it is, or without OrcaSlicer's "_local/<bundle>/" part,
+    or the one whose own name ends with it."""
+    name = str(name or "")
+    if not name:
+        return None
+    for candidate in (name, re.sub(r"^_local/[^/]+/", "", name)):
+        preset = bundle.filaments.find_preset(candidate)
+        if preset is not None:
+            return preset
+    bare = re.sub(r"^_local/[^/]+/", "", name)
+    for i in range(bundle.filaments.size()):
+        preset = bundle.filaments.preset(i)
+        if str(preset.name) == bare or str(preset.name).endswith("/" + bare):
+            return preset
+    return None
+
+
 def preflight_context(bundle, result):
     """ctx for preflight.check from the presets the G-code was sliced with (read on the UI thread). With several
     filaments the checks are for the one the print uses most."""
@@ -788,7 +806,9 @@ def preflight_context(bundle, result):
     extruder = max(used, key=lambda i: grams[i])
     names = [result.setting("filament_settings_id", i) or "" for i in used]
     fil_name = result.setting("filament_settings_id", extruder) or ""
-    preset = bundle.filaments.find_preset(fil_name) if fil_name else None
+    preset = find_filament(bundle, fil_name)
+    if preset is not None:
+        fil_name = str(preset.name)
     config = _config(preset) if preset is not None else {}
     ident = preset_identity(bundle, fil_name, config) if fil_name else None
     printer = printer_info(bundle)
@@ -801,7 +821,8 @@ def preflight_context(bundle, result):
     if fil_name.startswith(FF_PREFIX):
         _, meta = find_saved(bundle, fil_name[len(FF_PREFIX):])
         spool = (meta or {}).get("spoolman_id")
-    return {"cls": cls, "measured_mvs": mine.get("max_volumetric_speed"), "filament": fil_name, "extruder": extruder,
+    return {"cls": cls, "measured": mine, "filament": fil_name, "extruder": extruder, "nozzle": nozzle,
+            "model": model,
             "filaments": [{"name": n, "label": orca_presets.bare_name(n), "grams": grams[i]} for i, n in zip(used, names)],
             "process": result.setting("print_settings_id") or "", "spoolman_id": spool,
             "label": orca_presets.bare_name(fil_name) if fil_name else ""}
@@ -893,7 +914,7 @@ class Tab:
             report = preflight.check(result, ctx)
             report.update(file=Preflight.model or os.path.basename(path), at=at, filament=ctx["filament"],
                           filament_label=ctx["label"], filaments=ctx["filaments"], process=ctx["process"],
-                          cls=ctx["cls"])
+                          cls=ctx["cls"], model=ctx["model"], nozzle=ctx["nozzle"])
             self.reply("preflight", report=report)
         spawn(work)
 
@@ -902,7 +923,7 @@ class Tab:
         its identity, its measurements and the values it prints with now."""
         bundle = orca.host.preset_bundle()
         name = str(data.get("filament") or "")
-        preset = bundle.filaments.find_preset(name) if name else None
+        preset = find_filament(bundle, name)
         if preset is None:
             slots = plate_filaments(bundle)
             if not slots:
@@ -918,6 +939,26 @@ class Tab:
                    identity={"brand": ident.brand, "material": ident.material, "product": ident.product,
                              "colour": ident.colour, "label": ident.label()},
                    sections=store().sections(ident), current=current, printer=printer_info(bundle))
+
+    def on_preflight_accept(self, data):
+        """The user vouches for a limit the preset already has (it printed well at it): kept as their measurement
+        for this filament, printer and nozzle, so the check stops asking for a test."""
+        bundle = orca.host.preset_bundle()
+        preset = find_filament(bundle, data.get("filament"))
+        if preset is None:
+            raise ValueError("defect_no_filament")
+        values = {k: v for k, v in (data.get("values") or {}).items() if k in measured.LIMITS}
+        if not values:
+            return
+        ident = preset_identity(bundle, str(preset.name), _config(preset))
+        printer = printer_info(bundle)
+        section = str(data.get("model") or printer["model"] or "*")
+        nozzle = measured.nozzle_tag(data.get("nozzle")) or printer["nozzle"]
+        old = store().sections(ident).get(section) or {}
+        keep = {k: v for k, v in measured.section_values(old, nozzle).items() if not str(k).startswith("_")}
+        store().set(ident, section, dict(keep, **values), nozzle)
+        self.reply("preflight_accepted", values=values)
+        self.on_preflight({})
 
     def on_preflight_apply(self, data):
         changes = [c for c in (data.get("changes") or []) if isinstance(c, dict) and c.get("target") in

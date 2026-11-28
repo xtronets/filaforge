@@ -7,7 +7,16 @@ plan uses, so the page applies it the same way (one change, into an FF preset, k
 Levels: "stop" (the print will fail or run out), "warn" (likely to show), "info" (worth knowing).
 """
 
+from .review import APPLY_KEYS
+
 WARPING = ("ABS", "ASA", "PC", "PA")
+# what a sliced setting falls back to when the filament leaves it empty ("nil")
+FALLBACK = {"filament_retraction_length": "retraction_length", "filament_retraction_speed": "retraction_speed"}
+# a sliced value this close to the measurement is the same
+CLOSE = {"filament_flow_ratio": 0.005, "pressure_advance": 0.002, "filament_max_volumetric_speed": 0.25,
+         "nozzle_temperature": 0.5, "hot_plate_temp": 0.5, "hot_plate_temp_initial_layer": 0.5,
+         "filament_retraction_length": 0.02, "filament_retraction_speed": 0.5, "fan_min_speed": 0.5,
+         "fan_max_speed": 0.5, "chamber_temperature": 0.5}
 # features whose flow the hotend has to keep up with (skirt, ironing and the prime tower don't count)
 FLOW_ROLES = ("outer_wall", "inner_wall", "overhang", "sparse_infill", "solid_infill", "top_surface",
               "bottom_surface", "bridge", "internal_bridge", "gap_infill", "support", "support_interface", "brim")
@@ -43,17 +52,36 @@ def _flow_time_above(result, limit):
 
 
 def check(result, ctx):
-    """Findings for a gcode.Result. ctx: {cls, measured_mvs (mm³/s, for this nozzle) or None, extruder (the one
-    the checked filament prints from, 0 by default), spool_left_g or None, spool_label}. Flow peaks are the 99th
-    percentile: a single short segment's rounding is no peak."""
+    """Findings for a gcode.Result. ctx: {cls, measured ({canonical key: number}: the user's measurements for this
+    filament, printer and nozzle), extruder (the one the checked filament prints from, 0 by default),
+    spool_left_g or None, spool_label}. Flow peaks are the 99th percentile: a single short segment's rounding is
+    no peak."""
     out = []
     cls = ctx.get("cls") or ""
     total = result.total_time() or 0.0
     printing = sum(result.role(r).time for r in FLOW_ROLES) or 0.0
     extruder = int(ctx.get("extruder") or 0)
     preset_mvs = result.number("filament_max_volumetric_speed", extruder)
-    measured = ctx.get("measured_mvs")
+    mine = dict(ctx.get("measured") or {})
+    if ctx.get("measured_mvs") and "max_volumetric_speed" not in mine:
+        mine["max_volumetric_speed"] = ctx["measured_mvs"]
+    measured = mine.get("max_volumetric_speed")
     peak = max((result.role(r).percentile(0.99) for r in FLOW_ROLES), default=0.0)
+
+    # 0. the print was sliced with other values than you measured: the profile is behind your measurements
+    stale = []
+    for key, value in sorted(mine.items()):
+        for orca_key in APPLY_KEYS.get(key, ()):
+            sliced = result.number(orca_key, extruder)
+            if sliced is None and orca_key in FALLBACK:
+                sliced = result.number(FALLBACK[orca_key], extruder)
+            if sliced is None or not isinstance(value, (int, float)):
+                continue
+            if abs(sliced - value) > CLOSE.get(orca_key, 1e-6):
+                stale.append({"target": "filament", "key": orca_key, "before": _f(sliced, 4), "after": _f(value, 4)})
+    if stale:
+        out.append(_finding("profile_behind", "warn", {"n": str(len(stale)),
+                                                       "keys": ", ".join(c["key"] for c in stale)}, stale))
 
     # 1. the hotend asked for more than this filament melts (your max flow test)
     if measured and printing:
@@ -61,10 +89,7 @@ def check(result, ctx):
         share = above / printing
         if share >= SHARE_INFO:
             worst = max(per, key=per.get)
-            changes = []
-            if preset_mvs and preset_mvs > measured:
-                changes = [{"target": "filament", "key": "filament_max_volumetric_speed", "before": _f(preset_mvs),
-                            "after": _f(measured)}]
+            changes = []        # the fix is the profile's own max flow, in "profile_behind" above
             out.append(_finding("flow_over_measured", "warn" if share >= SHARE_WARN else "info",
                                 {"share": _f(share * 100), "measured": _f(measured), "peak": _f(peak),
                                  "role": worst, "preset": _f(preset_mvs) if preset_mvs else ""}, changes))
@@ -73,8 +98,12 @@ def check(result, ctx):
         per, above = _flow_time_above(result, preset_mvs * NEAR_LIMIT)
         share = above / printing
         if share >= SHARE_WARN:
-            out.append(_finding("flow_at_limit", "info", {"share": _f(share * 100), "preset": _f(preset_mvs),
-                                                          "peak": _f(peak)}, test="mvs"))
+            # not a problem by itself (OrcaSlicer holds the flow there); worth it only while the limit is unchecked:
+            # "accept" records the preset's limit as yours, a test measures it
+            f = _finding("flow_at_limit", "info", {"share": _f(share * 100), "preset": _f(preset_mvs),
+                                                   "peak": _f(peak)}, test="mvs")
+            f["accept"] = {"max_volumetric_speed": preset_mvs}
+            out.append(f)
 
     # 3. the spool has less left than the print needs
     mm, grams = result.filament_used()
@@ -117,5 +146,5 @@ def check(result, ctx):
     order = {"stop": 0, "warn": 1, "info": 2}
     out.sort(key=lambda f: order[f["level"]])
     return {"findings": out, "time": total, "filament_g": total_grams, "filament_mm": mm, "peak_flow": round(peak, 2),
-            "preset_mvs": preset_mvs, "measured_mvs": measured, "layers": len(result.layers),
+            "preset_mvs": preset_mvs, "measured_mvs": measured, "measured": mine, "layers": len(result.layers),
             "roles": {r: result.role(r).as_dict() for r in FLOW_ROLES if result.role(r).time > 0}}

@@ -99,14 +99,33 @@ class PreflightTests(unittest.TestCase):
         found = self.codes(preflight.check(r, {"cls": "PLA", "measured_mvs": 20.0}))
         f = found["flow_over_measured"]
         self.assertEqual(f["vars"]["role"], "sparse_infill")
-        self.assertEqual(f["changes"][0]["after"], "20")
         self.assertEqual(f["level"], "warn")
+        # the fix is the profile's own limit, with any other measured value it lags behind
+        behind = found["profile_behind"]["changes"]
+        self.assertEqual([(c["key"], c["before"], c["after"]) for c in behind],
+                         [("filament_max_volumetric_speed", "24", "20")])
         self.assertNotIn("flow_over_measured", self.codes(preflight.check(r, {"cls": "PLA", "measured_mvs": 30})))
 
     def test_flow_at_limit_without_measurement(self):
         r = gcode.parse(fake_gcode(speed=250.0))                            # 22.5 of 24
         found = self.codes(preflight.check(r, {"cls": "PLA"}))
         self.assertEqual(found["flow_at_limit"]["test"], "mvs")
+
+    def test_profile_behind_and_accept(self):
+        r = gcode.parse(fake_gcode(speed=250.0, config={"filament_flow_ratio": "0.98", "pressure_advance": "0.04",
+                                                         "filament_retraction_length": "nil",
+                                                         "retraction_length": "0.8"}))
+        ctx = {"cls": "PLA", "measured": {"flow_ratio": 0.95, "pressure_advance": 0.04, "retraction_length": 0.6}}
+        found = self.codes(preflight.check(r, ctx))
+        keys = {c["key"]: c for c in found["profile_behind"]["changes"]}
+        self.assertEqual(sorted(keys), ["filament_flow_ratio", "filament_retraction_length"])
+        self.assertEqual(keys["filament_retraction_length"]["before"], "0.8")      # the printer's, as sliced
+        # at the preset's limit with no measurement: a way to vouch for it, and a test
+        at = found["flow_at_limit"]
+        self.assertEqual(at["accept"], {"max_volumetric_speed": 24.0})
+        # measured at the same value as the preset: nothing to say about flow any more
+        same = self.codes(preflight.check(r, {"cls": "PLA", "measured": {"max_volumetric_speed": 24}}))
+        self.assertEqual(same, {})
 
     def test_spool(self):
         r = gcode.parse(fake_gcode(used_g=120))
