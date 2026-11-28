@@ -115,7 +115,11 @@ jobs:
         run: |
           export DISPLAY=:99
           pgrep Xvfb >/dev/null || { Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 & sleep 2; }
-          python scripts/preflight_probe.py squashfs-root probe
+          # OrcaSlicer 2.5 packs its profiles; the same profiles as JSON come from its source at this tag
+          git clone -q --depth 1 --branch "${{ steps.orca.outputs.tag }}" --filter=blob:none --sparse \
+            https://github.com/OrcaSlicer/OrcaSlicer orca-src
+          git -C orca-src sparse-checkout set resources/profiles/Creality resources/profiles/OrcaFilamentLibrary
+          python scripts/preflight_probe.py squashfs-root probe orca-src/resources/profiles
 
       - name: Logs
         if: always()

@@ -1,8 +1,9 @@
 """Slices a test model with a real OrcaSlicer (command line) and runs FilaForge's G-code reading and checks on it.
 
-    python scripts/preflight_probe.py <squashfs-root of the AppImage> <out folder>
+    python scripts/preflight_probe.py <squashfs-root of the AppImage> <out folder> <resources/profiles of the source>
 
-The printer, process and filament come from OrcaSlicer's own system profiles, flattened (their "inherits" chain
+The printer, process and filament come from OrcaSlicer's own system profiles (as JSON from its source: the
+AppImage packs them), flattened (their "inherits" chain
 merged) so the command line needs no data folder. The model: a 40 × 40 × 10 mm block (solid layers, infill) with
 a 6 × 6 × 30 mm tower on it (short layers at the top). Prints the summary and the findings as JSON and writes
 them to the job summary when there is one.
@@ -14,7 +15,6 @@ import os
 import struct
 import subprocess
 import sys
-import zipfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -73,26 +73,10 @@ def write_stl(path, triangles):
             f.write(b"\0\0")
 
 
-def main(app, out):
+def main(app, out, profile_root):
     os.makedirs(out, exist_ok=True)
-    found = [p for p in glob.glob(os.path.join(app, "**", "profiles"), recursive=True) if os.path.isdir(p)]
-    if not found:
-        print("no OrcaSlicer profiles under", app)
-        return 1
-    root = found[0]
-    # OrcaSlicer 2.5 packs each vendor's profiles into <vendor>.opc; read them as zip files when they are
-    unpacked = os.path.join(out, "profiles")
-    for opc in glob.glob(os.path.join(root, "*.opc")):
-        if zipfile.is_zipfile(opc):
-            with zipfile.ZipFile(opc) as z:
-                z.extractall(os.path.join(unpacked, os.path.basename(opc)[:-4]))
-        else:
-            with open(opc, "rb") as f:
-                print("  not a zip:", os.path.basename(opc), f.read(16))
-    profiles = index(root)
-    if os.path.isdir(unpacked):
-        profiles.update({k: v for k, v in index(unpacked).items() if k not in profiles})
-    print("profiles:", root, len(profiles))
+    profiles = index(profile_root)
+    print("profiles:", profile_root, len(profiles))
     paths = {}
     for kind, name, key in (("machine", PRINTER, "printer"), ("process", PROCESS, "process"),
                             ("filament", FILAMENT, "filament")):
@@ -132,4 +116,4 @@ def main(app, out):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1], sys.argv[2]))
+    sys.exit(main(sys.argv[1], sys.argv[2], sys.argv[3]))
