@@ -1,4 +1,7 @@
-"""HTTP reads with a small disk cache, so a second look at the same filament works offline and fast.
+"""HTTP reads with a disk cache, so a second look at the same filament needs no network at all.
+
+What the databases and data sheets say changes rarely: a copy is kept for KEEP (half a year) and used as it is;
+"refresh" downloads again (and still falls back to the copy when the network fails).
 
 Only GET, only https (plus the user's own Spoolman address in spoolman.py), with a size cap. Tests pass a
 Fetcher with canned answers instead of the network.
@@ -15,6 +18,7 @@ USER_AGENT = "FilaForge/0.1 (OrcaSlicer plugin; +https://github.com/xtronets/fil
 TIMEOUT = 15
 MAX_BYTES = 24 * 1024 * 1024
 DAY = 24 * 3600
+KEEP = 180 * DAY
 
 
 class FetchError(Exception):
@@ -24,10 +28,14 @@ class FetchError(Exception):
 class Fetcher:
     """get(url) -> bytes, cached in folder for ttl seconds; a stale copy is used when the network fails."""
 
-    def __init__(self, folder=None, ttl=DAY, opener=None):
+    def __init__(self, folder=None, ttl=DAY, opener=None, refresh=False):
         self.folder = folder
         self.ttl = ttl
+        self.refresh = refresh
         self._open = opener or urllib.request.urlopen
+        self.hits = 0               # answers from the copy
+        self.downloads = 0          # answers from the network
+        self.oldest = None          # time of the oldest copy used
 
     def _path(self, url):
         if not self.folder:
@@ -36,11 +44,14 @@ class Fetcher:
 
     def _read_cache(self, path, fresh_only):
         try:
-            age = time.time() - os.path.getmtime(path)
-            if fresh_only and age > self.ttl:
+            stamp = os.path.getmtime(path)
+            if fresh_only and (self.refresh or time.time() - stamp > self.ttl):
                 return None
             with open(path, "rb") as f:
-                return f.read()
+                data = f.read()
+            self.hits += 1
+            self.oldest = stamp if self.oldest is None else min(self.oldest, stamp)
+            return data
         except (OSError, TypeError):
             return None
 
@@ -55,6 +66,7 @@ class Fetcher:
                 return cached
             try:
                 data = self._download(url, accept)
+                self.downloads += 1
             except FetchError:
                 stale = self._read_cache(path, fresh_only=False) if path else None
                 if stale is not None:

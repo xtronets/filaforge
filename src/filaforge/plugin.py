@@ -828,8 +828,11 @@ def preflight_context(bundle, result):
             "label": orca_presets.bare_name(fil_name) if fil_name else ""}
 
 
-def fetcher():
-    return Fetcher(os.path.join(own_dir(), "cache"))
+def fetcher(refresh=False):
+    """The network reader with FilaForge's cache: a filament looked at once is read from the copy afterwards (half a
+    year), refresh downloads again."""
+    from .core.net import KEEP
+    return Fetcher(os.path.join(own_dir(), "cache"), ttl=KEEP, refresh=refresh)
 
 
 def store():
@@ -1041,6 +1044,8 @@ class Tab:
         files = [f for f in (data.get("sheet_files") or []) if isinstance(f, dict)][:3]
         online = bool(settings.get("online", True)) and data.get("online") is not False
 
+        reader = fetcher(bool(data.get("refresh")))
+
         def work():
             try:
                 tested = merge.measured_observations(tested_store, "Your measurement (FilaForge)")
@@ -1051,7 +1056,7 @@ class Tab:
                         tested += [o for o in spoolman.tested(filament, printer["name"]) if o.key not in have]
                     except spoolman.SpoolmanError as error:
                         self.reply("progress", step="spoolman", message=str(error))
-                result = research.run(identity, presets, fetcher(), process_config, tested, urls, files,
+                result = research.run(identity, presets, reader, process_config, tested, urls, files,
                                       progress=lambda step: self.reply("progress", step=step), use_online=online,
                                       own=own, table=habits.table(settings["habits"]), printer=printer,
                                       enclosed_printers=settings["enclosed_printers"])
@@ -1060,7 +1065,9 @@ class Tab:
                         remember_origin(report["url"])
                 result.update(printer=printer, measured=store().sections(identity),
                               preset_name=writer.with_marker(orca_presets.bare_name(own["name"]) if own
-                                                             else identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE])
+                                                             else identity.label()), licences=[ofd.LICENCE, spoolmandb.LICENCE],
+                              network={"downloads": reader.downloads, "cached": reader.hits, "since": reader.oldest,
+                                       "online": online})
                 self.reply("result", **result)
             except Exception as error:
                 log.error("research failed:\n%s", traceback.format_exc())

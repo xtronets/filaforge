@@ -72,12 +72,12 @@ def observations(entry, label, url):
 
 def lookup(fetcher, identity):
     try:
-        listing = fetcher.json(LISTING, ttl=WEEK)
+        listing = fetcher.json(LISTING)
         names = [i["name"] for i in listing if isinstance(i, dict) and str(i.get("name", "")).endswith(".json")]
         name = brand_file(names, identity.brand)
         if name is None:
             return [], SourceReport("spoolmandb", True, 0, "brand not in SpoolmanDB")
-        doc = fetcher.json(RAW + name, ttl=WEEK)
+        doc = fetcher.json(RAW + name)
     except (FetchError, KeyError, TypeError) as error:
         return [], SourceReport("spoolmandb", False, 0, str(error))
     entry, score = best_entry(doc.get("filaments") or [], identity)

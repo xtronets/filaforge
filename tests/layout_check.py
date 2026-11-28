@@ -25,7 +25,7 @@ def messages():
     plugin.data_dir = lambda: data
     plugin.own_dir = lambda: os.path.join(data, "filaforge")
     canned = helpers.fetcher()
-    plugin.fetcher = lambda: canned
+    plugin.fetcher = lambda refresh=False: canned
     plugin.spawn = lambda fn, *a: fn(*a)
     next(c for c in orca.registered if c.__name__ == "FilaForge")().register_capabilities()
     page = next(c for c in orca.registered if c.__name__ == "FilaForgePage")()

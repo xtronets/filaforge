@@ -28,7 +28,7 @@ class PluginTests(unittest.TestCase):
         self.plugin.data_dir = lambda: self.data
         self.plugin.own_dir = lambda: os.path.join(self.data, "filaforge")
         canned = helpers.fetcher()
-        self.plugin.fetcher = lambda: canned
+        self.plugin.fetcher = lambda refresh=False: canned
         # the work threads run inline here
         self.plugin.spawn = lambda fn, *a: fn(*a)
         plugin_cls = next(c for c in self.orca.registered if getattr(c, "__name__", "") == "FilaForge")

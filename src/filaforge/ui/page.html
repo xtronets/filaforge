@@ -316,7 +316,8 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
     <div class="card" id="card-result" hidden>
       <div class="head">
         <span class="swatch" id="r-swatch"></span>
-        <div><div class="title" id="r-title"></div><div class="small muted" id="r-base"></div></div>
+        <div><div class="title" id="r-title"></div><div class="small muted" id="r-base"></div>
+          <div class="small muted" id="r-net"></div></div>
         <span class="spacer"></span>
         <div class="small muted" id="r-legend"></div>
       </div>
@@ -467,6 +468,8 @@ const T = {
     df: 'Defekty', df_title: 'Defekty wydruku',
     df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
     df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
+    net_cached: 'Dane z pamięci FilaForge, pobrane {date}: bez łączenia z internetem.', net_refresh: 'Odśwież z internetu',
+    net_saved: 'Pobrano z internetu i zapisano: następnym razem ten filament otworzy się bez łączenia.',
     m_no_target: 'Najpierw wybierz filament: wyszukaj go albo otwórz pomiary z Kontroli lub Defektów.',
     m_target: 'Pomiary dla presetu „{name}”. Wynik testu zapisz poniżej; w Przeglądzie zobaczysz, czy preset FF trzeba poprawić.',
     pf_p99: 'Przepływ, którego ruch nie przekracza przez 99% swojego czasu (pojedyncze krótkie odcinki pomijane)',
@@ -769,6 +772,8 @@ const T = {
     df: 'Defects', df_title: 'Print defects',
     df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
     df_rule: 'One change at a time: reprint and say whether it helped.',
+    net_cached: 'Data from FilaForge’s memory, downloaded {date}: no internet needed.', net_refresh: 'Refresh from the internet',
+    net_saved: 'Downloaded and saved: next time this filament opens without going online.',
     m_no_target: 'Pick a filament first: search for it, or open the measurements from the Check or Defects.',
     m_target: 'Measurements for the preset “{name}”. Save the test result below; Review shows whether the FF preset needs a fix.',
     pf_p99: 'The flow this feature stays under for 99% of its time (single short segments left out)',
@@ -1245,6 +1250,10 @@ function renderResult() {
   $('r-swatch').style.background = r.identity.colour || 'transparent';
   $('r-base').textContent = r.base ? t({vendor: 'base_vendor', own: 'base_own'}[r.base.kind] || 'base_generic', {name: r.base.name.replace(/^_local\/[^/]+\//, '')}) : t('base_none');
   $('r-legend').textContent = t('legend');
+  const net = r.network || {};
+  $('r-net').innerHTML = net.cached && !net.downloads
+    ? `${esc(t('net_cached', {date: net.since ? new Date(net.since * 1000).toLocaleDateString(L === 'pl' ? 'pl-PL' : 'en-US') : '–'}))} <button class="link small" id="btn-refresh">${esc(t('net_refresh'))}</button>`
+    : net.downloads ? esc(t('net_saved')) : '';
   $('preset-name').value = r.preset_name || r.identity.label;
   $('cooling').value = 'standard'; S.coolSuffix = ''; $('cooling-note').textContent = '';
   const same = r.settings.filter(s => s.same_as_base && !s.apply).length;
@@ -1721,16 +1730,17 @@ $('sheets').addEventListener('click', e => {
   if (e.target.dataset.delFile != null) S.files.splice(+e.target.dataset.delFile, 1);
   renderSheets();
 });
-function research() {
+function research(refresh) {
   const id = identity();
   if (!id.brand) { toast(t(S.pick === 'spoolman' ? 'pick_first' : S.pick === 'orca' ? 'pick_preset' : 'brand_missing'), true); return; }
   S.steps = {}; renderSources(null);
   busy($('btn-research'), true);
-  send(Object.assign({cmd: 'research', sheet_urls: S.sheets, sheet_files: S.files,
+  send(Object.assign({cmd: 'research', refresh: refresh === true, sheet_urls: S.sheets, sheet_files: S.files,
                       spoolman_id: (S.resultSpool = S.pick === 'spoolman' && S.spool ? S.spool.id : null),
                       orca_preset: S.pick === 'orca' && S.orcaPreset ? S.orcaPreset.name : null}, id));
 }
-$('btn-research').addEventListener('click', research);
+$('btn-research').addEventListener('click', () => research());
+document.addEventListener('click', e => { if (e.target.id === 'btn-refresh') research(true); });
 $('btn-same').addEventListener('click', () => { S.showSame = !S.showSame; renderResult(); });
 $('rows').addEventListener('change', e => {
   const i = e.target.dataset.apply ?? e.target.dataset.val;

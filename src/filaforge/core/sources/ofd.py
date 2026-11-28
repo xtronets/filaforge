@@ -78,25 +78,25 @@ def lookup(fetcher, identity):
     ("orca_profile") and the data sheet address."""
     extra = {}
     try:
-        brands = fetcher.json(API + "brands/index.json", ttl=WEEK).get("brands") or []
+        brands = fetcher.json(API + "brands/index.json").get("brands") or []
         brand = find_brand(brands, identity.brand)
         if brand is None:
             return [], SourceReport("ofd", True, 0, "brand not in the database"), extra
         slug = brand["slug"]
-        brand_doc = fetcher.json(API + "brands/%s/index.json" % slug, ttl=WEEK)
+        brand_doc = fetcher.json(API + "brands/%s/index.json" % slug)
         base, _ = split_material(identity.material)
         materials = [m for m in brand_doc.get("materials") or []
                      if split_material(m.get("material") or m.get("slug"))[0] == base]
         candidates = []
         for m in materials:
-            doc = fetcher.json(API + "brands/%s/materials/%s/index.json" % (slug, m["slug"]), ttl=WEEK)
+            doc = fetcher.json(API + "brands/%s/materials/%s/index.json" % (slug, m["slug"]))
             candidates += [dict(f, _material=m["slug"]) for f in doc.get("filaments") or []]
         chosen, score = find_filament(candidates, identity)
         if chosen is None:
             names = ", ".join(sorted({c.get("name", "") for c in candidates})[:12])
             return [], SourceReport("ofd", True, 0, "no matching product (has: %s)" % names), extra
         url = API + "brands/%s/materials/%s/filaments/%s/index.json" % (slug, chosen["_material"], chosen["slug"])
-        data = fetcher.json(url, ttl=WEEK)
+        data = fetcher.json(url)
     except (FetchError, KeyError, AttributeError, TypeError) as error:
         return [], SourceReport("ofd", False, 0, str(error)), extra
     label = "Open Filament Database: %s %s" % (brand.get("name") or identity.brand, data.get("name") or chosen["name"])
@@ -115,15 +115,15 @@ def lookup(fetcher, identity):
 
 def products(fetcher, brand):
     """[{"name", "material"}] of every filament OFD lists for the brand ([] when it doesn't know the brand)."""
-    brands = fetcher.json(API + "brands/index.json", ttl=WEEK).get("brands") or []
+    brands = fetcher.json(API + "brands/index.json").get("brands") or []
     found = find_brand(brands, brand)
     if found is None:
         return []
-    doc = fetcher.json(API + "brands/%s/index.json" % found["slug"], ttl=WEEK)
+    doc = fetcher.json(API + "brands/%s/index.json" % found["slug"])
     out = []
     for m in doc.get("materials") or []:
         try:
-            mdoc = fetcher.json(API + "brands/%s/materials/%s/index.json" % (found["slug"], m["slug"]), ttl=WEEK)
+            mdoc = fetcher.json(API + "brands/%s/materials/%s/index.json" % (found["slug"], m["slug"]))
         except FetchError:
             continue
         out += [{"name": f.get("name") or f.get("slug"), "material": m.get("material") or m["slug"]}

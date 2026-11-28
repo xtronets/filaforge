@@ -244,7 +244,7 @@ def from_bytes(data, label, url):
 
 def lookup(fetcher, url, label="Data sheet"):
     try:
-        data = fetcher.get(url, ttl=30 * 24 * 3600, accept="application/pdf,text/html;q=0.8")
+        data = fetcher.get(url, accept="application/pdf,text/html;q=0.8")
     except FetchError as error:
         return [], SourceReport("tds", False, 0, str(error), url)
     return from_bytes(data, label, url)

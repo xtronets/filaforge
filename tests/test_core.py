@@ -806,3 +806,35 @@ class CoolingTests(unittest.TestCase):
         self.assertEqual((obs["fan_min"], obs["fan_max"], obs["aux_fan"], obs["layer_time"]), (30, 60, 20, 10))
         none = research.habit_observations(Identity("X", "PETG", ""), row, "PETG", aux_fan=False)
         self.assertNotIn("aux_fan", {o.key for o in none})
+
+
+class FetcherCacheTests(unittest.TestCase):
+    def test_copy_kept_and_refresh(self):
+        import io
+        import tempfile
+        from filaforge.core import net
+        calls = []
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def opener(request, timeout=None):
+            calls.append(request.full_url)
+            return Response(b'{"n": %d}' % len(calls))
+        with tempfile.TemporaryDirectory() as folder:
+            first = net.Fetcher(folder, ttl=net.KEEP, opener=opener)
+            self.assertEqual(first.json("https://x.test/a"), {"n": 1})
+            self.assertEqual((first.downloads, first.hits), (1, 0))
+            # a month later, a new look: from the copy, no network
+            again = net.Fetcher(folder, ttl=net.KEEP, opener=opener)
+            self.assertEqual(again.json("https://x.test/a"), {"n": 1})
+            self.assertEqual((again.downloads, again.hits, len(calls)), (0, 1, 1))
+            self.assertIsNotNone(again.oldest)
+            # refresh downloads again
+            fresh = net.Fetcher(folder, ttl=net.KEEP, opener=opener, refresh=True)
+            self.assertEqual(fresh.json("https://x.test/a"), {"n": 2})
+            self.assertEqual(fresh.downloads, 1)
