@@ -20,28 +20,32 @@ i z Twoich własnych pomiarów. Przy każdej wartości widać, skąd pochodzi i 
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
-## Nowość w 0.8.0: 15 defektów, historia napraw, chłodzenie
+## Nowość w 0.9.0: kontrola przed wydrukiem
 
-- **15 defektów wydruku** zamiast 8. Doszły: szew i pryszcze, ghosting, dziury na górze, szczeliny przy
-  ścianach, zawijanie krawędzi, podpory i przesunięcie warstw.
-- **Historia napraw.** FilaForge pokazuje wszystkie próby i uczy się z nich: poprawka, która pomogła przy
-  podobnym filamencie, idzie w planie wyżej.
-- **Testy kalibracyjne** z opisem, gdzie je znaleźć w Orce i co odczytać, oraz z przejściem prosto do
-  kalkulatora pomiarów.
-- **Chłodzenie** (od 0.7.8): nawiew min/max, wentylator boczny, minimalny czas warstwy dla każdego materiału
-  oraz warianty presetu „detale” i „wytrzymały”.
-- **Samonaprawa pakietu presetów** (od 0.7.1): koniec z błędem „Local bundle contains an invalid preset”.
+FilaForge sprawdza teraz pocięty G-code, zanim wyślesz go do drukarki. Po każdym cięciu w Orce czyta plik
+w tle i porównuje go z Twoimi pomiarami, presetem i szpulą. Na przycisku **Kontrola** pojawia się liczba
+uwag, a każdą poprawiasz jednym kliknięciem.
 
-Coś wyszło źle na wydruku? Kliknij **Defekty**, wybierz problem i odpowiedz na jedno–dwa pytania. FilaForge
-sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Bierze pod
-uwagę materiał, Twoje ustawienia, pomiary i to, co już próbowałeś. Zamiast zgadywać, liczy poprawki z danych,
-a gdy problemu nie rozwiąże ustawienie (suszenie, mycie płyty, Z-offset), mówi to wprost.
+- **Profil a Twoje pomiary.** Gdy preset ma inne wartości niż zmierzyłeś (przepływ, flow ratio, pressure
+  advance, temperatury, retrakcja), FilaForge pokazuje różnice, a **Popraw** zapisuje je w presecie FF.
+- **Przepływ według rodzaju ruchu.** Tabela ściany, wypełnienia, mostów i nawisów ze średnią, p95 i p99.
+  Czerwony: ponad limit filamentu, pomarańczowy: na granicy, niebieski: ruchy hamowane przez zbyt niski limit
+  presetu, choć filament stopi więcej.
+- **Przelicz proces i użyj.** Dopasowuje proces, którym cięto, do limitu przepływu filamentu (jak „Proces
+  druku dla filamentu”), zapisuje go jako proces FF i od razu wybiera w Orce. Potnij ponownie i uwagi znikną.
+- **Limit jest sprawdzony.** Druk na granicy presetu, który znasz z testu, potwierdzasz jednym kliknięciem
+  zamiast wracać do kalibracji. **Wpisz wynik testu** otwiera kalkulator pomiarów tego filamentu.
+- **Szpula ze Spoolmana.** Ostrzega, gdy na szpuli zostało za mało filamentu na ten wydruk albo na styk.
+- **Retrakcje i brzeg.** Za dużo retrakcji na warstwę przy PETG, TPU i PA oraz duża pierwsza warstwa ABS,
+  ASA, PC i PA bez brzegu.
+- **Kilka filamentów naraz** (np. Snapmaker U1): zużycie każdego i kontrola tego, który drukuje najwięcej.
+- **Dane filamentów zapamiętane na pół roku.** Ponowne otwarcie filamentu nie łączy się z internetem.
+  Przycisk **Odśwież z internetu** pobiera dane od nowa.
+- **Poprawka błędu „Local bundle contains an invalid preset”** przy kolorze filamentu (Orka 2.5 nie
+  przyjmuje `filament_colour` w presecie).
 
-Zmieniasz jedną rzecz naraz, a po wydruku mówisz, czy pomogło. Pomocne zmiany zostają i trafiają do Twoich
-pomiarów, a nieudane są cofane. Twoje presety zostają nietknięte: poprawki idą do presetów FF.
-Szczegóły w sekcji [Defekty wydruku](#defekty-wydruku).
-
-<p align="center"><img src="docs/defekty.png" alt="Okno Defekty wydruku" width="760"></p>
+Wcześniej (0.8.0): 15 defektów wydruku, historia napraw, testy kalibracyjne i chłodzenie pod materiał.
+Szczegóły w sekcji [Kontrola przed wydrukiem](#kontrola-przed-wydrukiem).
 
 ## Spis treści
 
@@ -50,6 +54,7 @@ Szczegóły w sekcji [Defekty wydruku](#defekty-wydruku).
 - [Jak wybiera wartość](#jak-wybiera-wartość)
 - [Proces druku dla filamentu](#proces-druku-dla-filamentu)
 - [Zwyczaje materiałów](#zwyczaje-materiałów)
+- [Kontrola przed wydrukiem](#kontrola-przed-wydrukiem)
 - [Przegląd presetów i historia zmian](#przegląd-presetów-i-historia-zmian)
 - [Defekty wydruku](#defekty-wydruku)
 - [Wymagania](#wymagania)
@@ -87,6 +92,9 @@ Szczegóły w sekcji [Defekty wydruku](#defekty-wydruku).
   i wstawia do Twoich pomiarów.
 - **Liczy proces druku dopasowany do filamentu**: prędkości obniżone do maks. przepływu, zwyczaje materiału,
   mosty, przyspieszenia, limity drukarki i warianty dla małych detali.
+- **Sprawdza pocięty G-code przed wydrukiem**: przepływ każdego rodzaju ruchu, zgodność presetu z Twoimi
+  pomiarami, filament na szpuli, retrakcje i brzeg. Każdą uwagę poprawia jednym kliknięciem, a proces potrafi
+  przeliczyć i od razu wybrać w Orce.
 - **Diagnozuje 15 defektów wydruku**: nitkowanie, pierwszą warstwę, rozwarstwianie, wymiary, nad- i
   niedoekstruzję, nawisy i mosty, podnoszące się rogi, szew i pryszcze, ghosting, dziury na górze, szczeliny
   przy ścianach, zawijanie krawędzi, podpory i przesunięcie warstw. Ustawia przyczyny według materiału,
@@ -189,9 +197,32 @@ wartości FilaForge.
 Wartości dla presetu filamentu mają w tabeli wyników znaczek **Szacunek**. Wygrywa z nimi preset producenta,
 karta techniczna i Twój pomiar. Zastępują tylko wartość z ogólnego presetu materiału.
 
+## Kontrola przed wydrukiem
+
+Orka zgłasza wtyczce każdy wyeksportowany G-code, także podgląd po cięciu. FilaForge czyta go w tle, nie
+spowalniając Orki, i liczy: czas, zużycie filamentu (osobno dla każdego ekstrudera), warstwy, retrakcje
+i przepływ w mm³/s dla każdego rodzaju ruchu. Szczyty liczy jako p99, żeby pojedyncze krótkie odcinki nie
+dawały fałszywych alarmów.
+
+Potem sprawdza:
+
+| Uwaga | Kiedy | Co możesz zrobić |
+|---|---|---|
+| Profil nie zgadza się z pomiarami | wartość w presecie różni się od Twojego pomiaru | **Popraw**: zapis w presecie FF |
+| Przepływ ponad pomiar | p99 rodzaju ruchu przekracza zmierzony limit | **Przelicz proces i użyj** |
+| Druk na granicy presetu | brak pomiaru, a ruchy dochodzą do limitu presetu | **Limit jest sprawdzony** albo **Wpisz wynik testu** |
+| Za mało filamentu | szpula ze Spoolmana nie wystarczy albo wystarczy na styk | wymień szpulę |
+| Dużo retrakcji | PETG, TPU, PA ponad próg na warstwę | **Popraw**: omijanie ścian przy przejazdach |
+| Pierwsza warstwa bez brzegu | ABS, ASA, PC, PA z dużą pierwszą warstwą | **Popraw**: brzeg zewnętrzny |
+
+Twoje presety zostają nietknięte: poprawki idą do presetów i procesów FF. Po poprawce wybierz preset FF
+(proces FF wybiera się sam), potnij ponownie i kliknij **Sprawdź ponownie**.
+
 ## Defekty wydruku
 
 Przycisk **Defekty** w nagłówku pomaga naprawić to, co wyszło źle na wydruku. Wybierz defekt z listy:
+
+<p align="center"><img src="docs/defekty.png" alt="Okno Defekty wydruku" width="760"></p>
 
 nitkowanie · pierwsza warstwa nie trzyma · rozwarstwianie i pękanie · wymiary, otwory, stopa słonia ·
 nadekstruzja · niedoekstruzja · opadające nawisy i mosty · podnoszące się rogi · szew i pryszcze ·
@@ -344,7 +375,7 @@ nazwie istnieje już dla innej drukarki, do nazwy dochodzi model w nawiasie, np.
 | Historia zmian presetów | `<dane Orki>/filaforge/history/` |
 | Historia napraw defektów | `<dane Orki>/filaforge/defects.json` |
 | Presety odrzucone przez Orkę | `<dane Orki>/filaforge/refused/` (do dołączenia do zgłoszenia błędu) |
-| Pamięć podręczna odpowiedzi z internetu | `<dane Orki>/filaforge/cache/`. Odpowiedzi baz są ważne tydzień, pozostałe dzień. Gdy sieci nie ma, użyta jest starsza kopia. |
+| Pamięć podręczna odpowiedzi z internetu | `<dane Orki>/filaforge/cache/`. Dane filamentów są trzymane pół roku; **Odśwież z internetu** pobiera je od nowa. Gdy sieci nie ma, użyta jest starsza kopia. |
 | Dziennik | `<dane Orki>/filaforge/filaforge.log` |
 | Ustawienia w Spoolmanie | pole dodatkowe `orca_settings` filamentu. Gęstość, średnica i cena zostają w zwykłych polach Spoolmana. |
 
@@ -370,7 +401,7 @@ ten adres i poprosi o niego przy następnym uruchomieniu Orki. Do tego czasu mo�
 - **„Ustaw adres Spoolmana w Ustawieniach.”** Wpisz adres Spoolmana w **Ustawienia** albo skonfiguruj go w Spoolerze.
 - **Karta TDS z nowej strony nie chce się pobrać.** Uruchom Orkę ponownie i zezwól na nowy adres albo wybierz plik PDF.
 - **Brak presetu producenta.** FilaForge użyje ogólnego presetu materiału i powie o tym w pasku źródeł.
-- **„Local bundle contains an invalid preset”.** Od 0.7.1 FilaForge naprawia to sam: preset, którego Orka nie
+- **„Local bundle contains an invalid preset”.** Od 0.7.1 FilaForge naprawia to sam (w 0.9.0 doszła przyczyna z kolorem filamentu): preset, którego Orka nie
   przyjmuje, robi samodzielnym albo odkłada do Historii, a wartość, której nie przyjmuje, bierze z presetu
   bazowego. Jeśli błąd zostaje, dołącz do zgłoszenia plik z folderu `refused/`.
 - **Coś poszło nie tak.** Szczegóły są w `<dane Orki>/filaforge/filaforge.log`. Zgłoś błąd w

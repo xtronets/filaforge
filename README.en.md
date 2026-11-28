@@ -20,28 +20,33 @@ measurements. Every value shows where it came from and how sure it is.
 
 <p align="center"><img src="docs/filaforge.gif" alt="FilaForge" width="480"></p>
 
-## New in 0.8.0: 15 defects, fix history, cooling
+## New in 0.9.0: the pre-flight check
 
-- **15 print defects** instead of 8. New: seam and zits, ghosting, holes on top, gaps at the walls, curling
-  edges, supports and layer shift.
-- **Fix history.** FilaForge lists every attempt and learns from them: a fix that helped a similar filament
-  moves up the plan.
-- **Calibration tests** with where to find them in OrcaSlicer and what to read, and a way straight to the
-  measurements calculator.
-- **Cooling** (since 0.7.8): lowest/highest part fan, auxiliary fan and shortest layer time for each material,
-  and "detail" and "strength" preset variants.
-- **Self-repairing preset bundle** (since 0.7.1): no more "Local bundle contains an invalid preset".
+FilaForge now checks the sliced G-code before you send it to the printer. After every slice it reads the file
+in the background and compares it with your measurements, the preset and the spool. The **Check** button shows
+how many findings there are, and each one is fixed in one click.
 
-Something went wrong in a print? Click **Defects**, pick the problem and answer a question or two. FilaForge
-looks at the filament and process you printed with and lists the causes, likeliest first, from the material,
-your settings, your measurements and what you already tried. Fixes are calculated from data, not guessed, and
-when no setting fixes it (drying, washing the plate, Z offset) it says so.
+- **The profile against your measurements.** When the preset differs from what you measured (max flow, flow
+  ratio, pressure advance, temperatures, retraction), FilaForge shows the differences and **Fix** saves them in
+  an FF preset.
+- **Flow per kind of move.** A table of walls, infill, bridges and overhangs with mean, p95 and p99. Red: above
+  the filament's limit, orange: at it, blue: moves held back by a preset limit lower than the filament can melt.
+- **Recalculate the process and use it.** Fits the process you sliced with to the filament's flow limit (like
+  "Print process for this filament"), saves it as an FF process and selects it in OrcaSlicer. Slice again and
+  the findings are gone.
+- **The limit is checked.** A print at the preset's limit you know from a test is vouched for in one click
+  instead of a trip back to calibration. **Enter the test result** opens the measurements calculator.
+- **The Spoolman spool.** Warns when the spool has too little filament for the print, or just enough.
+- **Retractions and brim.** Too many retractions per layer for PETG, TPU and PA, and a large ABS, ASA, PC or PA
+  first layer without a brim.
+- **Several filaments** (e.g. Snapmaker U1): usage of each, and the check runs on the one that prints most.
+- **Filament data kept for half a year.** Opening a filament again needs no network. **Refresh from the
+  internet** fetches it anew.
+- **Fix for "Local bundle contains an invalid preset"** with a filament colour (OrcaSlicer 2.5 does not accept
+  `filament_colour` in a preset).
 
-You change one thing at a time and say after the print whether it helped. Changes that help stay and go into
-your measurements; the others are undone. Your own presets stay untouched: fixes go into FF presets.
-Details in [Print defects](#print-defects).
-
-<p align="center"><img src="docs/defects.png" alt="The Print defects window" width="760"></p>
+Earlier (0.8.0): 15 print defects, fix history, calibration tests and cooling per material.
+Details in [The pre-flight check](#the-pre-flight-check).
 
 ## Contents
 
@@ -50,6 +55,7 @@ Details in [Print defects](#print-defects).
 - [How a value is chosen](#how-a-value-is-chosen)
 - [A print process for the filament](#a-print-process-for-the-filament)
 - [Material habits](#material-habits)
+- [The pre-flight check](#the-pre-flight-check)
 - [Preset review and history](#preset-review-and-history)
 - [Print defects](#print-defects)
 - [Requirements](#requirements)
@@ -84,6 +90,9 @@ Details in [Print defects](#print-defects).
 - **Helps with OrcaSlicer's calibration**: for the flow ratio (YOLO, Pass 1/2), max flow, pressure advance,
   temperature and retraction tests it says how to read the result, works it out with the formulas from the
   OrcaSlicer wiki and puts it into your measurements.
+- **Checks the sliced G-code before printing**: the flow of every kind of move, the preset against your
+  measurements, filament on the spool, retractions and brim. Each finding is fixed in one click, and the process
+  can be recalculated and selected in OrcaSlicer for you.
 - **Diagnoses 15 print defects**: stringing, the first layer, layers splitting, dimensions, over- and
   under-extrusion, overhangs and bridges, lifting corners, seam and zits, ghosting, holes on top, gaps at the
   walls, curling edges, supports and layer shift. It orders the causes by material, settings and measurements,
@@ -184,9 +193,32 @@ you can change them. Changes are kept in `settings.json`; **Restore defaults** g
 The filament preset values show as **Estimate** in the results table. A maker's preset, a data sheet and your
 own measurement win over them; they only replace the value of the material's generic preset.
 
+## The pre-flight check
+
+OrcaSlicer tells the plugin about every exported G-code, including the preview after slicing. FilaForge reads
+it in the background, without slowing OrcaSlicer down, and works out the time, filament used (per extruder),
+layers, retractions and the flow in mm³/s for every kind of move. Peaks are taken as p99, so single short
+segments don't raise false alarms.
+
+Then it checks:
+
+| Finding | When | What you can do |
+|---|---|---|
+| Profile doesn't match your measurements | a preset value differs from your measurement | **Fix**: saved in an FF preset |
+| Flow above your measurement | a kind of move's p99 is over the measured limit | **Recalculate the process and use it** |
+| Printing at the preset's limit | no measurement, and moves reach the preset's limit | **The limit is checked** or **Enter the test result** |
+| Not enough filament | the Spoolman spool won't last, or only just | change the spool |
+| Many retractions | PETG, TPU, PA over the per-layer threshold | **Fix**: avoid crossing walls on travel |
+| First layer without a brim | ABS, ASA, PC, PA with a large first layer | **Fix**: outer brim |
+
+Your own presets stay untouched: fixes go into FF presets and processes. After a fix pick the FF preset (the FF
+process is selected for you), slice again and click **Check again**.
+
 ## Print defects
 
 The **Defects** button in the header helps fix what went wrong in a print. Pick the defect from the list:
+
+<p align="center"><img src="docs/defects.png" alt="The Print defects window" width="760"></p>
 
 stringing · first layer not sticking · layers splitting and cracking · dimensions, holes, elephant foot ·
 over-extrusion · under-extrusion · drooping overhangs and bridges · corners lifting · seam and zits ·
@@ -339,7 +371,7 @@ already exists for another printer, the printer model is added in brackets, e.g.
 | Preset history | `<OrcaSlicer data>/filaforge/history/` |
 | Defect fix history | `<OrcaSlicer data>/filaforge/defects.json` |
 | Presets OrcaSlicer refused | `<OrcaSlicer data>/filaforge/refused/` (to attach to a bug report) |
-| Cached internet answers | `<OrcaSlicer data>/filaforge/cache/`. Database answers are kept for a week, others for a day. Without a network an older copy is used. |
+| Cached internet answers | `<OrcaSlicer data>/filaforge/cache/`. Filament data is kept for half a year; **Refresh from the internet** fetches it anew. Without a network an older copy is used. |
 | Log | `<OrcaSlicer data>/filaforge/filaforge.log` |
 | Settings in Spoolman | the filament's `orca_settings` extra field. Density, diameter and price stay in Spoolman's own fields. |
 
@@ -366,7 +398,7 @@ the PDF file instead.
 - **"Set the Spoolman address in Settings."** Enter the Spoolman address in **Settings**, or set it up in Spooler.
 - **A data sheet from a new site won't download.** Restart OrcaSlicer and allow the new address, or pick the PDF file.
 - **No maker preset.** FilaForge uses the material's generic preset and says so in the sources bar.
-- **"Local bundle contains an invalid preset".** Since 0.7.1 FilaForge fixes this itself: a preset OrcaSlicer
+- **"Local bundle contains an invalid preset".** Since 0.7.1 FilaForge fixes this itself (0.9.0 adds the filament colour cause): a preset OrcaSlicer
   refuses is made standalone or set aside into History, and a value it refuses is taken from the base preset.
   If the error stays, attach the file from the `refused/` folder to your report.
 - **Something went wrong.** Details are in `<OrcaSlicer data>/filaforge/filaforge.log`. Report it in
