@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from filaforge.core import gcode, preflight  # noqa: E402
 
 PRINTER = "Creality K1C 0.4 nozzle"
-PROCESS = "0.20mm Standard @Creality K1C 0.4 nozzle"
+PROCESS = "0.20mm Standard @Creality K1C"
 FILAMENT = "Generic PLA @K1C-all"
 
 
