@@ -27,10 +27,11 @@ FILAMENT = "Generic PLA @K1C-all"
 def index(root):
     """{(kind, name): path} of every system profile."""
     out = {}
-    for path in glob.glob(os.path.join(root, "*", "*", "*.json")) + glob.glob(os.path.join(root, "*", "*.json")):
-        kind = os.path.basename(os.path.dirname(path))
+    for path in glob.glob(os.path.join(root, "**", "*.json"), recursive=True):
+        rel = os.path.relpath(path, root).replace(os.sep, "/").split("/")
+        kind = next((p for p in rel[:-1] if p in ("machine", "process", "filament")), rel[-2] if len(rel) > 1 else "")
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 data = json.load(f)
         except (OSError, ValueError):
             continue
@@ -40,7 +41,10 @@ def index(root):
 
 
 def flatten(profiles, kind, name):
-    with open(profiles[(kind, name)], encoding="utf-8") as f:
+    if (kind, name) not in profiles:
+        near = sorted(n for k, n in profiles if k == kind and name.split()[0] in n)[:20]
+        raise KeyError("%s %r not found (%d profiles; similar: %s)" % (kind, name, len(profiles), near))
+    with open(profiles[(kind, name)], encoding="utf-8-sig") as f:
         data = json.load(f)
     parent = data.get("inherits")
     if parent:
