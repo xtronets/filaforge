@@ -64,6 +64,21 @@ class GcodeTests(unittest.TestCase):
         self.assertAlmostEqual(r.role("inner_wall").max_flow, 0.45 * 0.2 * 100, places=2)
         self.assertAlmostEqual(r.role("inner_wall").length, 20.0, places=3)
 
+    def test_several_filaments(self):
+        lines = fake_gcode(config={
+            "filament_settings_id": '"_local/spooler/Sunlu PLA+ Biały @Snapmaker U1";"Sunlu PLA+ FF";"Generic PLA"',
+            "filament_max_volumetric_speed": "20,18,15"})
+        lines = [l.replace("; filament used [g] = 12.30", "; filament used [g] = 0.00, 17.84, 0") for l in lines]
+        lines.insert(5, "T1")
+        r = gcode.parse(lines)
+        self.assertEqual(r.values("filament_settings_id")[0], "_local/spooler/Sunlu PLA+ Biały @Snapmaker U1")
+        self.assertEqual(r.setting("filament_settings_id", 1), "Sunlu PLA+ FF")
+        self.assertEqual(r.used_extruders(), [1])
+        self.assertEqual(r.filament_used(1)[1], 17.84)
+        self.assertEqual(r.filament_used()[1], 17.84)
+        self.assertEqual(r.number("filament_max_volumetric_speed", 1), 18.0)
+        self.assertEqual(r.tools, {1})
+
     def test_arc(self):
         self.assertAlmostEqual(gcode._arc_length(10, 0, -10, 0, -10, 0, False), math.pi * 10, places=6)
         self.assertAlmostEqual(gcode._arc_length(10, 0, 0, 10, -10, 0, False), math.pi * 5, places=6)

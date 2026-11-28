@@ -102,7 +102,7 @@ if orca is not None:
                     return
                 if codes is not None and ctx.code != codes.Ok:
                     return
-                _plugin.Preflight.on_exported(ctx.msg)
+                _plugin.Preflight.on_exported(ctx.msg, getattr(ctx, "name", ""))
             except Exception:
                 _plugin.log.exception("pre-flight event")
 

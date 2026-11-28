@@ -346,6 +346,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
         <select id="m-nozzle-sel" class="fit" title=""></select>
         <select id="m-section"></select></div>
       <div class="body">
+        <div class="note warn" id="m-target" hidden style="margin-bottom:10px"></div>
         <div class="note" data-t="measured_note" style="margin-bottom:10px"></div>
         <div class="note warn" id="m-nozzle" hidden style="margin-bottom:10px"></div>
         <div class="grid2" id="m-fields"></div>
@@ -462,6 +463,8 @@ const T = {
     df: 'Defekty', df_title: 'Defekty wydruku',
     df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
     df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
+    m_target: 'Pomiary dla presetu „{name}”. Wynik testu zapisz poniżej; w Przeglądzie zobaczysz, czy preset FF trzeba poprawić.',
+    pf_p99: 'Przepływ, którego ruch nie przekracza przez 99% swojego czasu (pojedyncze krótkie odcinki pomijane)',
     pf: 'Kontrola', pf_title: 'Kontrola przed wydrukiem',
     pf_note: 'Po każdym pocięciu FilaForge czyta G-code, który Orka napisała, i porównuje go z Twoimi pomiarami, presetem i szpulą. Każde ostrzeżenie ma liczby, na których się opiera.',
     pf_none: 'Nic jeszcze nie pocięto. Potnij model w Orce, a wynik pojawi się tutaj.', pf_clean: 'Nic nie budzi zastrzeżeń: przepływ, szpula, retrakcje i pierwsza warstwa w normie.',
@@ -757,6 +760,8 @@ const T = {
     df: 'Defects', df_title: 'Print defects',
     df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
     df_rule: 'One change at a time: reprint and say whether it helped.',
+    m_target: 'Measurements for the preset “{name}”. Save the test result below; Review shows whether the FF preset needs a fix.',
+    pf_p99: 'The flow this feature stays under for 99% of its time (single short segments left out)',
     pf: 'Check', pf_title: 'Pre-flight check',
     pf_note: 'After every slice FilaForge reads the G-code OrcaSlicer wrote and checks it against your measurements, the preset and the spool. Every warning shows the numbers it rests on.',
     pf_none: 'Nothing sliced yet. Slice a model in OrcaSlicer and the result shows up here.', pf_clean: 'Nothing to worry about: flow, spool, retractions and first layer are fine.',
@@ -1221,6 +1226,7 @@ function renderResult() {
   $('empty').hidden = !!r;
   ['card-result', 'card-measured', 'card-process'].forEach(id => $(id).hidden = !r);
   if (!r) return;
+  S.calib = null; $('m-target').hidden = true;
   $('r-title').textContent = r.identity.label;
   $('r-swatch').style.background = r.identity.colour || 'transparent';
   $('r-base').textContent = r.base ? t({vendor: 'base_vendor', own: 'base_own'}[r.base.kind] || 'base_generic', {name: r.base.name.replace(/^_local\/[^/]+\//, '')}) : t('base_none');
@@ -1323,6 +1329,7 @@ const CALIB = {
 function currentFlow() {
   const field = document.querySelector('[data-m="flow_ratio"]');
   if (field && field.value) return parseFloat(field.value);
+  if (S.calib && !S.result && parseFloat(S.calib.current.filament_flow_ratio)) return parseFloat(S.calib.current.filament_flow_ratio);
   const row = S.result && S.result.settings.find(s => s.orca_key === 'filament_flow_ratio');
   if (row) return parseFloat(row.value);
   const pick = S.result && S.result.picks.flow_ratio;
@@ -1753,7 +1760,9 @@ function planSpoolman() {
 $('btn-save-measured').addEventListener('click', () => {
   const values = {};
   document.querySelectorAll('[data-m]').forEach(el => values[el.dataset.m] = el.value.trim());
-  send({cmd: 'save_measured', identity: S.result.identity, section: $('m-section').value, values, nozzle: nozzleTag()});
+  const identity = S.result ? S.result.identity : S.calib && S.calib.identity;
+  if (!identity) return;
+  send({cmd: 'save_measured', identity, section: $('m-section').value, values, nozzle: nozzleTag()});
 });
 $('m-section').addEventListener('change', fillMeasured);
 $('m-nozzle-sel').addEventListener('change', () => {
@@ -1823,6 +1832,10 @@ document.body.addEventListener('click', e => {
 });
 $('btn-defects').addEventListener('click', dfOpen);
 const PF = {report: null};
+function openCalibFor(filament, test) {
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  send({cmd: 'calib_target', filament: filament || '', test});
+}
 function fmtDur(sec) {
   sec = Math.round(sec || 0);
   const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
@@ -1845,13 +1858,15 @@ function renderPreflight() {
     return;
   }
   $('pf-head').innerHTML = [
-    [t('pf_file'), r.file], [t('pf_filament'), r.filament || '–'], [t('pf_time'), fmtDur(r.time)],
+    [t('pf_file'), r.file], [t('pf_filament'), (r.filaments || []).length ? r.filaments.map(f => f.label + (r.filaments.length > 1 ? ` (${fmtExact(f.grams)} g)` : '')).join(', ') : (r.filament_label || '–')],
+    [t('pf_time'), fmtDur(r.time)],
     [t('pf_used'), r.filament_g != null ? fmtExact(r.filament_g) + ' g' : '–'], [t('pf_layers'), r.layers],
     [t('pf_peak'), fmtExact(r.peak_flow) + ' mm³/s' + (r.measured_mvs ? ' / ' + t('pf_measured_short', {v: fmtExact(r.measured_mvs)}) : '')],
   ].map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('');
   const f = r.findings || [];
   $('pf-list').innerHTML = f.length ? f.map((x, i) => {
     const v = Object.assign({}, x.vars || {});
+    Object.keys(v).forEach(k => { if (v[k] !== '' && isFinite(+v[k])) v[k] = fmtExact(+v[k]); });
     if (v.role) v.role = t('role_' + v.role);
     const rows = (x.changes || []).length ? `<table class="chg">${x.changes.map(c => `<tr><td>${esc(dfLabel(c.key))}</td><td>${esc(dfValue(c.before))} → <b>${esc(dfValue(c.after))}</b></td></tr>`).join('')}</table>` : '';
     const btn = (x.changes || []).length ? `<button data-pf="${i}">${esc(t('pf_fix'))}</button>`
@@ -1863,25 +1878,18 @@ function renderPreflight() {
   const roles = Object.entries(r.roles || {}).sort((a, b) => b[1].time - a[1].time);
   $('pf-flow-box').hidden = !roles.length;
   const lim = r.measured_mvs || r.preset_mvs;
-  $('pf-flow').innerHTML = `<tr><th>${esc(t('pf_role'))}</th><th>${esc(t('pf_share'))}</th><th>${esc(t('pf_mean'))}</th><th>p95</th><th>max</th></tr>` +
+  $('pf-flow').innerHTML = `<tr><th>${esc(t('pf_role'))}</th><th>${esc(t('pf_share'))}</th><th>${esc(t('pf_mean'))}</th><th>p95</th><th title="${esc(t('pf_p99'))}">p99</th></tr>` +
     roles.map(([k, v]) => {
       const tot = roles.reduce((a, [, w]) => a + w.time, 0) || 1;
       return `<tr><td>${esc(t('role_' + k))}</td><td>${Math.round(v.time / tot * 100)}%</td><td>${fmtExact(v.mean_flow)}</td>
-        <td class="${lim && v.p95_flow > lim ? 'over' : ''}">${fmtExact(v.p95_flow)}</td><td class="${lim && v.max_flow > lim ? 'over' : ''}">${fmtExact(v.max_flow)}</td></tr>`;
+        <td class="${lim && v.p95_flow > lim ? 'over' : ''}">${fmtExact(v.p95_flow)}</td><td class="${lim && v.p99_flow > lim ? 'over' : ''}">${fmtExact(v.p99_flow)}</td></tr>`;
     }).join('');
 }
 $('btn-preflight').addEventListener('click', () => { renderPreflight(); $('dlg-preflight').showModal(); send({cmd: 'preflight'}); });
 $('btn-pf-again').addEventListener('click', () => send({cmd: 'preflight'}));
 $('pf-list').addEventListener('click', e => {
   const b = e.target.closest('[data-pf]'), tb = e.target.closest('[data-pf-test]');
-  if (tb) {
-    $('dlg-preflight').close();
-    renderCalib();
-    $('c-test').value = TEST_CALIB[tb.dataset.pfTest];
-    renderCalib();
-    $('c-test').scrollIntoView({behavior: 'smooth', block: 'center'});
-    return;
-  }
+  if (tb) { openCalibFor(PF.report.filament, tb.dataset.pfTest); return; }
   if (!b || !PF.report) return;
   const x = PF.report.findings[+b.dataset.pf];
   b.disabled = true;
@@ -1932,14 +1940,7 @@ $('btn-df-history').addEventListener('click', () => {
 $('dfh-all').addEventListener('change', () => send({cmd: 'defect_history', slot: DF.slot, all: $('dfh-all').checked}));
 $('df-plan').addEventListener('click', e => {
   const cal = e.target.closest('[data-calib]');
-  if (cal) {
-    $('dlg-defects').close();
-    renderCalib();
-    $('c-test').value = TEST_CALIB[cal.dataset.calib];
-    renderCalib();
-    $('c-test').scrollIntoView({behavior: 'smooth', block: 'center'});
-    return;
-  }
+  if (cal) { openCalibFor(DF.info && DF.info.filament, cal.dataset.calib); return; }
   const a = e.target.closest('[data-apply]'), go = e.target.closest('[data-redirect]');
   if (go) { DF.defect = go.dataset.redirect; DF.answers = {}; renderDefects(); dfAsk(); return; }
   if (!a) return;
@@ -2027,7 +2028,25 @@ function onMessage(m) {
     case 'measured':
       toast(t('measured_saved'));
       renderMeasured(m.sections);
-      research();
+      if (S.result) research();
+      else send({cmd: 'review', quiet: true});      // a preset that now differs from the measurement shows in Review
+      break;
+    case 'calib_target':
+      // the measurements of one filament preset, without a search: for a test result from the Check or Defects
+      S.calib = {identity: m.identity, label: m.label, current: m.current || {}};
+      if (m.printer) S.printer = m.printer;
+      if (S.result && S.result.identity.label === m.identity.label) S.calib = Object.assign(S.calib, {same: true});
+      if (!S.calib.same) {
+        S.result = null;
+        $('empty').hidden = true;
+        ['card-result', 'card-process'].forEach(id => $(id).hidden = true);
+      }
+      $('card-measured').hidden = false;
+      $('m-target').hidden = false;
+      $('m-target').textContent = t('m_target', {name: m.label});
+      renderMeasured(m.sections);
+      if (m.test && TEST_CALIB[m.test]) { $('c-test').value = TEST_CALIB[m.test]; renderCalib(); }
+      $('c-test').scrollIntoView({behavior: 'smooth', block: 'center'});
       break;
     case 'saved':
       busy($('btn-make-preset'), false); busy($('btn-process-save'), false);

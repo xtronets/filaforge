@@ -43,15 +43,17 @@ def _flow_time_above(result, limit):
 
 
 def check(result, ctx):
-    """Findings for a gcode.Result. ctx: {cls, measured_mvs (mm³/s, for this nozzle) or None,
-    spool_left_g or None, spool_label}."""
+    """Findings for a gcode.Result. ctx: {cls, measured_mvs (mm³/s, for this nozzle) or None, extruder (the one
+    the checked filament prints from, 0 by default), spool_left_g or None, spool_label}. Flow peaks are the 99th
+    percentile: a single short segment's rounding is no peak."""
     out = []
     cls = ctx.get("cls") or ""
     total = result.total_time() or 0.0
     printing = sum(result.role(r).time for r in FLOW_ROLES) or 0.0
-    preset_mvs = result.number("filament_max_volumetric_speed")
+    extruder = int(ctx.get("extruder") or 0)
+    preset_mvs = result.number("filament_max_volumetric_speed", extruder)
     measured = ctx.get("measured_mvs")
-    peak = max((result.role(r).max_flow for r in FLOW_ROLES), default=0.0)
+    peak = max((result.role(r).percentile(0.99) for r in FLOW_ROLES), default=0.0)
 
     # 1. the hotend asked for more than this filament melts (your max flow test)
     if measured and printing:
@@ -76,7 +78,10 @@ def check(result, ctx):
 
     # 3. the spool has less left than the print needs
     mm, grams = result.filament_used()
+    _, own_grams = result.filament_used(extruder)
     left = ctx.get("spool_left_g")
+    total_grams = grams
+    grams = own_grams if own_grams is not None else grams
     if grams and left is not None:
         if grams > left:
             out.append(_finding("spool_short", "stop", {"need": _f(grams), "left": _f(left),
@@ -111,6 +116,6 @@ def check(result, ctx):
 
     order = {"stop": 0, "warn": 1, "info": 2}
     out.sort(key=lambda f: order[f["level"]])
-    return {"findings": out, "time": total, "filament_g": grams, "filament_mm": mm, "peak_flow": round(peak, 2),
+    return {"findings": out, "time": total, "filament_g": total_grams, "filament_mm": mm, "peak_flow": round(peak, 2),
             "preset_mvs": preset_mvs, "measured_mvs": measured, "layers": len(result.layers),
             "roles": {r: result.role(r).as_dict() for r in FLOW_ROLES if result.role(r).time > 0}}

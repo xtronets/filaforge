@@ -493,6 +493,19 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(report["layers"], 5)
         self.assertEqual(measured.identity_key(ident), measured.identity_key(ident))
 
+    def test_calib_target(self):
+        self.send(cmd="init")
+        m = self.last("calib_target", self.send(cmd="calib_target", filament="Generic PLA @K1C-all", test="mvs"))
+        self.assertEqual(m["name"], "Generic PLA @K1C-all")
+        self.assertEqual(m["test"], "mvs")
+        self.assertEqual(m["identity"]["material"], "PLA")
+        self.assertIn("filament_flow_ratio", m["current"])
+        # a measurement saved for it lands where the Check reads it
+        self.send(cmd="save_measured", identity=m["identity"], section="*", values={"max_volumetric_speed": "17"},
+                  nozzle="0.4")
+        again = self.last("calib_target", self.send(cmd="calib_target", filament="Generic PLA @K1C-all"))
+        self.assertTrue(again["sections"])
+
     def test_defect_history(self):
         self.send(cmd="init")
         self.last("defect_context", self.send(cmd="defect_context"))

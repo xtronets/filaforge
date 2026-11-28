@@ -745,21 +745,22 @@ class Preflight:
     lock = threading.Lock()
     result = None           # gcode.Result of the newest export
     path = ""
+    model = ""              # the project's model name OrcaSlicer passes with the event
     at = 0.0
     generation = 0
     listeners = []          # post functions of open pages
 
     @classmethod
-    def on_exported(cls, path):
+    def on_exported(cls, path, model=""):
         if not path or not str(path).lower().endswith((".gcode", ".gco", ".g")):
             return
         with cls.lock:
             cls.generation += 1
             mine = cls.generation
-        return spawn(cls._read, str(path), mine)
+        return spawn(cls._read, str(path), mine, str(model or ""))
 
     @classmethod
-    def _read(cls, path, mine):
+    def _read(cls, path, mine, model=""):
         import time
         try:
             result = gcode.read(path)
@@ -769,7 +770,7 @@ class Preflight:
         with cls.lock:
             if mine != cls.generation:
                 return          # a newer export came meanwhile
-            cls.result, cls.path, cls.at = result, path, time.time()
+            cls.result, cls.path, cls.model, cls.at = result, path, model, time.time()
             listeners = list(cls.listeners)
         log.info("pre-flight: read %s (%d layers)", os.path.basename(path), len(result.layers))
         for post in listeners:
@@ -780,22 +781,28 @@ class Preflight:
 
 
 def preflight_context(bundle, result):
-    """ctx for preflight.check from the presets the G-code was sliced with (read on the UI thread)."""
-    fil_name = result.setting("filament_settings_id") or ""
+    """ctx for preflight.check from the presets the G-code was sliced with (read on the UI thread). With several
+    filaments the checks are for the one the print uses most."""
+    used = result.used_extruders()
+    grams = {i: (result.filament_used(i)[1] or 0.0) for i in used}
+    extruder = max(used, key=lambda i: grams[i])
+    names = [result.setting("filament_settings_id", i) or "" for i in used]
+    fil_name = result.setting("filament_settings_id", extruder) or ""
     preset = bundle.filaments.find_preset(fil_name) if fil_name else None
     config = _config(preset) if preset is not None else {}
     ident = preset_identity(bundle, fil_name, config) if fil_name else None
     printer = printer_info(bundle)
-    nozzle = result.number("nozzle_diameter") or printer["nozzle"]
+    nozzle = result.number("nozzle_diameter", extruder) or printer["nozzle"]
     model = result.setting("printer_model") or printer["model"]
     cls = habits.material_class(ident.material, ident.product) if ident else \
-        habits.material_class(result.setting("filament_type") or "", "")
+        habits.material_class(result.setting("filament_type", extruder) or "", "")
     mine = store().get(ident, model, nozzle) if ident else {}
     spool = None
     if fil_name.startswith(FF_PREFIX):
         _, meta = find_saved(bundle, fil_name[len(FF_PREFIX):])
         spool = (meta or {}).get("spoolman_id")
-    return {"cls": cls, "measured_mvs": mine.get("max_volumetric_speed"), "filament": fil_name,
+    return {"cls": cls, "measured_mvs": mine.get("max_volumetric_speed"), "filament": fil_name, "extruder": extruder,
+            "filaments": [{"name": n, "label": orca_presets.bare_name(n), "grams": grams[i]} for i, n in zip(used, names)],
             "process": result.setting("print_settings_id") or "", "spoolman_id": spool,
             "label": orca_presets.bare_name(fil_name) if fil_name else ""}
 
@@ -884,10 +891,33 @@ class Tab:
                 except spoolman.SpoolmanError as error:
                     log.info("pre-flight spool: %s", error)
             report = preflight.check(result, ctx)
-            report.update(file=os.path.basename(path), at=at, filament=ctx["filament"], process=ctx["process"],
+            report.update(file=Preflight.model or os.path.basename(path), at=at, filament=ctx["filament"],
+                          filament_label=ctx["label"], filaments=ctx["filaments"], process=ctx["process"],
                           cls=ctx["cls"])
             self.reply("preflight", report=report)
         spawn(work)
+
+    def on_calib_target(self, data):
+        """The filament preset whose measurements a calibration result goes into, for the page without a search:
+        its identity, its measurements and the values it prints with now."""
+        bundle = orca.host.preset_bundle()
+        name = str(data.get("filament") or "")
+        preset = bundle.filaments.find_preset(name) if name else None
+        if preset is None:
+            slots = plate_filaments(bundle)
+            if not slots:
+                raise ValueError("defect_no_filament")
+            preset = slots[0][1]
+            name = str(preset.name)
+        config = _config(preset)
+        ident = preset_identity(bundle, name, config)
+        current = {k: _clean(config.get(k)) for k in ("filament_flow_ratio", "pressure_advance",
+                                                      "filament_max_volumetric_speed", "nozzle_temperature",
+                                                      "filament_retraction_length")}
+        self.reply("calib_target", name=name, label=orca_presets.bare_name(name), test=data.get("test"),
+                   identity={"brand": ident.brand, "material": ident.material, "product": ident.product,
+                             "colour": ident.colour, "label": ident.label()},
+                   sections=store().sections(ident), current=current, printer=printer_info(bundle))
 
     def on_preflight_apply(self, data):
         changes = [c for c in (data.get("changes") or []) if isinstance(c, dict) and c.get("target") in

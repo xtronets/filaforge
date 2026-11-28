@@ -83,6 +83,7 @@ class RoleStats:
     def as_dict(self):
         return {"time": round(self.time, 1), "volume": round(self.volume, 1), "length": round(self.length, 1),
                 "max_flow": round(self.max_flow, 2), "p95_flow": self.percentile(0.95),
+                "p99_flow": self.percentile(0.99),
                 "mean_flow": round(self.volume / self.time, 2) if self.time else 0.0}
 
 
@@ -114,18 +115,44 @@ class Result:
         self.travel_time = 0.0
         self.retractions = 0
         self.moves = 0
+        self.tools = set()          # T commands seen
 
     def role(self, name):
         return self.roles.get(name) or RoleStats()
 
-    def setting(self, key):
-        """A setting from the config block, its first value for a per-extruder list."""
+    def values(self, key):
+        """A setting from the config block as a list, one per extruder: preset names are written quoted and
+        separated by ";" ("a";"b"), numbers by "," (0.4,0.4)."""
         value = self.config.get(key)
-        return None if value is None else value.split(",")[0].strip().strip('"')
+        if value is None:
+            return []
+        text = value.strip()
+        parts = re.findall(r'"((?:[^"\\]|\\.)*)"', text) if text.startswith('"') else \
+            [p for p in re.split(r"[;,]", text)]
+        return [p.strip() for p in parts]
 
-    def number(self, key):
+    def setting(self, key, index=0):
+        """A setting from the config block; for a per-extruder list the value of extruder index."""
+        values = self.values(key)
+        if not values:
+            return None
+        return values[index] if index < len(values) else values[0]
+
+    def used_extruders(self):
+        """The extruders the print uses: from the grams used per extruder, else the T commands, else [0]."""
+        grams = [x.strip() for x in str(self.header.get("filament used [g]", "")).split(",")]
+        used = []
+        for i, g in enumerate(grams):
+            try:
+                if float(g) > 0:
+                    used.append(i)
+            except ValueError:
+                pass
+        return used or sorted(self.tools) or [0]
+
+    def number(self, key, index=0):
         try:
-            return float(str(self.setting(key)).rstrip("%"))
+            return float(str(self.setting(key, index)).rstrip("%"))
         except (TypeError, ValueError):
             return None
 
@@ -136,14 +163,22 @@ class Result:
                 return seconds
         return sum(layer.time_feed for layer in self.layers) + 0.0
 
-    def filament_used(self):
-        """(mm, g) of filament, from OrcaSlicer's summary lines (first extruder); None where missing."""
-        def first(key):
-            try:
-                return float(str(self.header.get(key, "")).split(",")[0])
-            except ValueError:
+    def filament_used(self, index=None):
+        """(mm, g) of filament from OrcaSlicer's summary lines: of extruder index, or of all of them; None where
+        missing."""
+        def amount(key):
+            out = []
+            for x in str(self.header.get(key, "")).split(","):
+                try:
+                    out.append(float(x))
+                except ValueError:
+                    pass
+            if not out:
                 return None
-        return first("filament used [mm]"), first("filament used [g]")
+            if index is None:
+                return round(sum(out), 2)
+            return out[index] if index < len(out) else None
+        return amount("filament used [mm]"), amount("filament used [g]")
 
     def summary(self):
         mm, g = self.filament_used()
@@ -298,6 +333,8 @@ def parse(lines, filament_diameter=None):
             relative_e = False
         elif head == "M83":
             relative_e = True
+        elif len(head) > 1 and head[0] == "T" and head[1:].isdigit():
+            out.tools.add(int(head[1:]))
         elif head == "G90":                     # as Marlin: absolute E too, until an M83 after it
             relative_xyz = False
             relative_e = False
