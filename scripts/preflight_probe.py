@@ -83,7 +83,11 @@ def main(app, out):
     for dirpath, dirs, files in os.walk(found[0]):
         print(" ", dirpath, len(dirs), "dirs", len(files), "files", files[:5])
         break
-    print(" ", sorted(os.listdir(found[0]))[:20])
+    print("  root:", sorted(f for f in os.listdir(root) if not os.path.isdir(os.path.join(root, f)))[:40])
+    big = sorted(((os.path.getsize(os.path.join(d, f)), os.path.join(d, f)) for d, _, fs in os.walk(app)
+                  for f in fs if f.endswith((".zip", ".7z", ".tar", ".gz", ".json", ".bundle", ".dat"))
+                  and "profile" in (d + f).lower()), reverse=True)[:15]
+    print("  archives:", big)
     profiles = index(root)
     paths = {}
     for kind, name, key in (("machine", PRINTER, "printer"), ("process", PROCESS, "process"),
