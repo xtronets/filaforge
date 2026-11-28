@@ -109,6 +109,14 @@ jobs:
       - name: Report
         run: python scripts/e2e_check.py "$REPORT"
 
+      - name: Pre-flight probe (slice a model on the command line, read its G-code)
+        if: always() && steps.orca.outcome == 'success'
+        continue-on-error: true
+        run: |
+          export DISPLAY=:99
+          pgrep Xvfb >/dev/null || { Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 & sleep 2; }
+          python scripts/preflight_probe.py squashfs-root probe
+
       - name: Logs
         if: always()
         run: |
@@ -135,4 +143,6 @@ jobs:
             orca-data/log/
             orca-data/filaforge/filaforge.log
             orca-data/OrcaSlicer.conf
+            probe/*.gcode
+            probe/*.json
           if-no-files-found: ignore
