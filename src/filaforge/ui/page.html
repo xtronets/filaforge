@@ -2189,10 +2189,13 @@ function onMessage(m) {
     case 'preflight_ready':
       send({cmd: 'preflight'});
       break;
-    case 'preflight_applied':
+    case 'preflight_applied': {
       if (m.saved) S.saved = m.saved;
-      toast(t('pf_applied', {names: [m.written && m.written.filament, m.written && m.written.process].filter(Boolean).join(', ')}));
+      const notes = (m.written && m.written.notes) || {};
+      const left = (notes.left_out || []).length ? ' ' + t('left_out', {keys: notes.left_out.join(', ')}) : '';
+      toast(t('pf_applied', {names: [m.written && m.written.filament, m.written && m.written.process].filter(Boolean).join(', ')}) + left, !!left);
       break;
+    }
     case 'defect_history':
       renderDefectHistory(m);
       break;

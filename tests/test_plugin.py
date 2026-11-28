@@ -239,8 +239,20 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(saved["left_out"], ["filament_density"])
         with open(saved["path"], encoding="utf-8") as f:
             preset = json.load(f)
-        self.assertNotEqual(preset["filament_density"], ["1.21"])
+        self.assertNotEqual(preset.get("filament_density"), ["1.21"])
         self.assertIn("filament_flow_ratio" if "filament_flow_ratio" in preset else "nozzle_temperature", preset)
+
+    def test_refused_base_value_left_out(self):
+        # a value FilaForge copies from the base preset can be the one OrcaSlicer refuses, not only ours
+        result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))
+        settings = [dict(x) for x in result["settings"] if x["apply"]]
+        self.orca.refuse = "18.99"                             # SUNLU PLA+ @base's filament_cost
+        saved = self.last("saved", self.make(result, settings))
+        self.assertEqual(saved["left_out"], ["filament_cost"])
+        with open(saved["path"], encoding="utf-8") as f:
+            preset = json.load(f)
+        self.assertNotIn("filament_cost", preset)
+        self.assertIn("nozzle_temperature", preset)
 
     def test_cooling_mode(self):
         result = self.last("result", self.send(cmd="research", brand="Sunlu", material="PLA+"))

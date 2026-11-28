@@ -355,6 +355,14 @@ def _refused(error):
     return "invalid preset" in str(error)
 
 
+def bare_filament(preset, identity, printer):
+    """The same filament preset with nothing but its identity: what install() falls back to, key by key, when
+    OrcaSlicer refuses the full one (a value from the base preset can be the one it refuses, not only ours)."""
+    return writer.filament_preset(preset["name"], {}, {"filament_type": _clean(preset.get("filament_type")) or
+                                                       identity.material}, printer, identity,
+                                  measured.identity_key(identity), preset.get("description") or "")
+
+
 def keep_refused(preset):
     """A copy of a preset OrcaSlicer refused, in FilaForge's folder (refused/), to look at or send in a report."""
     try:
@@ -675,7 +683,10 @@ def write_fix(bundle, info, chosen, proc_preset, changes, reason="defect"):
             new_name = free_name(bundle, writer.safe_name(writer.with_marker(orca_presets.bare_name(name))))
             new = writer.filament_preset(new_name, config, mine, info["printer"], ident, measured.identity_key(ident),
                                          "FilaForge %s from %s" % (VERSION, name))
-            install(new, bundle, info["printer"], preset_meta(new, name, config, mine, ident))
+            report = []
+            install(new, bundle, info["printer"], preset_meta(new, name, config, mine, ident),
+                    plain=bare_filament(new, ident, info["printer"]), report=report)
+            out.setdefault("notes", {}).update(install_notes(report))
         else:
             label = orca_presets.bare_name(info["filament"])
             new_name = free_name(bundle, writer.safe_name(writer.with_marker(process.process_name(name, label))))
@@ -798,6 +809,18 @@ def find_filament(bundle, name):
     return None
 
 
+def plate_title():
+    """The names of the objects on the plate ("Benchy", "Benchy + 2"), or "" (UI thread)."""
+    try:
+        names = [str(getattr(o, "name", "") or "") for o in orca.host.model().objects()]
+    except Exception:
+        return ""
+    names = [n for n in names if n]
+    if not names:
+        return ""
+    return names[0] if len(names) == 1 else "%s + %d" % (names[0], len(names) - 1)
+
+
 def preflight_context(bundle, result):
     """ctx for preflight.check from the presets the G-code was sliced with (read on the UI thread). With several
     filaments the checks are for the one the print uses most."""
@@ -900,6 +923,7 @@ class Tab:
             return
         ctx = preflight_context(orca.host.preset_bundle(), result)
         settings = read_settings()
+        title = Preflight.model or plate_title() or os.path.basename(path)
 
         def work():
             if ctx["spoolman_id"] and settings["spoolman_url"]:
@@ -917,7 +941,7 @@ class Tab:
             report = preflight.check(result, ctx)
             report["can_fit"] = bool(ctx["identity"]) and any(
                 f["code"] in ("flow_over_measured", "flow_at_limit") for f in report["findings"])
-            report.update(file=Preflight.model or os.path.basename(path), at=at, filament=ctx["filament"],
+            report.update(file=title, at=at, filament=ctx["filament"],
                           filament_label=ctx["label"], filaments=ctx["filaments"], process=ctx["process"],
                           cls=ctx["cls"], model=ctx["model"], nozzle=ctx["nozzle"])
             self.reply("preflight", report=report)
@@ -1181,8 +1205,7 @@ class Tab:
                            spool if isinstance(spool, int) and not isinstance(spool, bool) else None)
         if cooled:
             meta["cooling"] = mode
-        plain = writer.filament_preset(name, base_config, {"filament_type": values["filament_type"]}, printer["name"],
-                                       identity, measured.identity_key(identity), preset["description"])
+        plain = bare_filament(preset, identity, printer["name"])
         report = []
         path = install(preset, bundle, printer["name"], meta, plain=plain, report=report)
         self.reply("saved", kind="filament", name=name, path=path, renamed=renamed, saved=saved_presets(bundle),
