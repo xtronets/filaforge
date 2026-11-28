@@ -186,6 +186,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .pf-flow td.near { color: var(--estimated); font-weight: 650; }
 .pf-legend { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 .pf-legend .over { color: var(--bad); font-weight: 650; } .pf-legend .near { color: var(--estimated); font-weight: 650; }
+.pf-flow td.capped, .pf-legend .capped { color: var(--declared); font-weight: 650; }
 .issues { max-height: 62vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .issue { border: 1px solid var(--border); border-left: 4px solid var(--estimated); border-radius: 8px; padding: 8px 10px; font-size: 12px;
          display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
@@ -474,6 +475,7 @@ const T = {
     m_target: 'Pomiary dla presetu „{name}”. Wynik testu zapisz poniżej; w Przeglądzie zobaczysz, czy preset FF trzeba poprawić.',
     pf_p99: 'Przepływ, którego ruch nie przekracza przez 99% swojego czasu (pojedyncze krótkie odcinki pomijane)',
     pf_legend: 'Limit: {lim} mm³/s ({src}). <span class="over">Na czerwono</span> ponad limit, <span class="near">na pomarańczowo</span> od {near} mm³/s, czyli na granicy.',
+    pf_legend_capped: '<span class="capped">Na niebiesko</span> ruchy przycięte przez limit presetu ({cap} mm³/s): Orca je zwalnia, choć filament stopi {lim}. „Popraw” podnosi limit.',
     pf_lim_measured: 'Twój pomiar', pf_lim_preset: 'z presetu, bez pomiaru',
     pf: 'Kontrola', pf_title: 'Kontrola przed wydrukiem',
     pf_note: 'Po każdym pocięciu FilaForge czyta G-code, który Orka napisała, i porównuje go z Twoimi pomiarami, presetem i szpulą. Każde ostrzeżenie ma liczby, na których się opiera.',
@@ -782,6 +784,7 @@ const T = {
     m_target: 'Measurements for the preset “{name}”. Save the test result below; Review shows whether the FF preset needs a fix.',
     pf_p99: 'The flow this feature stays under for 99% of its time (single short segments left out)',
     pf_legend: 'Limit: {lim} mm³/s ({src}). <span class="over">Red</span> above the limit, <span class="near">orange</span> from {near} mm³/s, at the limit.',
+    pf_legend_capped: '<span class="capped">Blue</span>: moves held back by the preset’s limit ({cap} mm³/s). OrcaSlicer slows them down although the filament melts {lim}. Fix raises the limit.',
     pf_lim_measured: 'your measurement', pf_lim_preset: 'the preset’s, not measured',
     pf: 'Check', pf_title: 'Pre-flight check',
     pf_note: 'After every slice FilaForge reads the G-code OrcaSlicer wrote and checks it against your measurements, the preset and the spool. Every warning shows the numbers it rests on.',
@@ -1883,9 +1886,16 @@ function pfBadge() {
 }
 // red: above the limit (your measurement, else the preset's max); orange: within 10% of it, where the
 // "printing at the flow limit" check starts
-function pfCell(flow, lim) {
+// blue: held back by the preset's own max, which is clearly below what you measured (OrcaSlicer slows
+// these moves down; Fix raises the preset's limit)
+function pfCapped(r) {
+  return r.measured_mvs && r.preset_mvs && r.preset_mvs < r.measured_mvs * 0.95 ? r.preset_mvs : 0;
+}
+function pfCell(flow, lim, cap) {
   if (!lim) return '';
-  return flow > lim + 1e-9 ? 'over' : flow >= lim * 0.9 ? 'near' : '';
+  if (flow > lim + 1e-9) return 'over';
+  if (flow >= lim * 0.9) return 'near';
+  return cap && flow >= cap * 0.97 ? 'capped' : '';
 }
 function renderPreflight() {
   const r = PF.report;
@@ -1918,13 +1928,16 @@ function renderPreflight() {
   const roles = Object.entries(r.roles || {}).sort((a, b) => b[1].time - a[1].time);
   $('pf-flow-box').hidden = !roles.length;
   const lim = r.measured_mvs || r.preset_mvs;
-  $('pf-legend').innerHTML = lim ? t('pf_legend', {lim: fmtExact(lim), near: fmtExact(lim * 0.9),
-    src: t(r.measured_mvs ? 'pf_lim_measured' : 'pf_lim_preset')}) : '';
+  const cap = pfCapped(r);
+  const capped = cap && roles.some(([, v]) => v.p99_flow >= cap * 0.97);
+  $('pf-legend').innerHTML = (lim ? t('pf_legend', {lim: fmtExact(lim), near: fmtExact(lim * 0.9),
+    src: t(r.measured_mvs ? 'pf_lim_measured' : 'pf_lim_preset')}) : '') +
+    (capped ? ' ' + t('pf_legend_capped', {cap: fmtExact(cap), lim: fmtExact(lim)}) : '');
   $('pf-flow').innerHTML = `<tr><th>${esc(t('pf_role'))}</th><th>${esc(t('pf_share'))}</th><th>${esc(t('pf_mean'))}</th><th>p95</th><th title="${esc(t('pf_p99'))}">p99</th></tr>` +
     roles.map(([k, v]) => {
       const tot = roles.reduce((a, [, w]) => a + w.time, 0) || 1;
       return `<tr><td>${esc(t('role_' + k))}</td><td>${Math.round(v.time / tot * 100)}%</td><td>${fmtExact(v.mean_flow)}</td>
-        <td class="${pfCell(v.p95_flow, lim)}">${fmtExact(v.p95_flow)}</td><td class="${pfCell(v.p99_flow, lim)}">${fmtExact(v.p99_flow)}</td></tr>`;
+        <td class="${pfCell(v.p95_flow, lim, cap)}">${fmtExact(v.p95_flow)}</td><td class="${pfCell(v.p99_flow, lim, cap)}">${fmtExact(v.p99_flow)}</td></tr>`;
     }).join('');
 }
 $('btn-preflight').addEventListener('click', () => { renderPreflight(); $('dlg-preflight').showModal(); send({cmd: 'preflight'}); });
