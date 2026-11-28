@@ -70,7 +70,12 @@ def write_stl(path, triangles):
 
 def main(app, out):
     os.makedirs(out, exist_ok=True)
-    root = os.path.join(app, "resources", "profiles")
+    found = [p for p in glob.glob(os.path.join(app, "**", "profiles", "Creality"), recursive=True) if os.path.isdir(p)]
+    if not found:
+        print("no OrcaSlicer profiles under", app)
+        return 1
+    root = os.path.dirname(found[0])
+    print("profiles:", root)
     profiles = index(root)
     paths = {}
     for kind, name, key in (("machine", PRINTER, "printer"), ("process", PROCESS, "process"),
