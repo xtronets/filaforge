@@ -492,6 +492,18 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(report["file"], "plate_1.gcode")
         self.assertEqual(report["layers"], 5)
         self.assertEqual(codes["profile_behind"]["changes"][0]["after"], "20")
+        # the process recalculated for 20 mm³/s, saved as FilaForge's and selected
+        self.assertTrue(report["can_fit"])
+        posted = self.send(cmd="preflight_process")
+        done = self.last("preflight_process", posted)
+        self.assertGreater(done["changes"], 0)
+        self.assertEqual(done["limit"], 20)
+        self.assertTrue(self.last("preflight_selected", posted)["ok"])
+        self.assertTrue(self.orca.selected[0].endswith(done["name"]))
+        with open(os.path.join(self.data, "user", "4242", "_local", "filaforge", "process",
+                               done["name"] + ".json"), encoding="utf-8") as f:
+            saved = json.load(f)
+        self.assertEqual(saved["inherits"], "0.20mm Standard @Creality K1C")
         # a print at the preset's limit, not measured: "the limit is checked" makes it the user's measurement
         self.plugin.store().set(ident, "*", {}, nozzle=0.4)
         report = self.last("preflight", self.send(cmd="preflight"))["report"]

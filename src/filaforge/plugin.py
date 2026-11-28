@@ -822,7 +822,7 @@ def preflight_context(bundle, result):
         _, meta = find_saved(bundle, fil_name[len(FF_PREFIX):])
         spool = (meta or {}).get("spoolman_id")
     return {"cls": cls, "measured": mine, "filament": fil_name, "extruder": extruder, "nozzle": nozzle,
-            "model": model,
+            "model": model, "identity": ident,
             "filaments": [{"name": n, "label": orca_presets.bare_name(n), "grams": grams[i]} for i, n in zip(used, names)],
             "process": result.setting("print_settings_id") or "", "spoolman_id": spool,
             "label": orca_presets.bare_name(fil_name) if fil_name else ""}
@@ -915,6 +915,8 @@ class Tab:
                 except spoolman.SpoolmanError as error:
                     log.info("pre-flight spool: %s", error)
             report = preflight.check(result, ctx)
+            report["can_fit"] = bool(ctx["identity"]) and any(
+                f["code"] in ("flow_over_measured", "flow_at_limit") for f in report["findings"])
             report.update(file=Preflight.model or os.path.basename(path), at=at, filament=ctx["filament"],
                           filament_label=ctx["label"], filaments=ctx["filaments"], process=ctx["process"],
                           cls=ctx["cls"], model=ctx["model"], nozzle=ctx["nozzle"])
@@ -962,6 +964,74 @@ class Tab:
         store().set(ident, section, dict(keep, **values), nozzle)
         self.reply("preflight_accepted", values=values)
         self.on_preflight({})
+
+    def on_preflight_process(self, data):
+        """The process the print was sliced with, recalculated for the filament's flow as "Print process for this
+        filament" does (speeds held to the limit: your measurement, else the preset's), saved as an FF process and
+        selected, so the next slice is within the limit."""
+        with Preflight.lock:
+            result = Preflight.result
+        if result is None:
+            return
+        bundle = orca.host.preset_bundle()
+        ctx = preflight_context(bundle, result)
+        ident = ctx["identity"]
+        if ident is None:
+            raise ValueError("defect_no_filament")
+        proc_name = result.setting("print_settings_id") or ""
+        proc = bundle.prints.find_preset(proc_name) or bundle.prints.find_preset(re.sub(r"^_local/[^/]+/", "",
+                                                                                         proc_name))
+        if proc is None:
+            proc = _selected(bundle.prints)
+        if proc is None:
+            raise ValueError("defect_no_process")
+        proc_name = str(proc.name)
+        config = _config(proc)
+        limit = (ctx["measured"] or {}).get("max_volumetric_speed") or result.number(
+            "filament_max_volumetric_speed", ctx["extruder"])
+        printer = printer_info(bundle)
+        settings = read_settings()
+        table = habits.table(settings["habits"])
+        changes = process.fit(config, ctx["nozzle"] or printer["nozzle"], limit, ident.material, ident.product,
+                              machine_limits(bundle), "standard", table)
+        allowed = set(process.SPEEDS) | set(process.ACCELERATIONS)
+        changes = [c for c in changes if c.get("key") in allowed and isinstance(c.get("new"), (int, float))]
+        reload_fn = orca.host.preset.bundles.reload_local
+        if proc_name.startswith(FF_PREFIX):
+            # FilaForge's own process: changed in place (the history keeps the old one)
+            target = proc_name[len(FF_PREFIX):]
+            ff, meta = find_saved(bundle, target)
+            new = dict(read_json(meta["file"]))
+            for c in changes:
+                new[c["key"]] = str(c["new"])
+            ff.save(new, reload_fn, Tab._meta(meta), "preflight")
+        else:
+            label = orca_presets.bare_name(ctx["filament"]) or ident.label()
+            target = writer.safe_name(writer.with_marker(process.process_name(proc_name, label)))
+            target, _ = unique_name(target, printer, bundle)
+            own_base = not is_system(bundle.prints, proc_name)
+            preset = process.preset(proc_name, target, [printer["name"]] if printer["name"] else [], changes,
+                                    config if own_base else None)
+            install(preset, bundle, printer["name"])
+        full = FF_PREFIX + target
+        self.reply("preflight_process", name=target, changes=len(changes), limit=limit, saved=saved_presets(bundle))
+        editor = getattr(getattr(getattr(orca.host, "preset", None), "process", None), "begin_update", None)
+        if editor is None:
+            self.reply("preflight_selected", name=target, ok=False)
+            return
+
+        def select():
+            # begin_update selects the preset through OrcaSlicer's own flow; it must not run on the UI thread
+            ok = False
+            for name in (full, target):
+                try:
+                    orca.host.preset.process.begin_update(name).commit()
+                    ok = True
+                    break
+                except Exception as error:
+                    log.info("selecting %s: %s", name, error)
+            self.reply("preflight_selected", name=target, ok=ok)
+        spawn(select)
 
     def on_preflight_apply(self, data):
         changes = [c for c in (data.get("changes") or []) if isinstance(c, dict) and c.get("target") in

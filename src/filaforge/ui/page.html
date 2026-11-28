@@ -482,6 +482,10 @@ const T = {
     pf_peak: 'Szczyt przepływu', pf_measured_short: 'zmierzone {v}', pf_flow: 'Przepływ według rodzaju ruchu (mm³/s)',
     pf_role: 'Ruch', pf_share: 'Czasu', pf_mean: 'Średnio', pf_fix: 'Popraw', pf_applied: 'Zapisane w {names}. Potnij ponownie, żeby sprawdzić.',
     pf_lv_stop: 'krytyczne', pf_lv_warn: 'ostrzeżenie', pf_lv_info: 'informacja',
+    pf_process: 'Przelicz proces i użyj', pf_process_busy: 'Przeliczam…',
+    pf_process_done: 'Proces „{name}” przeliczony dla {lim} mm³/s ({n} zmian).',
+    pf_selected: 'Proces „{name}” jest wybrany w Orce. Potnij ponownie: Kontrola sprawdzi wynik.',
+    pf_select_hand: 'Proces „{name}” jest zapisany, ale Orka nie dała go wybrać z wtyczki. Wybierz go w Przygotuj → Proces i potnij ponownie.',
     pf_accept: 'Limit jest sprawdzony', pf_accepted: 'Zapisane jako Twój pomiar: kontrola nie będzie już o to pytać.',
     pf_profile_behind: 'Profil nie zgadza się z Twoimi pomiarami', pfw_profile_behind: 'Wydruk pocięto z innymi wartościami niż zmierzyłeś ({n}): {keys}. Popraw zapisze Twoje pomiary w presecie (FF albo jego kopii FF), a potem potnij ponownie.',
     pf_flow_over_measured: 'Przepływ ponad Twój pomiar', pf_flow_at_limit: 'Druk na granicy przepływu', pf_spool_short: 'Za mało filamentu',
@@ -786,6 +790,10 @@ const T = {
     pf_peak: 'Peak flow', pf_measured_short: 'measured {v}', pf_flow: 'Flow by feature (mm³/s)',
     pf_role: 'Feature', pf_share: 'Time', pf_mean: 'Mean', pf_fix: 'Fix', pf_applied: 'Saved in {names}. Slice again to check.',
     pf_lv_stop: 'critical', pf_lv_warn: 'warning', pf_lv_info: 'info',
+    pf_process: 'Recalculate the process and use it', pf_process_busy: 'Recalculating…',
+    pf_process_done: 'Process “{name}” recalculated for {lim} mm³/s ({n} changes).',
+    pf_selected: 'Process “{name}” is selected in OrcaSlicer. Slice again: the Check will see the result.',
+    pf_select_hand: 'Process “{name}” is saved, but OrcaSlicer did not let the plugin select it. Pick it in Prepare → Process and slice again.',
     pf_accept: 'The limit is checked', pf_accepted: 'Saved as your measurement: the check won’t ask about it again.',
     pf_profile_behind: 'The profile differs from your measurements', pfw_profile_behind: 'The print was sliced with other values than you measured ({n}): {keys}. Fix writes your measurements into the preset (FF or an FF copy of it); then slice again.',
     pf_flow_over_measured: 'Flow above your measurement', pf_flow_at_limit: 'Printing at the flow limit', pf_spool_short: 'Not enough filament',
@@ -1900,6 +1908,7 @@ function renderPreflight() {
     if (v.role) v.role = t('role_' + v.role);
     const rows = (x.changes || []).length ? `<table class="chg">${x.changes.map(c => `<tr><td>${esc(dfLabel(c.key))}</td><td>${esc(dfValue(c.before))} → <b>${esc(dfValue(c.after))}</b></td></tr>`).join('')}</table>` : '';
     let btn = (x.changes || []).length ? `<button data-pf="${i}">${esc(t('pf_fix'))}</button>` : '';
+    if (r.can_fit && (x.code === 'flow_over_measured' || x.code === 'flow_at_limit')) btn += `<button data-pf-process="1">${esc(t('pf_process'))}</button>`;
     if (x.accept) btn += `<button data-pf-accept="${i}">${esc(t('pf_accept'))}</button>`;
     if (x.test && TEST_CALIB[x.test]) btn += `<button class="secondary" data-pf-test="${esc(x.test)}">${esc(t('df_enter'))}</button>`;
     const how = x.test ? `<div class="note" style="margin-top:4px">${esc(t('tst_' + x.test))}</div>` : '';
@@ -1923,6 +1932,8 @@ $('btn-pf-again').addEventListener('click', () => send({cmd: 'preflight'}));
 $('pf-list').addEventListener('click', e => {
   const b = e.target.closest('[data-pf]'), tb = e.target.closest('[data-pf-test]');
   if (tb) { openCalibFor(PF.report.filament, tb.dataset.pfTest); return; }
+  const pb = e.target.closest('[data-pf-process]');
+  if (pb) { pb.disabled = true; pb.textContent = t('pf_process_busy'); send({cmd: 'preflight_process'}); return; }
   const ab = e.target.closest('[data-pf-accept]');
   if (ab && PF.report) {
     const x = PF.report.findings[+ab.dataset.pfAccept];
@@ -2162,6 +2173,14 @@ function onMessage(m) {
     case 'preflight':
       PF.report = m.report;
       pfBadge();
+      if ($('dlg-preflight').open) renderPreflight();
+      break;
+    case 'preflight_process':
+      if (m.saved) S.saved = m.saved;
+      toast(t('pf_process_done', {name: m.name, n: m.changes, lim: fmtExact(m.limit)}));
+      break;
+    case 'preflight_selected':
+      toast(t(m.ok ? 'pf_selected' : 'pf_select_hand', {name: m.name}), !m.ok);
       if ($('dlg-preflight').open) renderPreflight();
       break;
     case 'preflight_accepted':

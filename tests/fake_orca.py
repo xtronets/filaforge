@@ -133,7 +133,11 @@ def install(filament_presets, user_file=""):
     model = types.SimpleNamespace(objects=lambda: list(orca.plate))
     orca.host = types.SimpleNamespace(preset_bundle=lambda: bundle, model=lambda: model,
                                       preset=types.SimpleNamespace(bundles=types.SimpleNamespace(
-                                          reload_local=reload_local, list_ids=lambda: ["filaforge"])))
+                                          reload_local=reload_local, list_ids=lambda: ["filaforge"]),
+                                          process=types.SimpleNamespace(
+                                              begin_update=lambda name="": types.SimpleNamespace(
+                                                  commit=lambda: orca.selected.append(name)))))
+    orca.selected = []
     sys.modules["orca"] = orca
     sys.modules["orca.pages"] = pages
     return orca
