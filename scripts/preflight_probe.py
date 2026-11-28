@@ -80,6 +80,10 @@ def main(app, out):
         return 1
     root = os.path.dirname(found[0])
     print("profiles:", root)
+    for dirpath, dirs, files in os.walk(found[0]):
+        print(" ", dirpath, len(dirs), "dirs", len(files), "files", files[:5])
+        break
+    print(" ", sorted(os.listdir(found[0]))[:20])
     profiles = index(root)
     paths = {}
     for kind, name, key in (("machine", PRINTER, "printer"), ("process", PROCESS, "process"),
