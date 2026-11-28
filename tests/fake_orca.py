@@ -70,6 +70,9 @@ def install(filament_presets, user_file=""):
     pages.PagesPluginCapabilityBase = PagesPluginCapabilityBase
     orca.pages = pages
     orca.PluginType = types.SimpleNamespace(Pages="pages")
+    orca.LifecycleEvent = types.SimpleNamespace(GCodeExportStarted="GCodeExportStarted",
+                                                GCodeExportFinished="GCodeExportFinished")
+    orca.LifecycleEvtCode = types.SimpleNamespace(Ok="Ok", Error="Error", Warn="Warn")
     orca.registered = []
     orca.plugin = lambda cls: orca.registered.append(cls) or cls
 

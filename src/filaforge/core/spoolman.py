@@ -81,6 +81,16 @@ class Client:
     def filament(self, fid):
         return self.call("GET", "filament/%d" % int(fid))
 
+    def spools(self, fid):
+        """[{id, remaining_weight, location}] of the filament's spools that are not archived."""
+        out = []
+        for sp in self.call("GET", "spool?filament.id=%d" % int(fid)) or []:
+            if sp.get("archived") or (sp.get("filament") or {}).get("id") not in (None, int(fid)):
+                continue
+            out.append({"id": sp.get("id"), "remaining_weight": sp.get("remaining_weight"),
+                        "location": sp.get("location") or ""})
+        return out
+
     def ensure_field(self):
         fields = {f.get("key") for f in self.call("GET", "field/filament") or []}
         if FIELD not in fields:

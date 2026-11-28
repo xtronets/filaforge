@@ -173,7 +173,16 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
 .count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; font-size: 11px; font-weight: 700;
          background: var(--estimated); color: #fff; line-height: 18px; text-align: center; }
 .count.error { background: var(--bad); }
-#dlg-review, #dlg-history { width: min(860px, 94vw); }
+#dlg-review, #dlg-history, #dlg-preflight { width: min(860px, 94vw); }
+.pf-head { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; margin: 8px 0 10px; color: var(--muted); }
+.pf-head b { color: var(--fg, inherit); font-weight: 650; }
+.cause.lv-stop { border-color: var(--bad); box-shadow: inset 3px 0 0 var(--bad); }
+.cause.lv-warn { border-color: var(--estimated); box-shadow: inset 3px 0 0 var(--estimated); }
+.pf-ok { padding: 14px; border: 1px dashed var(--border); border-radius: 9px; font-size: 12.5px; text-align: center; }
+.pf-flow { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 6px; }
+.pf-flow th, .pf-flow td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--border); }
+.pf-flow th:first-child, .pf-flow td:first-child { text-align: left; }
+.pf-flow td.over { color: var(--bad); font-weight: 650; }
 .issues { max-height: 62vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .issue { border: 1px solid var(--border); border-left: 4px solid var(--estimated); border-radius: 8px; padding: 8px 10px; font-size: 12px;
          display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
@@ -249,6 +258,7 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   </div>
   <span class="chip" id="printer-chip" title=""></span>
   <span class="spacer"></span>
+  <button class="secondary hb" id="btn-preflight"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg><span data-t="pf"></span><span class="count" id="pf-count" hidden></span></button>
   <button class="secondary hb" id="btn-defects"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 10a5 5 0 0 1-6.6 4.7L7.5 21.6a2.1 2.1 0 0 1-3-3l6.9-6.9A5 5 0 0 1 16.1 5z"/><path d="m14.7 6.3 2.3-2.3"/></svg><span data-t="df"></span><span class="count" id="df-count" hidden></span></button>
   <button class="secondary hb" id="btn-review"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9z"/><path d="m9 13.5 2 2 4-4.5"/></svg><span data-t="review"></span><span class="count" id="review-count" hidden></span></button>
   <button class="secondary hb" id="btn-saved"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z"/></svg><span data-t="saved"></span></button>
@@ -399,6 +409,17 @@ dialog .foot { padding: 10px 16px; border-top: 1px solid var(--border); display:
   <div class="foot"><button class="secondary" id="btn-history" data-t="history" style="margin-right:auto"></button><button class="secondary" data-close data-t="close"></button></div>
 </dialog>
 
+<dialog id="dlg-preflight">
+  <div class="head" data-t="pf_title"></div>
+  <div class="body">
+    <div class="note" data-t="pf_note"></div>
+    <div id="pf-head" class="pf-head"></div>
+    <div class="df-plan" id="pf-list"></div>
+    <details id="pf-flow-box" hidden><summary data-t="pf_flow"></summary><table class="pf-flow" id="pf-flow"></table></details>
+  </div>
+  <div class="foot"><button class="secondary" id="btn-pf-again" data-t="pf_again" style="margin-right:auto"></button><button class="secondary" data-close data-t="close"></button></div>
+</dialog>
+
 <dialog id="dlg-review">
   <div class="head" data-t="review_title"></div>
   <div class="body"><div class="note" data-t="review_note"></div><div class="issues" id="issues"></div></div>
@@ -441,6 +462,25 @@ const T = {
     df: 'Defekty', df_title: 'Defekty wydruku',
     df_note: 'Wybierz defekt. FilaForge sprawdzi filament i proces, którymi drukowałeś, i ułoży przyczyny od najbardziej prawdopodobnej. Twojego presetu nie zmienia: poprawia preset FF albo robi jego kopię FF.',
     df_rule: 'Jedna zmiana naraz: wydrukuj ponownie i powiedz, czy pomogło.',
+    pf: 'Kontrola', pf_title: 'Kontrola przed wydrukiem',
+    pf_note: 'Po każdym pocięciu FilaForge czyta G-code, który Orka napisała, i porównuje go z Twoimi pomiarami, presetem i szpulą. Każde ostrzeżenie ma liczby, na których się opiera.',
+    pf_none: 'Nic jeszcze nie pocięto. Potnij model w Orce, a wynik pojawi się tutaj.', pf_clean: 'Nic nie budzi zastrzeżeń: przepływ, szpula, retrakcje i pierwsza warstwa w normie.',
+    pf_again: 'Sprawdź ponownie', pf_file: 'Plik', pf_filament: 'Filament', pf_time: 'Czas', pf_used: 'Zużycie', pf_layers: 'Warstwy',
+    pf_peak: 'Szczyt przepływu', pf_measured_short: 'zmierzone {v}', pf_flow: 'Przepływ według rodzaju ruchu (mm³/s)',
+    pf_role: 'Ruch', pf_share: 'Czasu', pf_mean: 'Średnio', pf_fix: 'Popraw', pf_applied: 'Zapisane w {names}. Potnij ponownie, żeby sprawdzić.',
+    pf_lv_stop: 'krytyczne', pf_lv_warn: 'ostrzeżenie', pf_lv_info: 'informacja',
+    pf_flow_over_measured: 'Przepływ ponad Twój pomiar', pf_flow_at_limit: 'Druk na granicy przepływu', pf_spool_short: 'Za mało filamentu',
+    pf_spool_tight: 'Filamentu na styk', pf_retractions: 'Dużo retrakcji', pf_warp_brim: 'Duża pierwsza warstwa bez brimu',
+    pfw_flow_over_measured: 'Przez {share}% czasu druku przepływ przekracza Twój pomiar maks. przepływu ({measured} mm³/s), najwięcej w: {role}. Szczyt: {peak} mm³/s. Hotend nie nadąży i warstwy wyjdą niedolane. Preset pozwala na {preset} mm³/s.',
+    pfw_flow_at_limit: 'Przez {share}% czasu druk idzie na granicy przepływu z presetu ({preset} mm³/s, szczyt {peak}). Bez pomiaru nie wiadomo, czy ten filament tyle stopi: zrób test maks. przepływu.',
+    pfw_spool_short: 'Wydruk potrzebuje {need} g, a na szpuli {spool} zostało {left} g. Wydruk skończy się przed czasem.',
+    pfw_spool_tight: 'Wydruk potrzebuje {need} g, a na szpuli {spool} zostało {left} g. Zapas jest mniejszy niż 10%.',
+    pfw_retractions: '{cls}: {layers} warstw ma ponad {limit} retrakcji (najwięcej {max} na wysokości {z} mm). Tyle retrakcji grozi nitkowaniem i zmieleniem filamentu. Omijanie ścian przy przejazdach ogranicza ich liczbę.',
+    pfw_warp_brim: 'Pierwsza warstwa ma ok. {area} cm² z {cls}, bez brimu. Duża, płaska powierzchnia tego materiału łatwo się odkleja na rogach.',
+    role_outer_wall: 'ściana zewn.', role_inner_wall: 'ściany wewn.', role_overhang: 'nawisy', role_sparse_infill: 'wypełnienie',
+    role_solid_infill: 'wypełnienie pełne', role_top_surface: 'góra', role_bottom_surface: 'spód', role_bridge: 'mosty',
+    role_internal_bridge: 'mosty wewn.', role_gap_infill: 'szczeliny', role_support: 'podpory', role_support_interface: 'interfejs podpór', role_brim: 'brim',
+    why_preflight: 'przed poprawką z Kontroli',
     dfh_open: 'Historia napraw', dfh_back: 'Wróć do defektów', dfh_title: 'Historia napraw', dfh_all: 'wszystkie filamenty',
     dfh_none: 'Jeszcze nic nie próbowano.', dfh_pending: 'czeka na wydruk', df_enter: 'Wpisz wynik testu',
     el_good: 'pomogło przy: {names}', el_bad: 'nie pomogło przy: {names}',
@@ -717,6 +757,25 @@ const T = {
     df: 'Defects', df_title: 'Print defects',
     df_note: 'Pick the defect. FilaForge checks the filament and process you printed with and lists the causes, likeliest first. Your own preset is never changed: the fix goes into the FF preset or a new FF copy.',
     df_rule: 'One change at a time: reprint and say whether it helped.',
+    pf: 'Check', pf_title: 'Pre-flight check',
+    pf_note: 'After every slice FilaForge reads the G-code OrcaSlicer wrote and checks it against your measurements, the preset and the spool. Every warning shows the numbers it rests on.',
+    pf_none: 'Nothing sliced yet. Slice a model in OrcaSlicer and the result shows up here.', pf_clean: 'Nothing to worry about: flow, spool, retractions and first layer are fine.',
+    pf_again: 'Check again', pf_file: 'File', pf_filament: 'Filament', pf_time: 'Time', pf_used: 'Used', pf_layers: 'Layers',
+    pf_peak: 'Peak flow', pf_measured_short: 'measured {v}', pf_flow: 'Flow by feature (mm³/s)',
+    pf_role: 'Feature', pf_share: 'Time', pf_mean: 'Mean', pf_fix: 'Fix', pf_applied: 'Saved in {names}. Slice again to check.',
+    pf_lv_stop: 'critical', pf_lv_warn: 'warning', pf_lv_info: 'info',
+    pf_flow_over_measured: 'Flow above your measurement', pf_flow_at_limit: 'Printing at the flow limit', pf_spool_short: 'Not enough filament',
+    pf_spool_tight: 'Filament is tight', pf_retractions: 'Many retractions', pf_warp_brim: 'Large first layer with no brim',
+    pfw_flow_over_measured: 'For {share}% of the print time the flow is above your max flow measurement ({measured} mm³/s), most in: {role}. Peak: {peak} mm³/s. The hotend can’t keep up and the layers come out under-extruded. The preset allows {preset} mm³/s.',
+    pfw_flow_at_limit: 'For {share}% of the time the print runs at the preset’s flow limit ({preset} mm³/s, peak {peak}). Without a measurement there is no telling whether this filament melts that fast: run the max flow test.',
+    pfw_spool_short: 'The print needs {need} g and spool {spool} has {left} g left. It will run out before the end.',
+    pfw_spool_tight: 'The print needs {need} g and spool {spool} has {left} g left. Less than 10% to spare.',
+    pfw_retractions: '{cls}: {layers} layers have more than {limit} retractions (at most {max} at {z} mm). That many risk stringing and grinding the filament. Avoiding crossing walls cuts their number.',
+    pfw_warp_brim: 'The first layer has about {area} cm² of {cls}, with no brim. A large flat area of this material easily lifts at the corners.',
+    role_outer_wall: 'outer wall', role_inner_wall: 'inner walls', role_overhang: 'overhangs', role_sparse_infill: 'sparse infill',
+    role_solid_infill: 'solid infill', role_top_surface: 'top surface', role_bottom_surface: 'bottom surface', role_bridge: 'bridges',
+    role_internal_bridge: 'internal bridges', role_gap_infill: 'gap fill', role_support: 'supports', role_support_interface: 'support interface', role_brim: 'brim',
+    why_preflight: 'before a fix from the Check',
     dfh_open: 'Fix history', dfh_back: 'Back to defects', dfh_title: 'Fix history', dfh_all: 'all filaments',
     dfh_none: 'Nothing tried yet.', dfh_pending: 'waiting for a print', df_enter: 'Enter the test result',
     el_good: 'helped with: {names}', el_bad: 'did not help with: {names}',
@@ -1763,6 +1822,71 @@ document.body.addEventListener('click', e => {
   if (b) setEnclosed(b.dataset.enclosed === '1');
 });
 $('btn-defects').addEventListener('click', dfOpen);
+const PF = {report: null};
+function fmtDur(sec) {
+  sec = Math.round(sec || 0);
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+function pfBadge() {
+  const f = (PF.report && PF.report.findings) || [];
+  const stop = f.filter(x => x.level === 'stop').length, warn = f.filter(x => x.level === 'warn').length;
+  const el = $('pf-count');
+  el.hidden = !(stop || warn);
+  el.textContent = stop || warn;
+  el.classList.toggle('error', !!stop);
+}
+function renderPreflight() {
+  const r = PF.report;
+  if (!r) {
+    $('pf-head').innerHTML = '';
+    $('pf-list').innerHTML = `<div class="pf-ok">${esc(t('pf_none'))}</div>`;
+    $('pf-flow-box').hidden = true;
+    return;
+  }
+  $('pf-head').innerHTML = [
+    [t('pf_file'), r.file], [t('pf_filament'), r.filament || '–'], [t('pf_time'), fmtDur(r.time)],
+    [t('pf_used'), r.filament_g != null ? fmtExact(r.filament_g) + ' g' : '–'], [t('pf_layers'), r.layers],
+    [t('pf_peak'), fmtExact(r.peak_flow) + ' mm³/s' + (r.measured_mvs ? ' / ' + t('pf_measured_short', {v: fmtExact(r.measured_mvs)}) : '')],
+  ].map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('');
+  const f = r.findings || [];
+  $('pf-list').innerHTML = f.length ? f.map((x, i) => {
+    const v = Object.assign({}, x.vars || {});
+    if (v.role) v.role = t('role_' + v.role);
+    const rows = (x.changes || []).length ? `<table class="chg">${x.changes.map(c => `<tr><td>${esc(dfLabel(c.key))}</td><td>${esc(dfValue(c.before))} → <b>${esc(dfValue(c.after))}</b></td></tr>`).join('')}</table>` : '';
+    const btn = (x.changes || []).length ? `<button data-pf="${i}">${esc(t('pf_fix'))}</button>`
+      : x.test && TEST_CALIB[x.test] ? `<button class="secondary" data-pf-test="${esc(x.test)}">${esc(t('df_enter'))}</button>` : '';
+    const how = x.test ? `<div class="note" style="margin-top:4px">${esc(t('tst_' + x.test))}</div>` : '';
+    return `<div class="cause lv-${x.level}"><div class="name">${esc(t('pf_' + x.code))} <span class="kind">${esc(t('pf_lv_' + x.level))}</span></div>
+      <div class="why">${esc(t('pfw_' + x.code, v))}${rows}${how}</div><div class="go">${btn}</div></div>`;
+  }).join('') : `<div class="pf-ok">${esc(t('pf_clean'))}</div>`;
+  const roles = Object.entries(r.roles || {}).sort((a, b) => b[1].time - a[1].time);
+  $('pf-flow-box').hidden = !roles.length;
+  const lim = r.measured_mvs || r.preset_mvs;
+  $('pf-flow').innerHTML = `<tr><th>${esc(t('pf_role'))}</th><th>${esc(t('pf_share'))}</th><th>${esc(t('pf_mean'))}</th><th>p95</th><th>max</th></tr>` +
+    roles.map(([k, v]) => {
+      const tot = roles.reduce((a, [, w]) => a + w.time, 0) || 1;
+      return `<tr><td>${esc(t('role_' + k))}</td><td>${Math.round(v.time / tot * 100)}%</td><td>${fmtExact(v.mean_flow)}</td>
+        <td class="${lim && v.p95_flow > lim ? 'over' : ''}">${fmtExact(v.p95_flow)}</td><td class="${lim && v.max_flow > lim ? 'over' : ''}">${fmtExact(v.max_flow)}</td></tr>`;
+    }).join('');
+}
+$('btn-preflight').addEventListener('click', () => { renderPreflight(); $('dlg-preflight').showModal(); send({cmd: 'preflight'}); });
+$('btn-pf-again').addEventListener('click', () => send({cmd: 'preflight'}));
+$('pf-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-pf]'), tb = e.target.closest('[data-pf-test]');
+  if (tb) {
+    $('dlg-preflight').close();
+    renderCalib();
+    $('c-test').value = TEST_CALIB[tb.dataset.pfTest];
+    renderCalib();
+    $('c-test').scrollIntoView({behavior: 'smooth', block: 'center'});
+    return;
+  }
+  if (!b || !PF.report) return;
+  const x = PF.report.findings[+b.dataset.pf];
+  b.disabled = true;
+  send({cmd: 'preflight_apply', code: x.code, changes: x.changes, filament: PF.report.filament});
+});
 $('df-list').addEventListener('click', e => {
   const b = e.target.closest('[data-defect]');
   if (!b) return;
@@ -1863,6 +1987,7 @@ function onMessage(m) {
       lang(); translate(); renderPrinter(); renderDefectPending();
       if (S.settings.spoolman_url) send({cmd: 'spoolman_list'}); else { setPick('manual'); renderSpools(); }
       send({cmd: 'orca_filaments'});
+      send({cmd: 'preflight'});
       break;
     case 'orca_filaments':
       S.orca = m.items || [];
@@ -1972,6 +2097,18 @@ function onMessage(m) {
       $('btn-process-save').disabled = !m.changes.length;
       $('p-note').textContent = m.layer_height ? t('layer', {h: m.layer_height}) : '';
       renderWarnings();
+      break;
+    case 'preflight':
+      PF.report = m.report;
+      pfBadge();
+      if ($('dlg-preflight').open) renderPreflight();
+      break;
+    case 'preflight_ready':
+      send({cmd: 'preflight'});
+      break;
+    case 'preflight_applied':
+      if (m.saved) S.saved = m.saved;
+      toast(t('pf_applied', {names: [m.written && m.written.filament, m.written && m.written.process].filter(Boolean).join(', ')}));
       break;
     case 'defect_history':
       renderDefectHistory(m);

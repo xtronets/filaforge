@@ -92,6 +92,20 @@ if orca is not None:
                     return
             self._tab.handle(data)
 
+        def on_lifecycle_event(self, event, ctx):
+            # after every G-code export (the preview's too) OrcaSlicer passes its path in ctx.msg; this runs on the
+            # slicing thread, so it only starts the reading in the background (pre-flight check)
+            try:
+                events = getattr(orca, "LifecycleEvent", None)
+                codes = getattr(orca, "LifecycleEvtCode", None)
+                if events is None or event != events.GCodeExportFinished:
+                    return
+                if codes is not None and ctx.code != codes.Ok:
+                    return
+                _plugin.Preflight.on_exported(ctx.msg)
+            except Exception:
+                _plugin.log.exception("pre-flight event")
+
         def on_load(self):
             _plugin._setup_log()
             _plugin.log.info("FilaForge %s loaded", _plugin.VERSION)

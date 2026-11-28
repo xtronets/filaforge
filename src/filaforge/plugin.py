@@ -8,13 +8,14 @@ import json
 import logging
 import os
 import re
+import tempfile
 import threading
 import traceback
 import webbrowser
 
 import orca
 
-from .core import cooling, defects, files, habits, history, measured, merge, process, research, review, spoolman, writer
+from .core import cooling, defects, files, gcode, preflight, habits, history, measured, merge, process, research, review, spoolman, writer
 from .core.model import Identity
 from .core.net import Fetcher
 from .core.sources import ofd, orca_presets, spoolmandb
@@ -121,8 +122,9 @@ def request_permissions():
             if o and o not in network:
                 network.append(o)
         # its own folder; the user preset folders its bundle lives in; Spooler's settings (the Spoolman address)
+        # and the temporary folder: OrcaSlicer writes the sliced G-code there, which the pre-flight check reads
         files = dict(fs_readwrite=[own_dir(), os.path.join(data_dir(), "user")],
-                     fs_read=[os.path.join(data_dir(), "orca_plugins", "config.json")])
+                     fs_read=[os.path.join(data_dir(), "orca_plugins", "config.json"), tempfile.gettempdir()])
         try:
             request(threading=True, network_http=network, **files)
         except TypeError:       # an OrcaSlicer without some of these
@@ -735,6 +737,69 @@ def spawn(fn, *args):
     return thread
 
 
+# --- pre-flight: the G-code OrcaSlicer just wrote ----------------------------------------------------------------
+class Preflight:
+    """The last sliced G-code, read in the background. OrcaSlicer calls on_exported on its slicing thread after
+    every export (the preview's too): reading waits for nothing, and a newer export replaces an older reading."""
+
+    lock = threading.Lock()
+    result = None           # gcode.Result of the newest export
+    path = ""
+    at = 0.0
+    generation = 0
+    listeners = []          # post functions of open pages
+
+    @classmethod
+    def on_exported(cls, path):
+        if not path or not str(path).lower().endswith((".gcode", ".gco", ".g")):
+            return
+        with cls.lock:
+            cls.generation += 1
+            mine = cls.generation
+        return spawn(cls._read, str(path), mine)
+
+    @classmethod
+    def _read(cls, path, mine):
+        import time
+        try:
+            result = gcode.read(path)
+        except OSError as error:
+            log.info("pre-flight: %s not read: %s", path, error)
+            return
+        with cls.lock:
+            if mine != cls.generation:
+                return          # a newer export came meanwhile
+            cls.result, cls.path, cls.at = result, path, time.time()
+            listeners = list(cls.listeners)
+        log.info("pre-flight: read %s (%d layers)", os.path.basename(path), len(result.layers))
+        for post in listeners:
+            try:
+                post({"cmd": "preflight_ready", "file": os.path.basename(path)})
+            except Exception:
+                log.exception("pre-flight notice")
+
+
+def preflight_context(bundle, result):
+    """ctx for preflight.check from the presets the G-code was sliced with (read on the UI thread)."""
+    fil_name = result.setting("filament_settings_id") or ""
+    preset = bundle.filaments.find_preset(fil_name) if fil_name else None
+    config = _config(preset) if preset is not None else {}
+    ident = preset_identity(bundle, fil_name, config) if fil_name else None
+    printer = printer_info(bundle)
+    nozzle = result.number("nozzle_diameter") or printer["nozzle"]
+    model = result.setting("printer_model") or printer["model"]
+    cls = habits.material_class(ident.material, ident.product) if ident else \
+        habits.material_class(result.setting("filament_type") or "", "")
+    mine = store().get(ident, model, nozzle) if ident else {}
+    spool = None
+    if fil_name.startswith(FF_PREFIX):
+        _, meta = find_saved(bundle, fil_name[len(FF_PREFIX):])
+        spool = (meta or {}).get("spoolman_id")
+    return {"cls": cls, "measured_mvs": mine.get("max_volumetric_speed"), "filament": fil_name,
+            "process": result.setting("print_settings_id") or "", "spoolman_id": spool,
+            "label": orca_presets.bare_name(fil_name) if fil_name else ""}
+
+
 def fetcher():
     return Fetcher(os.path.join(own_dir(), "cache"))
 
@@ -792,6 +857,52 @@ class Tab:
             self.on_review({"quiet": True})
         except Exception:
             log.exception("review on start")
+
+    # -- pre-flight
+    def on_preflight(self, data):
+        with Preflight.lock:
+            result, path, at = Preflight.result, Preflight.path, Preflight.at
+            if self.post not in Preflight.listeners:
+                Preflight.listeners.append(self.post)
+        if result is None:
+            self.reply("preflight", report=None)
+            return
+        ctx = preflight_context(orca.host.preset_bundle(), result)
+        settings = read_settings()
+
+        def work():
+            if ctx["spoolman_id"] and settings["spoolman_url"]:
+                try:
+                    spools = spoolman.Client(settings["spoolman_url"]).spools(ctx["spoolman_id"])
+                    weights = [s["remaining_weight"] for s in spools if isinstance(s.get("remaining_weight"),
+                                                                                     (int, float))]
+                    if weights:
+                        # several spools: held to the fullest one, so a stop is never a false alarm
+                        ctx["spool_left_g"] = max(weights)
+                        ctx["spool_label"] = "%s (#%s)" % (ctx["label"], max(spools, key=lambda s: s.get(
+                            "remaining_weight") or 0)["id"])
+                except spoolman.SpoolmanError as error:
+                    log.info("pre-flight spool: %s", error)
+            report = preflight.check(result, ctx)
+            report.update(file=os.path.basename(path), at=at, filament=ctx["filament"], process=ctx["process"],
+                          cls=ctx["cls"])
+            self.reply("preflight", report=report)
+        spawn(work)
+
+    def on_preflight_apply(self, data):
+        changes = [c for c in (data.get("changes") or []) if isinstance(c, dict) and c.get("target") in
+                   ("filament", "process") and c.get("key") and c.get("after") is not None]
+        if not changes:
+            return
+        bundle = orca.host.preset_bundle()
+        ctx, info, chosen, proc_preset = defect_context(bundle, data.get("slot"))
+        want = str(data.get("filament") or "")
+        if want:
+            match = [(n, p) for n, p in plate_filaments(bundle) if str(p.name) == want]
+            if match:
+                ctx, info, chosen, proc_preset = defect_context(bundle, match[0][0])
+        written = write_fix(bundle, info, chosen, proc_preset, changes, reason="preflight")
+        self.reply("preflight_applied", code=data.get("code"), written=written, saved=saved_presets(bundle))
 
     def on_orca_filaments(self, data):
         self.reply("orca_filaments", items=user_filaments(orca.host.preset_bundle()))

@@ -37,6 +37,8 @@ class PluginTests(unittest.TestCase):
         self.page = page_cls()
 
     def tearDown(self):
+        self.plugin.Preflight.result = None
+        self.plugin.Preflight.listeners = []
         sys.modules.pop("orca", None)
         sys.modules.pop("orca.pages", None)
 
@@ -459,6 +461,37 @@ class PluginTests(unittest.TestCase):
         key = self.plugin.review.SYNC_KEYS[nxt["changes"][0]["key"]]
         self.assertEqual(self.plugin.store().get(ident, "Creality K1C", 0.4)[key],
                          float(nxt["changes"][0]["after"]))
+
+    def test_preflight(self):
+        import types
+        import test_gcode
+        from filaforge.core import measured
+        self.send(cmd="init")
+        none = self.last("preflight", self.send(cmd="preflight"))
+        self.assertIsNone(none["report"])
+        lines = test_gcode.fake_gcode(speed=200.0, infill_speed=300.0, config={
+            "filament_settings_id": '"Generic PLA @K1C-all"', "filament_type": "PLA", "nozzle_diameter": "0.4",
+            "print_settings_id": '"0.20mm Standard @Creality K1C"'})
+        path = os.path.join(self.data, "plate_1.gcode")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        # the user measured 20 mm³/s for this filament: the infill (27) goes past it
+        ident = self.plugin.preset_identity(self.plugin.orca.host.preset_bundle(), "Generic PLA @K1C-all",
+                                            {"filament_type": "PLA", "filament_vendor": "Generic"})
+        self.plugin.store().set(ident, "*", {"max_volumetric_speed": 20}, nozzle=0.4)
+        before = len(self.page.posted)
+        self.page.on_lifecycle_event("GCodeExportStarted", types.SimpleNamespace(code="Ok", msg=path))
+        self.page.on_lifecycle_event("GCodeExportFinished", types.SimpleNamespace(code="Error", msg=path))
+        self.assertIsNone(self.plugin.Preflight.result)
+        self.page.on_lifecycle_event("GCodeExportFinished", types.SimpleNamespace(code="Ok", msg=path))
+        self.assertTrue([m for m in self.page.posted[before:] if m.get("cmd") == "preflight_ready"])
+        report = self.last("preflight", self.send(cmd="preflight"))["report"]
+        codes = {f["code"]: f for f in report["findings"]}
+        self.assertEqual(codes["flow_over_measured"]["vars"]["measured"], "20")
+        self.assertEqual(report["filament"], "Generic PLA @K1C-all")
+        self.assertEqual(report["file"], "plate_1.gcode")
+        self.assertEqual(report["layers"], 5)
+        self.assertEqual(measured.identity_key(ident), measured.identity_key(ident))
 
     def test_defect_history(self):
         self.send(cmd="init")
