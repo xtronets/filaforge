@@ -355,12 +355,10 @@ def _refused(error):
     return "invalid preset" in str(error)
 
 
-def bare_filament(preset, identity, printer):
-    """The same filament preset with nothing but its identity: what install() falls back to, key by key, when
-    OrcaSlicer refuses the full one (a value from the base preset can be the one it refuses, not only ours)."""
-    return writer.filament_preset(preset["name"], {}, {"filament_type": _clean(preset.get("filament_type")) or
-                                                       identity.material}, printer, identity,
-                                  measured.identity_key(identity), preset.get("description") or "")
+def bare_filament(preset, identity=None, printer=None):
+    """The same filament preset with nothing but OrcaSlicer's own fields: what install() falls back to, key by
+    key, when OrcaSlicer refuses the full one (any value can be the one it refuses: from the base preset, or ours)."""
+    return writer.essentials(preset)
 
 
 def keep_refused(preset):
@@ -421,7 +419,7 @@ def install(preset, bundle, printer="", meta=None, reason="replaced", plain=None
         if plain is None:
             keep_refused(preset)
             raise last
-        keys = [k for k in preset if k not in writer.FLAT_SKIP and preset[k] != plain.get(k)]
+        keys = [k for k in preset if k not in writer.ESSENTIAL and preset[k] != plain.get(k)]
 
         def without(left_out):
             out = dict(preset)

@@ -685,7 +685,7 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(p["inherits"], "")
         self.assertTrue(p["filament_id"].startswith("FFG"))
         self.assertEqual(p["compatible_printers"], ["Creality K1C 0.4 nozzle"])
-        self.assertEqual(p["filament_colour"], ["#FFFFFF"])
+        self.assertEqual(p["default_filament_colour"], ["#FFFFFF"])
         self.assertEqual(writer.problem(p), "")
         bad = dict(p, nozzle_temperature=["hot"])
         self.assertIn("not a number", writer.problem(bad))
@@ -838,3 +838,15 @@ class FetcherCacheTests(unittest.TestCase):
             fresh = net.Fetcher(folder, ttl=net.KEEP, opener=opener, refresh=True)
             self.assertEqual(fresh.json("https://x.test/a"), {"n": 2})
             self.assertEqual(fresh.downloads, 1)
+
+
+
+class ColourKeyTests(unittest.TestCase):
+    def test_no_filament_colour(self):
+        from filaforge.core import writer
+        from filaforge.core.model import Identity
+        preset = writer.filament_preset("X FF", {"filament_colour": "#000000", "filament_type": "PLA"}, {},
+                                        "Snapmaker U1", Identity("Sunlu", "PLA", "PLA+", "#ffffff"), "k")
+        self.assertNotIn("filament_colour", preset)
+        self.assertEqual(preset["default_filament_colour"], ["#FFFFFF"])
+        self.assertEqual(set(writer.essentials(preset)) - set(writer.ESSENTIAL), set())

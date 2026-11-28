@@ -91,9 +91,23 @@ def filament_preset(name, base_config, settings, printer, identity, identity_key
         "compatible_printers": [printer] if printer else [], "compatible_printers_condition": "",
         "filament_vendor": [identity.brand], "description": description or "FilaForge",
     })
+    # the colour goes in default_filament_colour: OrcaSlicer 2.5 refuses a filament preset with "filament_colour"
+    # (a project setting, one per slot), and with it the whole bundle
+    flat.pop("filament_colour", None)
     if identity.colour and re.match(r"^#[0-9A-Fa-f]{6}$", identity.colour):
-        flat["filament_colour"] = [identity.colour.upper()]
+        flat["default_filament_colour"] = [identity.colour.upper()]
     return flat
+
+
+# what a filament preset cannot do without: OrcaSlicer's own fields and FilaForge's identity
+ESSENTIAL = ("type", "name", "from", "instantiation", "inherits", "version", "filament_settings_id", "filament_id",
+             "compatible_printers", "filament_type")
+
+
+def essentials(preset):
+    """The preset with nothing but ESSENTIAL: what install() falls back to key by key when OrcaSlicer refuses
+    the whole one."""
+    return {k: preset[k] for k in ESSENTIAL if k in preset}
 
 
 def culprits(keys, loads):
